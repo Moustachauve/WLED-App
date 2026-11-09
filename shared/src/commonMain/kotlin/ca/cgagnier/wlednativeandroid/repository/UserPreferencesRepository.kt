@@ -34,6 +34,9 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
     val soundSyncSquelch: Flow<Int> = dataStore.data.map {
         it.soundSyncSquelch
     }.distinctUntilChanged()
+    val soundSyncPort: Flow<Int> = dataStore.data.map {
+        it.soundSyncPort
+    }.distinctUntilChanged()
     val soundSyncBetaEnabled: Flow<Boolean> = dataStore.data.map {
         it.soundSyncBetaEnabled
     }.distinctUntilChanged()
@@ -134,6 +137,16 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
         dataStore.updateData {
             it.copy(
                 soundSyncSquelch = clamped,
+                dateLastWritten = currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun updateSoundSyncPort(port: Int) {
+        logger.d { "updateSoundSyncPort" }
+        dataStore.updateData {
+            it.copy(
+                soundSyncPort = port,
                 dateLastWritten = currentTimeMillis(),
             )
         }

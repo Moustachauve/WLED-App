@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.repository
 
+import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import kotlinx.serialization.Serializable
@@ -22,5 +23,6 @@ data class UserPreferences(
     val soundSyncAgcEnabled: Boolean = false,
     val soundSyncAgcMode: AgcMode = AgcMode.NORMAL,
     val soundSyncSquelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
+    val soundSyncPort: Int = UdpSoundSyncPacket.DEFAULT_PORT,
     val soundSyncBetaEnabled: Boolean = false,
 )

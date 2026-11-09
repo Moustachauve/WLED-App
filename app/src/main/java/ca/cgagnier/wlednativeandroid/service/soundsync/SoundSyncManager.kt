@@ -43,6 +43,7 @@ data class SoundSyncState(
     val agcEnabled: Boolean = false,
     val agcMode: AgcMode = AgcMode.NORMAL,
     val squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
+    val port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
     val error: SoundSyncError? = null,
 )
 
@@ -61,7 +62,7 @@ class SoundSyncManager(
     coroutineScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     audioSource: AudioSource? = null,
-    private val senderFactory: () -> SoundSyncPacketSender = { UdpSoundSyncSender() },
+    private val senderFactory: (port: Int) -> SoundSyncPacketSender = { port -> UdpSoundSyncSender(port = port) },
 ) {
     private val managerScope = CoroutineScope(
         coroutineScope.coroutineContext + SupervisorJob(coroutineScope.coroutineContext[Job]) + ioDispatcher,
@@ -97,6 +98,7 @@ class SoundSyncManager(
      * @param agcEnabled Whether automatic gain control is enabled.
      * @param agcMode Automatic gain control preset mode.
      * @param squelch Noise gate threshold (`0..100`).
+     * @param port UDP port for sending sound sync packets (`1..65535`).
      * @return `true` if started successfully.
      */
     @Synchronized
@@ -105,11 +107,13 @@ class SoundSyncManager(
         agcEnabled: Boolean = false,
         agcMode: AgcMode = AgcMode.NORMAL,
         squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
+        port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
     ): Boolean {
         if (_state.value.isRunning) {
             stop()
         }
 
+        val clampedPort = port.coerceIn(UdpSoundSyncPacket.MIN_PORT, UdpSoundSyncPacket.MAX_PORT)
         var clampedGain = 0f
         var clampedSquelch = 0
         val initialEffectiveGain = synchronized(processorLock) {
@@ -130,6 +134,7 @@ class SoundSyncManager(
                 agcEnabled = agcEnabled,
                 agcMode = agcMode,
                 squelch = clampedSquelch,
+                port = clampedPort,
                 error = null,
             )
         }
@@ -140,7 +145,7 @@ class SoundSyncManager(
         }
 
         acquireMulticastLock()
-        udpSender = senderFactory()
+        udpSender = senderFactory(clampedPort)
         startObservingDevices()
         _state.update {
             it.copy(

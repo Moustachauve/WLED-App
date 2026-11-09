@@ -4,6 +4,8 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class UdpSoundSyncPacketTest {
 
@@ -127,6 +129,16 @@ class UdpSoundSyncPacketTest {
             assertFailsWith<IllegalArgumentException> {
                 UdpSoundSyncPacket(fftResult = ByteArray(size))
             }
+        }
+    }
+
+    @Test
+    fun isValidPort_validatesPortBounds() {
+        listOf(1, 11988, 65535).forEach { port ->
+            assertTrue(UdpSoundSyncPacket.isValidPort(port), "Expected $port to be valid")
+        }
+        listOf(-1, 0, 65536, 70000).forEach { port ->
+            assertFalse(UdpSoundSyncPacket.isValidPort(port), "Expected $port to be invalid")
         }
     }
 }

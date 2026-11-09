@@ -161,6 +161,9 @@
     <string name="sound_sync_squelch_decrease">降低静噪阈值</string>
     <string name="sound_sync_squelch_increase">提高静噪阈值</string>
     <string name="sound_sync_squelch_description">无音乐播放时忽略低于此阈值的背景噪音。</string>
+    <string name="sound_sync_port">UDP 端口</string>
+    <string name="sound_sync_port_description">用于发送音频数据的 UDP 端口。必须与 WLED 设备音频同步设置中的端口一致（默认：11988）。</string>
+    <string name="sound_sync_port_error">请输入 1 到 65535 之间的有效端口</string>
     <string name="sound_sync_start">开始声音同步</string>
     <string name="sound_sync_stop">停止声音同步</string>
     <string name="sound_sync_running">声音同步正在运行</string>

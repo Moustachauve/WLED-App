@@ -164,6 +164,9 @@
     <string name="sound_sync_squelch_decrease">Decrease squelch</string>
     <string name="sound_sync_squelch_increase">Increase squelch</string>
     <string name="sound_sync_squelch_description">Ignores background noise below this threshold when no music is playing.</string>
+    <string name="sound_sync_port">UDP Port</string>
+    <string name="sound_sync_port_description">UDP port used to send audio data. Must match the port set in your WLED devices\' audio sync settings (default: 11988).</string>
+    <string name="sound_sync_port_error">Enter a valid port between 1 and 65535</string>
     <string name="sound_sync_start">Start Sound Sync</string>
     <string name="sound_sync_stop">Stop Sound Sync</string>
     <string name="sound_sync_running">Sound sync is running</string>

@@ -27,6 +27,8 @@ struct SoundSyncView: View {
                 }
 
                 gainSection
+
+                portSection
             }
             .navigationTitle("Sound Sync")
             .navigationBarTitleDisplayMode(.inline)
@@ -191,6 +193,38 @@ struct SoundSyncView: View {
                 Text("Ignores background noise below this threshold when no music is playing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var portSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("UDP Port")
+                    Spacer()
+                    TextField(
+                        "UDP Port",
+                        text: $viewModel.portText,
+                        prompt: Text(verbatim: String(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT))
+                    )
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .disabled(viewModel.isRunning)
+                    .frame(maxWidth: 120)
+                }
+
+                if !viewModel.isPortValid {
+                    Text("Enter a valid port between 1 and 65535")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else {
+                    Text("UDP port used to send audio data. Must match the port set in your WLED devices' audio sync settings (default: 11988).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.vertical, 4)
         }
