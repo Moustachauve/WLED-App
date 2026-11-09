@@ -14,6 +14,8 @@ struct SoundSyncState: Equatable, Sendable {
     var gain: Float = 1.0
     var effectiveGain: Float = 1.0
     var agcEnabled: Bool = false
+    var agcMode: AgcMode = .normal
+    var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
     var fftChannels: [UInt8] = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
     var sampleLevel: Float = 0
     var isPeak: Bool = false
@@ -26,10 +28,18 @@ protocol SoundSyncManaging: Sendable {
     func stateStream() async -> AsyncStream<SoundSyncState>
     func recordPermissionStatus() -> AVAudioApplication.recordPermission
     func requestRecordAudioPermission() async -> Bool
-    func start(gain: Float, agcEnabled: Bool, deviceAddresses: [String]) async -> Bool
+    func start(
+        gain: Float,
+        agcEnabled: Bool,
+        agcMode: AgcMode,
+        squelch: Int32,
+        deviceAddresses: [String]
+    ) async -> Bool
     func stop() async
     func setGain(_ gain: Float) async
     func setAgcEnabled(_ enabled: Bool) async
+    func setAgcMode(_ mode: AgcMode) async
+    func setSquelch(_ squelch: Int32) async
     func updateDeviceAddresses(_ addresses: [String]) async
 }
 
@@ -104,11 +114,19 @@ actor SoundSyncManager: SoundSyncManaging {
     /// Starts sound sync with the given configuration.
     ///
     /// - Parameters:
-    ///   - gain: Manual gain factor (0.0 - 10.0).
+    ///   - gain: Manual gain factor (0.0 - 30.0).
     ///   - agcEnabled: Whether automatic gain control is enabled.
+    ///   - agcMode: Automatic gain control preset mode.
+    ///   - squelch: Noise gate threshold (0 - 100).
     ///   - deviceAddresses: List of device IP addresses for unicast sending.
     /// - Returns: `true` if started successfully.
-    func start(gain: Float, agcEnabled: Bool, deviceAddresses: [String]) async -> Bool {
+    func start(
+        gain: Float,
+        agcEnabled: Bool,
+        agcMode: AgcMode,
+        squelch: Int32,
+        deviceAddresses: [String]
+    ) async -> Bool {
         if _state.isRunning || isStarting {
             await stop()
         }
@@ -117,15 +135,20 @@ actor SoundSyncManager: SoundSyncManaging {
         let startGeneration = lifecycleGeneration
         isStarting = true
 
-        let clampedGain = min(max(gain, 0), GainControl.Companion.shared.MAX_MANUAL_GAIN)
         processor.reset()
-        processor.setGain(gain: clampedGain)
+        processor.setGain(gain: gain)
         processor.setAgcEnabled(enabled: agcEnabled)
+        processor.setAgcMode(mode: agcMode)
+        processor.setSquelch(squelch: squelch)
+        let clampedGain = processor.gain
+        let clampedSquelch = processor.squelch
         let initialEffectiveGain = processor.effectiveGain
 
         updateState {
             $0.gain = clampedGain
             $0.agcEnabled = agcEnabled
+            $0.agcMode = agcMode
+            $0.squelch = clampedSquelch
             $0.errorMessage = nil
         }
 
@@ -225,12 +248,12 @@ actor SoundSyncManager: SoundSyncManaging {
 
     /// Updates the manual gain in real-time.
     func setGain(_ gain: Float) {
-        let clampedGain = min(max(gain, 0), GainControl.Companion.shared.MAX_MANUAL_GAIN)
-        processor.setGain(gain: clampedGain)
+        processor.setGain(gain: gain)
+        let clampedGain = processor.gain
         updateState { $0.gain = clampedGain }
     }
 
-    /// Toggles automatic gain control in real-time.
+    /// Updates whether automatic gain control is enabled in real-time.
     func setAgcEnabled(_ enabled: Bool) {
         processor.setAgcEnabled(enabled: enabled)
         let currentEffectiveGain = processor.effectiveGain
@@ -238,6 +261,23 @@ actor SoundSyncManager: SoundSyncManaging {
             $0.agcEnabled = enabled
             $0.effectiveGain = currentEffectiveGain
         }
+    }
+
+    /// Updates the automatic gain control preset mode in real-time.
+    func setAgcMode(_ mode: AgcMode) {
+        processor.setAgcMode(mode: mode)
+        let currentEffectiveGain = processor.effectiveGain
+        updateState {
+            $0.agcMode = mode
+            $0.effectiveGain = currentEffectiveGain
+        }
+    }
+
+    /// Updates the squelch noise gate threshold in real-time.
+    func setSquelch(_ squelch: Int32) {
+        processor.setSquelch(squelch: squelch)
+        let clamped = processor.squelch
+        updateState { $0.squelch = clamped }
     }
 
     /// Updates the list of device addresses for unicast sending.

@@ -1,98 +1,8 @@
 import AVFAudio
 import Foundation
-import os
 import Shared
 import Testing
 @testable import WLED
-
-private actor FakeSoundSyncManager: SoundSyncManaging {
-    private var state: SoundSyncState
-    private let permissionLock: OSAllocatedUnfairLock<AVAudioApplication.recordPermission>
-    private let requestPermissionResult: Bool
-    private let startResult: Bool
-    private var stateContinuation: AsyncStream<SoundSyncState>.Continuation?
-    private(set) var startCallCount = 0
-    private(set) var lastStartedAddresses: [String] = []
-
-    init(
-        initialState: SoundSyncState = SoundSyncState(),
-        permission: AVAudioApplication.recordPermission = .granted,
-        requestPermissionResult: Bool = true,
-        startResult: Bool = true
-    ) {
-        self.state = initialState
-        self.permissionLock = OSAllocatedUnfairLock(initialState: permission)
-        self.requestPermissionResult = requestPermissionResult
-        self.startResult = startResult
-    }
-
-    func getState() -> SoundSyncState {
-        state
-    }
-
-    func stateStream() -> AsyncStream<SoundSyncState> {
-        let (stream, continuation) = AsyncStream.makeStream(
-            of: SoundSyncState.self,
-            bufferingPolicy: .bufferingNewest(1)
-        )
-        continuation.yield(state)
-        stateContinuation = continuation
-        return stream
-    }
-
-    nonisolated func recordPermissionStatus() -> AVAudioApplication.recordPermission {
-        permissionLock.withLock { $0 }
-    }
-
-    func requestRecordAudioPermission() async -> Bool {
-        if requestPermissionResult {
-            permissionLock.withLock { $0 = .granted }
-        }
-        return requestPermissionResult
-    }
-
-    func start(gain: Float, agcEnabled: Bool, deviceAddresses: [String]) async -> Bool {
-        startCallCount += 1
-        lastStartedAddresses = deviceAddresses
-        state.gain = gain
-        state.agcEnabled = agcEnabled
-        if startResult {
-            state.isRunning = true
-            state.errorMessage = nil
-        } else {
-            state.isRunning = false
-            state.errorMessage = "Capture failed"
-        }
-        stateContinuation?.yield(state)
-        return startResult
-    }
-
-    func stop() async {
-        state.isRunning = false
-        state.fftChannels = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
-        state.sampleLevel = 0
-        state.isPeak = false
-        stateContinuation?.yield(state)
-    }
-
-    func setGain(_ gain: Float) async {
-        state.gain = gain
-        stateContinuation?.yield(state)
-    }
-
-    func setAgcEnabled(_ enabled: Bool) async {
-        state.agcEnabled = enabled
-        stateContinuation?.yield(state)
-    }
-
-    func updateDeviceAddresses(_ addresses: [String]) async {
-        lastStartedAddresses = addresses
-    }
-
-    func finishStream() {
-        stateContinuation?.finish()
-    }
-}
 
 @MainActor
 struct SoundSyncViewModelTests {
@@ -115,16 +25,31 @@ struct SoundSyncViewModelTests {
         #expect(await manager.getState().gain == 4.5)
     }
 
-    @Test func observeLoadsPersistedAgcWhenNotRunning() async throws {
-        try await database.userPreferencesRepository.updateSoundSyncAgcEnabled(enabled: true)
+    @Test func observeLoadsPersistedAgcModeWhileAgcDisabled() async throws {
+        try await database.userPreferencesRepository.updateSoundSyncAgcEnabled(enabled: false)
+        try await database.userPreferencesRepository.updateSoundSyncAgcMode(mode: .vivid)
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
 
         try await runObserveUntil(viewModel: viewModel, manager: manager) {
-            viewModel.agcEnabled
+            !viewModel.agcEnabled && viewModel.agcMode == .vivid
         }
 
-        #expect(await manager.getState().agcEnabled)
+        let managerState = await manager.getState()
+        #expect(!managerState.agcEnabled)
+        #expect(managerState.agcMode == .vivid)
+    }
+
+    @Test func observeLoadsPersistedSquelchWhenNotRunning() async throws {
+        try await database.userPreferencesRepository.updateSoundSyncSquelch(squelch: 35)
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        try await runObserveUntil(viewModel: viewModel, manager: manager) {
+            viewModel.squelch == 35
+        }
+
+        #expect(await manager.getState().squelch == 35)
     }
 
     @Test func observePreservesLiveGainWhenAlreadyRunning() async throws {
@@ -140,17 +65,76 @@ struct SoundSyncViewModelTests {
         #expect(await manager.getState().gain == 7.5)
     }
 
-    @Test func observePreservesLiveAgcWhenAlreadyRunning() async throws {
+    @Test func observePreservesLiveAgcModeWhenAlreadyRunning() async throws {
         try await database.userPreferencesRepository.updateSoundSyncAgcEnabled(enabled: false)
-        let runningState = SoundSyncState(isRunning: true, gain: 1.0, agcEnabled: true)
+        try await database.userPreferencesRepository.updateSoundSyncAgcMode(mode: .normal)
+        let runningState = SoundSyncState(isRunning: true, gain: 1.0, agcEnabled: true, agcMode: .lazy)
         let manager = FakeSoundSyncManager(initialState: runningState)
         let viewModel = makeViewModel(manager: manager)
 
         try await runObserveUntil(viewModel: viewModel, manager: manager) {
-            viewModel.isRunning && viewModel.agcEnabled
+            viewModel.isRunning && viewModel.agcEnabled && viewModel.agcMode == .lazy
         }
 
-        #expect(await manager.getState().agcEnabled)
+        let managerState = await manager.getState()
+        #expect(managerState.agcEnabled)
+        #expect(managerState.agcMode == .lazy)
+    }
+
+    @Test func observePreservesLiveSquelchWhenAlreadyRunning() async throws {
+        try await database.userPreferencesRepository.updateSoundSyncSquelch(squelch: 10)
+        let runningState = SoundSyncState(isRunning: true, squelch: 48)
+        let manager = FakeSoundSyncManager(initialState: runningState)
+        let viewModel = makeViewModel(manager: manager)
+
+        try await runObserveUntil(viewModel: viewModel, manager: manager) {
+            viewModel.isRunning && viewModel.squelch == 48
+        }
+
+        #expect(await manager.getState().squelch == 48)
+    }
+
+    @Test func setAgcModeUpdatesManagerAndPersistsPreference() async throws {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        viewModel.setAgcMode(.lazy)
+
+        try await waitUntil {
+            let managerMode = await manager.getState().agcMode
+            let persistedMode = await database.userPreferencesRepository.soundSyncAgcMode.firstValue()
+            return managerMode == .lazy && persistedMode == .lazy
+        }
+        #expect(viewModel.agcMode == .lazy)
+    }
+
+    @Test func stepSquelchUpdatesManagerAndPersistsPreference() async throws {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        viewModel.stepSquelch(to: 42)
+
+        try await waitUntil {
+            let managerSquelch = await manager.getState().squelch
+            let persistedSquelch = await database.userPreferencesRepository.soundSyncSquelch.firstValue()?.int32Value
+            return managerSquelch == 42 && persistedSquelch == 42
+        }
+        #expect(viewModel.squelch == 42)
+    }
+
+    @Test func saveSquelchPersistsLiveSquelchValue() async throws {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        viewModel.updateLiveSquelch(65)
+        viewModel.saveSquelch()
+
+        try await waitUntil {
+            let managerSquelch = await manager.getState().squelch
+            let persistedSquelch = await database.userPreferencesRepository.soundSyncSquelch.firstValue()?.int32Value
+            return managerSquelch == 65 && persistedSquelch == 65
+        }
+        #expect(viewModel.squelch == 65)
     }
 
     @Test func startWhenPermissionDeniedOpensSettingsAndDoesNotStart() async {

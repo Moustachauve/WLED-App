@@ -10,8 +10,15 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -26,19 +33,25 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -54,6 +67,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -62,13 +80,35 @@ import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncError
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncIconVisualizer
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.androidx.compose.koinViewModel
+import kotlin.math.roundToInt
 
 private const val CHART_HEIGHT_DP = 120
 private const val CHANNEL_MAX_VALUE = 255f
 private const val BAR_GAP_RATIO = 0.15f
+
+/**
+ * Callbacks invoked from [SoundSyncContent]. Grouped so [SoundSyncContent] stays stateless and
+ * easy to render in Compose previews and screenshot tests.
+ */
+@Immutable
+data class SoundSyncActions(
+    val navigateUp: () -> Unit = {},
+    val onStart: () -> Unit = {},
+    val onStop: () -> Unit = {},
+    val onGainChanged: (Float) -> Unit = {},
+    val onGainChangeFinished: () -> Unit = {},
+    val onAgcEnabledChanged: (Boolean) -> Unit = {},
+    val onAgcModeChanged: (AgcMode) -> Unit = {},
+    val onSquelchChanged: (Int) -> Unit = {},
+    val onSquelchChangeFinished: () -> Unit = {},
+    val onSquelchStepped: (Int) -> Unit = {},
+)
 
 @Composable
 fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koinViewModel()) {
@@ -99,23 +139,38 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
         permanentlyDenied = false
     }
 
-    Scaffold(
-        topBar = { SoundSyncTopBar(navigateUp = navigateUp) },
-    ) { innerPadding ->
-        SoundSyncContent(
-            uiState = uiState,
-            permanentlyDenied = permanentlyDenied,
-            onRequestPermissionOrSettings = {
-                if (permanentlyDenied) {
-                    openAppSettings(context)
+    val hasRecordAudioPermission = uiState.hasRecordAudioPermission
+    val actions = remember(navigateUp, viewModel, hasRecordAudioPermission, permanentlyDenied, context) {
+        SoundSyncActions(
+            navigateUp = navigateUp,
+            onStart = {
+                if (!hasRecordAudioPermission) {
+                    if (permanentlyDenied) {
+                        openAppSettings(context)
+                    } else {
+                        permissionLauncher.launch(requiredPermissions())
+                    }
                 } else {
-                    permissionLauncher.launch(requiredPermissions())
+                    viewModel.start()
                 }
             },
-            viewModel = viewModel,
-            modifier = Modifier.padding(innerPadding),
+            onStop = { viewModel.stop() },
+            onGainChanged = { viewModel.setGain(it) },
+            onGainChangeFinished = { viewModel.saveGain() },
+            onAgcEnabledChanged = { viewModel.setAgcEnabled(it) },
+            onAgcModeChanged = { viewModel.setAgcMode(it) },
+            onSquelchChanged = { viewModel.setSquelch(it) },
+            onSquelchChangeFinished = { viewModel.saveSquelch() },
+            onSquelchStepped = { viewModel.stepSquelch(it) },
         )
     }
+
+    SoundSyncContent(
+        uiState = uiState,
+        permanentlyDenied = permanentlyDenied,
+        latestPacketFlow = viewModel.latestPacket,
+        actions = actions,
+    )
 }
 
 @Composable
@@ -150,57 +205,58 @@ private fun SoundSyncTopBar(navigateUp: () -> Unit) {
 }
 
 @Composable
-private fun SoundSyncContent(
+fun SoundSyncContent(
     uiState: SoundSyncUiState,
-    permanentlyDenied: Boolean,
-    onRequestPermissionOrSettings: () -> Unit,
-    viewModel: SoundSyncViewModel,
     modifier: Modifier = Modifier,
+    permanentlyDenied: Boolean = false,
+    latestPacketFlow: StateFlow<UdpSoundSyncPacket> = remember { MutableStateFlow(UdpSoundSyncPacket()) },
+    actions: SoundSyncActions = SoundSyncActions(),
 ) {
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Scaffold(
+        modifier = modifier,
+        topBar = { SoundSyncTopBar(navigateUp = actions.navigateUp) },
+    ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(vertical = 6.dp)
-                .widthIn(0.dp, 1100.dp),
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            DescriptionCard()
-            StartStopCard(
-                isRunning = uiState.isRunning,
-                hasRecordAudioPermission = uiState.hasRecordAudioPermission,
-                permanentlyDenied = permanentlyDenied,
-                onStart = {
-                    if (!uiState.hasRecordAudioPermission) {
-                        onRequestPermissionOrSettings()
-                    } else {
-                        viewModel.start()
-                    }
-                },
-                onStop = { viewModel.stop() },
-            )
-            uiState.error?.let { ErrorCard(it) }
-            if (uiState.isRunning) {
-                VisualizationCard(latestPacketFlow = viewModel.latestPacket)
+            Column(
+                modifier = Modifier
+                    .padding(vertical = 6.dp)
+                    .widthIn(0.dp, 1100.dp),
+            ) {
+                DescriptionCard {
+                    StartStopControls(
+                        isRunning = uiState.isRunning,
+                        hasRecordAudioPermission = uiState.hasRecordAudioPermission,
+                        permanentlyDenied = permanentlyDenied,
+                        onStart = actions.onStart,
+                        onStop = actions.onStop,
+                    )
+                }
+                uiState.error?.let { ErrorCard(it) }
+                if (uiState.isRunning) {
+                    VisualizationCard(latestPacketFlow = latestPacketFlow)
+                }
+                GainCard(
+                    uiState = uiState,
+                    actions = actions,
+                )
             }
-            GainCard(
-                gain = uiState.displayedGain,
-                agcEnabled = uiState.agcEnabled,
-                onGainChanged = { viewModel.setGain(it) },
-                onGainChangeFinished = { viewModel.saveGain() },
-                onAgcChanged = { viewModel.setAgcEnabled(it) },
-            )
         }
     }
 }
 
 @Composable
-private fun DescriptionCard() {
-    SoundSyncCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+private fun DescriptionCard(content: @Composable ColumnScope.() -> Unit) {
+    SoundSyncCard(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(
                 painter = painterResource(id = R.drawable.baseline_graphic_eq_24),
                 contentDescription = null,
@@ -219,6 +275,8 @@ private fun DescriptionCard() {
                 )
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
+        content()
     }
 }
 
@@ -248,7 +306,7 @@ private fun SoundSyncCard(
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = horizontalAlignment,
             content = content,
         )
@@ -256,65 +314,226 @@ private fun SoundSyncCard(
 }
 
 @Composable
-private fun GainCard(
-    gain: Float,
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
+}
+
+@Composable
+private fun SectionDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+}
+
+@Composable
+private fun GainCard(uiState: SoundSyncUiState, actions: SoundSyncActions) {
+    SoundSyncCard {
+        GainSection(
+            displayedGain = uiState.displayedGain,
+            agcEnabled = uiState.agcEnabled,
+            onGainChanged = actions.onGainChanged,
+            onGainChangeFinished = actions.onGainChangeFinished,
+        )
+        SectionDivider()
+        AgcModeSection(
+            agcEnabled = uiState.agcEnabled,
+            agcMode = uiState.agcMode,
+            onAgcEnabledChanged = actions.onAgcEnabledChanged,
+            onAgcModeChanged = actions.onAgcModeChanged,
+        )
+        SectionDivider()
+        SquelchSection(
+            squelch = uiState.squelch,
+            onSquelchChanged = actions.onSquelchChanged,
+            onSquelchChangeFinished = actions.onSquelchChangeFinished,
+            onSquelchStepped = actions.onSquelchStepped,
+        )
+    }
+}
+
+@Composable
+private fun GainSection(
+    displayedGain: Float,
     agcEnabled: Boolean,
     onGainChanged: (Float) -> Unit,
     onGainChangeFinished: () -> Unit,
-    onAgcChanged: (Boolean) -> Unit,
 ) {
     val animatedAgcGain by animateFloatAsState(
-        targetValue = gain,
+        targetValue = displayedGain,
         label = "agcGainSlider",
     )
-    val sliderGain = if (agcEnabled) animatedAgcGain else gain
+    val sliderGain = if (agcEnabled) animatedAgcGain else displayedGain
+    val gainLabel = stringResource(R.string.sound_sync_gain)
+    val gainValueText = stringResource(R.string.sound_sync_gain_value, displayedGain)
 
-    SoundSyncCard {
-        Text(
-            stringResource(R.string.sound_sync_gain),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+    SectionTitle(gainLabel)
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Slider(
+            value = sliderGain,
+            onValueChange = onGainChanged,
+            onValueChangeFinished = onGainChangeFinished,
+            valueRange = 0f..GainControl.MAX_MANUAL_GAIN,
+            modifier = Modifier
+                .weight(1f)
+                .semantics {
+                    contentDescription = gainLabel
+                    stateDescription = gainValueText
+                },
+            enabled = !agcEnabled,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Slider(
-                value = sliderGain,
-                onValueChange = onGainChanged,
-                onValueChangeFinished = onGainChangeFinished,
-                valueRange = 0f..GainControl.MAX_MANUAL_GAIN,
-                modifier = Modifier.weight(1f),
-                enabled = !agcEnabled,
-            )
+        Text(
+            text = gainValueText,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun AgcModeSection(
+    agcEnabled: Boolean,
+    agcMode: AgcMode,
+    onAgcEnabledChanged: (Boolean) -> Unit,
+    onAgcModeChanged: (AgcMode) -> Unit,
+) {
+    val modes = AgcMode.entries
+    var animateVisibility by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = agcEnabled,
+                role = Role.Switch,
+                onValueChange = {
+                    animateVisibility = true
+                    onAgcEnabledChanged(it)
+                },
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            SectionTitle(stringResource(R.string.sound_sync_agc))
             Text(
-                text = stringResource(R.string.sound_sync_gain_value, gain),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 8.dp),
+                text = stringResource(R.string.sound_sync_agc_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = agcEnabled,
-                    onValueChange = onAgcChanged,
-                    role = Role.Switch,
-                )
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Switch(checked = agcEnabled, onCheckedChange = null)
+    }
+    AnimatedVisibility(
+        visible = agcEnabled,
+        enter = if (animateVisibility) fadeIn() + expandVertically() else EnterTransition.None,
+        exit = if (animateVisibility) fadeOut() + shrinkVertically() else ExitTransition.None,
+    ) {
+        Column {
+            Spacer(modifier = Modifier.height(12.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                modes.forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = agcMode == mode,
+                        onClick = { onAgcModeChanged(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                        label = {
+                            Text(
+                                text = stringResource(mode.labelResId()),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                stringResource(R.string.sound_sync_agc),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(
-                checked = agcEnabled,
-                onCheckedChange = null,
+                text = stringResource(agcMode.descriptionResId()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+}
+
+@Composable
+private fun SquelchSection(
+    squelch: Int,
+    onSquelchChanged: (Int) -> Unit,
+    onSquelchChangeFinished: () -> Unit,
+    onSquelchStepped: (Int) -> Unit,
+) {
+    val squelchLabel = stringResource(R.string.sound_sync_squelch)
+    SectionTitle(squelchLabel)
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = { onSquelchStepped(-1) },
+            enabled = squelch > SoundSyncProcessor.MIN_SQUELCH,
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.baseline_remove_24),
+                contentDescription = stringResource(R.string.sound_sync_squelch_decrease),
+            )
+        }
+        Slider(
+            value = squelch.toFloat(),
+            onValueChange = { onSquelchChanged(it.roundToInt()) },
+            onValueChangeFinished = onSquelchChangeFinished,
+            valueRange = SoundSyncProcessor.MIN_SQUELCH.toFloat()..SoundSyncProcessor.MAX_SQUELCH.toFloat(),
+            modifier = Modifier
+                .weight(1f)
+                .semantics {
+                    contentDescription = squelchLabel
+                },
+        )
+        IconButton(
+            onClick = { onSquelchStepped(1) },
+            enabled = squelch < SoundSyncProcessor.MAX_SQUELCH,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.sound_sync_squelch_increase),
+            )
+        }
+        Text(
+            text = squelch.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .widthIn(min = 32.dp)
+                .padding(start = 4.dp),
+        )
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = stringResource(R.string.sound_sync_squelch_description),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun AgcMode.labelResId(): Int = when (this) {
+    AgcMode.NORMAL -> R.string.sound_sync_agc_mode_normal
+    AgcMode.VIVID -> R.string.sound_sync_agc_mode_vivid
+    AgcMode.LAZY -> R.string.sound_sync_agc_mode_lazy
+}
+
+private fun AgcMode.descriptionResId(): Int = when (this) {
+    AgcMode.NORMAL -> R.string.sound_sync_agc_mode_normal_description
+    AgcMode.VIVID -> R.string.sound_sync_agc_mode_vivid_description
+    AgcMode.LAZY -> R.string.sound_sync_agc_mode_lazy_description
 }
 
 @Composable
@@ -330,11 +549,7 @@ private fun VisualizationCard(latestPacketFlow: StateFlow<UdpSoundSyncPacket>) {
     }
 
     SoundSyncCard {
-        Text(
-            stringResource(R.string.sound_sync_fft_visualization),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        SectionTitle(stringResource(R.string.sound_sync_fft_visualization))
         Spacer(modifier = Modifier.height(8.dp))
         FftBarChart(
             fftChannelsProvider = { packet.fftResult },
@@ -432,43 +647,41 @@ private fun SampleLevelIndicator(
 }
 
 @Composable
-private fun StartStopCard(
+private fun StartStopControls(
     isRunning: Boolean,
     hasRecordAudioPermission: Boolean,
     permanentlyDenied: Boolean,
     onStart: () -> Unit,
     onStop: () -> Unit,
 ) {
-    SoundSyncCard(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (isRunning) {
-            Text(
-                text = stringResource(R.string.sound_sync_running),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.sound_sync_stop))
+    if (isRunning) {
+        Text(
+            text = stringResource(R.string.sound_sync_running),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.sound_sync_stop))
+        }
+    } else if (!hasRecordAudioPermission) {
+        Text(
+            text = stringResource(R.string.sound_sync_permission_required),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            val buttonTextRes = if (permanentlyDenied) {
+                R.string.sound_sync_open_settings
+            } else {
+                R.string.sound_sync_grant_permission
             }
-        } else if (!hasRecordAudioPermission) {
-            Text(
-                text = stringResource(R.string.sound_sync_permission_required),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-                val buttonTextRes = if (permanentlyDenied) {
-                    R.string.sound_sync_open_settings
-                } else {
-                    R.string.sound_sync_grant_permission
-                }
-                Text(stringResource(buttonTextRes))
-            }
-        } else {
-            Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.sound_sync_start))
-            }
+            Text(stringResource(buttonTextRes))
+        }
+    } else {
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.sound_sync_start))
         }
     }
 }

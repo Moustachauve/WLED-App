@@ -1,10 +1,23 @@
 package ca.cgagnier.wlednativeandroid.ui.soundsync
 
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class SoundSyncUiStateTest {
+
+    @Test
+    fun defaultState_usesNormalAgcModeAndDefaultSquelch() {
+        val uiState = SoundSyncUiState()
+
+        assertFalse(uiState.agcEnabled)
+        assertEquals(AgcMode.NORMAL, uiState.agcMode)
+        assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, uiState.squelch)
+    }
 
     @ParameterizedTest
     @CsvSource(

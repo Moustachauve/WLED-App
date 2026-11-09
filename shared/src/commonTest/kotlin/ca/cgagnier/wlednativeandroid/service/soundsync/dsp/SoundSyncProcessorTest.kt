@@ -91,7 +91,7 @@ class SoundSyncProcessorTest {
     fun process_whenAgcEnabled_roomNoiseDoesNotOpenNoiseGate() {
         val processor = SoundSyncProcessor(sampleRate = 44100, manualGain = 1.0f, agcEnabled = true)
         val windowSize = SoundSyncProcessor.FFT_WINDOW_SIZE
-        // Quiet passage just above the gate (0.006 > 0.005) ramps AGC toward 32x; then room drops to 0.003 noise
+        // Quiet passage just above the gate (0.006 > 0.005) ramps AGC; then room drops to 0.003 noise
         val quietPassage =
             generateSineWave(frequency = 440f, sampleRate = 44100, count = windowSize * 4, amplitude = 0.006f)
         val roomNoise = generateSineWave(frequency = 440f, sampleRate = 44100, count = windowSize, amplitude = 0.003f)
@@ -114,6 +114,38 @@ class SoundSyncProcessorTest {
         )
         assertEquals(0f, finalPacket.sampleSmth, 0.001f, "sampleSmth should decay to 0 on room noise")
         assertEquals(0.001f, finalPacket.fftMagnitude, 0.0001f, "fftMagnitude should be muted when sampleSmth < 1")
+    }
+
+    @Test
+    fun squelchToAmplitude_mapsSquelchRangeLinearly() {
+        listOf(
+            0 to 0f,
+            10 to 0.005f,
+            100 to 0.05f,
+        ).forEach { (squelch, expectedAmplitude) ->
+            assertEquals(
+                expectedAmplitude,
+                SoundSyncProcessor.squelchToAmplitude(squelch),
+                0.00001f,
+                "squelch=$squelch",
+            )
+        }
+    }
+
+    @Test
+    fun setSquelch_higherThresholdGatesModerateBackgroundNoise() {
+        val processor = SoundSyncProcessor(sampleRate = 44100, manualGain = 5.0f, squelch = 50)
+        // squelch = 50 -> threshold = 0.025f; 0.02f signal should be gated to 0
+        val noise = generateSineWave(
+            frequency = 440f,
+            sampleRate = 44100,
+            count = SoundSyncProcessor.FFT_WINDOW_SIZE,
+            amplitude = 0.02f,
+        )
+
+        val packet = assertNotNull(processor.process(noise, nowMs = 0L))
+
+        assertEquals(0f, packet.sampleRaw, 0.001f)
     }
 
     @Test
@@ -203,6 +235,16 @@ class SoundSyncProcessorTest {
         assertNotNull(fortyMsProcessor.process(quietWave, nowMs = 40L))
 
         assertEquals(twentyMsProcessor.effectiveGain, fortyMsProcessor.effectiveGain, 0.01f)
+    }
+
+    @Test
+    fun setAgcEnabled_fromOffWithHighManualGain_startsEffectiveGainAtDefaultGain() {
+        val processor = SoundSyncProcessor(sampleRate = 44100, manualGain = 8.0f, agcEnabled = false)
+        assertEquals(8.0f, processor.effectiveGain, 0.0001f)
+
+        processor.setAgcEnabled(true)
+
+        assertEquals(SoundSyncProcessor.DEFAULT_GAIN, processor.effectiveGain, 0.0001f)
     }
 
     @Test
