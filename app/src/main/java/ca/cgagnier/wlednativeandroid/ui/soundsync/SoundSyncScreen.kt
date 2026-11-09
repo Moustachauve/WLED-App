@@ -24,12 +24,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -61,15 +69,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,6 +103,7 @@ import kotlin.math.roundToInt
 private const val CHART_HEIGHT_DP = 120
 private const val CHANNEL_MAX_VALUE = 255f
 private const val BAR_GAP_RATIO = 0.15f
+private const val MAX_PORT_DIGITS = 5
 
 /**
  * Callbacks invoked from [SoundSyncContent]. Grouped so [SoundSyncContent] stays stateless and
@@ -108,6 +121,7 @@ data class SoundSyncActions(
     val onSquelchChanged: (Int) -> Unit = {},
     val onSquelchChangeFinished: () -> Unit = {},
     val onSquelchStepped: (Int) -> Unit = {},
+    val onPortChanged: (Int) -> Unit = {},
 )
 
 @Composable
@@ -162,6 +176,7 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
             onSquelchChanged = { viewModel.setSquelch(it) },
             onSquelchChangeFinished = { viewModel.saveSquelch() },
             onSquelchStepped = { viewModel.stepSquelch(it) },
+            onPortChanged = { viewModel.setPort(it) },
         )
     }
 
@@ -219,6 +234,8 @@ fun SoundSyncContent(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -244,6 +261,11 @@ fun SoundSyncContent(
                 GainCard(
                     uiState = uiState,
                     actions = actions,
+                )
+                PortCard(
+                    port = uiState.port,
+                    isRunning = uiState.isRunning,
+                    onPortChanged = actions.onPortChanged,
                 )
             }
         }
@@ -297,11 +319,12 @@ private fun ErrorCard(error: SoundSyncError) {
 
 @Composable
 private fun SoundSyncCard(
+    modifier: Modifier = Modifier,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -522,6 +545,65 @@ private fun SquelchSection(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+@Composable
+private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit) {
+    val portLabel = stringResource(R.string.sound_sync_port)
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var editingPortText by rememberSaveable { mutableStateOf<String?>(null) }
+    var hadFocus by remember { mutableStateOf(false) }
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+
+    LaunchedEffect(hadFocus, imeBottom) {
+        if (hadFocus && imeBottom > 0) {
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+
+    val displayedPortText = if (isRunning) port.toString() else editingPortText ?: port.toString()
+    val parsedPort = displayedPortText.toIntOrNull()
+    val isPortValid = parsedPort != null && UdpSoundSyncPacket.isValidPort(parsedPort)
+
+    SoundSyncCard(modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester)) {
+        SectionTitle(portLabel)
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = displayedPortText,
+            onValueChange = { newValue ->
+                val digitsOnly = newValue.filter { it.isDigit() }.take(MAX_PORT_DIGITS)
+                editingPortText = digitsOnly
+                val candidate = digitsOnly.toIntOrNull()
+                if (candidate != null && UdpSoundSyncPacket.isValidPort(candidate)) {
+                    onPortChanged(candidate)
+                }
+            },
+            enabled = !isRunning,
+            singleLine = true,
+            isError = !isPortValid,
+            placeholder = { Text(UdpSoundSyncPacket.DEFAULT_PORT.toString()) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = portLabel }
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        hadFocus = true
+                    } else if (hadFocus) {
+                        hadFocus = false
+                        editingPortText = null
+                    }
+                },
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stringResource(
+                if (isPortValid) R.string.sound_sync_port_description else R.string.sound_sync_port_error,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isPortValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+        )
+    }
 }
 
 private fun AgcMode.labelResId(): Int = when (this) {

@@ -21,6 +21,7 @@ final class SoundSyncViewModel {
     var agcEnabled: Bool = false
     var agcMode: AgcMode = .normal
     var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
+    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT
     var fftChannels: [UInt8] = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
     var sampleLevel: Float = 0
     var isPeak: Bool = false
@@ -44,6 +45,7 @@ final class SoundSyncViewModel {
     @ObservationIgnored private var deviceObservationTask: Task<Void, Never>?
     @ObservationIgnored private var gainUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var squelchUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var portUpdateTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -100,11 +102,14 @@ final class SoundSyncViewModel {
         let devices = await deviceRepository.allDevices.firstValue() ?? []
         let addresses = Self.visibleAddresses(from: devices)
         let started = await soundSyncManager.start(
-            gain: gain,
-            agcEnabled: agcEnabled,
-            agcMode: agcMode,
-            squelch: squelch,
-            deviceAddresses: addresses
+            SoundSyncStartConfig(
+                gain: gain,
+                agcEnabled: agcEnabled,
+                agcMode: agcMode,
+                squelch: squelch,
+                port: port,
+                deviceAddresses: addresses
+            )
         )
         let currentState = await soundSyncManager.getState()
         applyState(currentState)
@@ -184,25 +189,46 @@ final class SoundSyncViewModel {
         saveSquelch()
     }
 
+    /// Updates the UDP port and persists the preference.
+    func setPort(_ newPort: Int32) {
+        let clamped = UdpSoundSyncPacket.Companion.shared.coercePort(port: newPort)
+        port = clamped
+        portUpdateTask?.cancel()
+        portUpdateTask = Task { [soundSyncManager, userPreferencesRepository] in
+            await soundSyncManager.setPort(clamped)
+            try? await userPreferencesRepository.updateSoundSyncPort(port: clamped)
+        }
+    }
+
     // MARK: - Private
 
     private func syncInitialPreferences(from initialState: SoundSyncState) async {
         if initialState.isRunning {
-            if gain != initialState.gain {
-                gain = initialState.gain
-            }
-            if agcEnabled != initialState.agcEnabled {
-                agcEnabled = initialState.agcEnabled
-            }
-            if agcMode != initialState.agcMode {
-                agcMode = initialState.agcMode
-            }
-            if squelch != initialState.squelch {
-                squelch = initialState.squelch
-            }
+            applyRunningPreferences(from: initialState)
             return
         }
+        await loadSavedPreferences(fallback: initialState)
+    }
 
+    private func applyRunningPreferences(from state: SoundSyncState) {
+        if gain != state.gain {
+            gain = state.gain
+        }
+        if agcEnabled != state.agcEnabled {
+            agcEnabled = state.agcEnabled
+        }
+        if agcMode != state.agcMode {
+            agcMode = state.agcMode
+        }
+        if squelch != state.squelch {
+            squelch = state.squelch
+        }
+        if port != state.port {
+            port = state.port
+        }
+    }
+
+    private func loadSavedPreferences(fallback initialState: SoundSyncState) async {
         let resolvedGain = await userPreferencesRepository.soundSyncGain.firstValue()?.floatValue
             ?? initialState.gain
         guard !Task.isCancelled else { return }
@@ -234,6 +260,14 @@ final class SoundSyncViewModel {
             squelch = resolvedSquelch
         }
         await soundSyncManager.setSquelch(resolvedSquelch)
+
+        let resolvedPort = await userPreferencesRepository.soundSyncPort.firstValue()?.int32Value
+            ?? initialState.port
+        guard !Task.isCancelled else { return }
+        if port != resolvedPort {
+            port = resolvedPort
+        }
+        await soundSyncManager.setPort(resolvedPort)
     }
 
     private func applyState(_ state: SoundSyncState) {

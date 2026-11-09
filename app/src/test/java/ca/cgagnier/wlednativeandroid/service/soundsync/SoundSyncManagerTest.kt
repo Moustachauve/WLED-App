@@ -109,6 +109,31 @@ class SoundSyncManagerTest {
     }
 
     @Test
+    fun setPort_clampsAndUpdatesState() = runTest {
+        val manager = createManager(audioSource = FakeAudioSource(permissionGranted = true))
+
+        manager.setPort(70000)
+
+        assertEquals(UdpSoundSyncPacket.MAX_PORT, manager.state.value.port)
+    }
+
+    @Test
+    fun start_passesConfiguredPortToSenderFactory() = runTest {
+        val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
+        var capturedPort = 0
+        val manager = createManager(
+            audioSource = audioSource,
+            onSenderCreated = { port -> capturedPort = port },
+        )
+
+        val started = manager.start(gain = 1.0f, port = 12345)
+
+        assertTrue(started)
+        assertEquals(12345, capturedPort)
+        assertEquals(12345, manager.state.value.port)
+    }
+
+    @Test
     fun stop_resetsRunningAndVisualizationState() = runTest {
         val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
         val sender = FakeSoundSyncPacketSender()
@@ -144,6 +169,7 @@ class SoundSyncManagerTest {
     private fun TestScope.createManager(
         audioSource: AudioSource,
         sender: FakeSoundSyncPacketSender = FakeSoundSyncPacketSender(),
+        onSenderCreated: (Int) -> Unit = {},
     ): SoundSyncManager {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher + SupervisorJob())
@@ -157,7 +183,10 @@ class SoundSyncManagerTest {
             coroutineScope = scope,
             ioDispatcher = dispatcher,
             audioSource = audioSource,
-            senderFactory = { sender },
+            senderFactory = { port ->
+                onSenderCreated(port)
+                sender
+            },
         )
         coroutineContext.job.invokeOnCompletion {
             manager.destroy()

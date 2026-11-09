@@ -36,6 +36,7 @@ class SoundSyncViewModel(
                 soundSyncManager.setAgcEnabled(preferencesRepository.soundSyncAgcEnabled.first())
                 soundSyncManager.setAgcMode(preferencesRepository.soundSyncAgcMode.first())
                 soundSyncManager.setSquelch(preferencesRepository.soundSyncSquelch.first())
+                soundSyncManager.setPort(preferencesRepository.soundSyncPort.first())
             }
         }
     }
@@ -51,6 +52,7 @@ class SoundSyncViewModel(
             agcEnabled = state.agcEnabled,
             agcMode = state.agcMode,
             squelch = state.squelch,
+            port = state.port,
             error = state.error,
             hasRecordAudioPermission = hasPermission,
         )
@@ -65,6 +67,7 @@ class SoundSyncViewModel(
                 agcEnabled = current.agcEnabled,
                 agcMode = current.agcMode,
                 squelch = current.squelch,
+                port = current.port,
                 error = current.error,
                 hasRecordAudioPermission = hasRecordAudioPermission.value,
             )
@@ -81,10 +84,7 @@ class SoundSyncViewModel(
         val current = soundSyncManager.state.value
         val intent = SoundSyncService.startIntent(
             context = context,
-            gain = current.gain,
-            agcEnabled = current.agcEnabled,
-            agcMode = current.agcMode,
-            squelch = current.squelch,
+            state = current,
         )
         ContextCompat.startForegroundService(context, intent)
     }
@@ -135,6 +135,14 @@ class SoundSyncViewModel(
         }
     }
 
+    fun setPort(port: Int) {
+        soundSyncManager.setPort(port)
+        val clampedPort = soundSyncManager.state.value.port
+        viewModelScope.launch {
+            preferencesRepository.updateSoundSyncPort(clampedPort)
+        }
+    }
+
     fun refreshPermissionState() {
         hasRecordAudioPermission.update { soundSyncManager.hasRecordAudioPermission() }
     }
@@ -152,6 +160,7 @@ data class SoundSyncUiState(
     val agcEnabled: Boolean = false,
     val agcMode: AgcMode = AgcMode.NORMAL,
     val squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
+    val port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
     val error: SoundSyncError? = null,
     val hasRecordAudioPermission: Boolean = false,
 ) {

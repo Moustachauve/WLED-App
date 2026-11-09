@@ -16,6 +16,7 @@
   "soundSyncAgcEnabled": false,
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
+  "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false
 }
 ╔═ readFrom_partialJson_usesDefaultValuesForMissingFields ═╗
@@ -36,6 +37,7 @@
   "soundSyncAgcEnabled": false,
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
+  "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false
 }
 ╔═ readFrom_unknownKeys_ignoresThemGracefully ═╗
@@ -56,6 +58,7 @@
   "soundSyncAgcEnabled": false,
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
+  "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false
 }
 ╔═ roundTrip_serializesAndDeserializesCorrectly ═╗
@@ -76,6 +79,7 @@
   "soundSyncAgcEnabled": false,
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
+  "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false
 }
 ╔═ [end of file] ═╗

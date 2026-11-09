@@ -16,10 +16,21 @@ struct SoundSyncState: Equatable, Sendable {
     var agcEnabled: Bool = false
     var agcMode: AgcMode = .normal
     var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
+    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT
     var fftChannels: [UInt8] = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
     var sampleLevel: Float = 0
     var isPeak: Bool = false
     var errorMessage: String?
+}
+
+/// Configuration passed when starting Sound Sync.
+struct SoundSyncStartConfig: Equatable, Sendable {
+    var gain: Float = 1.0
+    var agcEnabled: Bool = false
+    var agcMode: AgcMode = .normal
+    var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
+    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT
+    var deviceAddresses: [String] = []
 }
 
 /// Protocol abstracting `SoundSyncManager` for dependency injection and testing.
@@ -28,18 +39,13 @@ protocol SoundSyncManaging: Sendable {
     func stateStream() async -> AsyncStream<SoundSyncState>
     func recordPermissionStatus() -> AVAudioApplication.recordPermission
     func requestRecordAudioPermission() async -> Bool
-    func start(
-        gain: Float,
-        agcEnabled: Bool,
-        agcMode: AgcMode,
-        squelch: Int32,
-        deviceAddresses: [String]
-    ) async -> Bool
+    func start(_ config: SoundSyncStartConfig) async -> Bool
     func stop() async
     func setGain(_ gain: Float) async
     func setAgcEnabled(_ enabled: Bool) async
     func setAgcMode(_ mode: AgcMode) async
     func setSquelch(_ squelch: Int32) async
+    func setPort(_ port: Int32) async
     func updateDeviceAddresses(_ addresses: [String]) async
 }
 
@@ -113,20 +119,9 @@ actor SoundSyncManager: SoundSyncManaging {
 
     /// Starts sound sync with the given configuration.
     ///
-    /// - Parameters:
-    ///   - gain: Manual gain factor (0.0 - 30.0).
-    ///   - agcEnabled: Whether automatic gain control is enabled.
-    ///   - agcMode: Automatic gain control preset mode.
-    ///   - squelch: Noise gate threshold (0 - 100).
-    ///   - deviceAddresses: List of device IP addresses for unicast sending.
+    /// - Parameter config: Initial gain, AGC, squelch, UDP port, and target device addresses.
     /// - Returns: `true` if started successfully.
-    func start(
-        gain: Float,
-        agcEnabled: Bool,
-        agcMode: AgcMode,
-        squelch: Int32,
-        deviceAddresses: [String]
-    ) async -> Bool {
+    func start(_ config: SoundSyncStartConfig) async -> Bool {
         if _state.isRunning || isStarting {
             await stop()
         }
@@ -135,25 +130,27 @@ actor SoundSyncManager: SoundSyncManaging {
         let startGeneration = lifecycleGeneration
         isStarting = true
 
+        let clampedPort = UdpSoundSyncPacket.Companion.shared.coercePort(port: config.port)
         processor.reset()
-        processor.setGain(gain: gain)
-        processor.setAgcEnabled(enabled: agcEnabled)
-        processor.setAgcMode(mode: agcMode)
-        processor.setSquelch(squelch: squelch)
+        processor.setGain(gain: config.gain)
+        processor.setAgcEnabled(enabled: config.agcEnabled)
+        processor.setAgcMode(mode: config.agcMode)
+        processor.setSquelch(squelch: config.squelch)
         let clampedGain = processor.gain
         let clampedSquelch = processor.squelch
         let initialEffectiveGain = processor.effectiveGain
 
         updateState {
             $0.gain = clampedGain
-            $0.agcEnabled = agcEnabled
-            $0.agcMode = agcMode
+            $0.agcEnabled = config.agcEnabled
+            $0.agcMode = config.agcMode
             $0.squelch = clampedSquelch
+            $0.port = clampedPort
             $0.errorMessage = nil
         }
 
-        let sender = UdpSoundSyncSender()
-        await sender.updateUnicastAddresses(deviceAddresses)
+        let sender = UdpSoundSyncSender(port: UInt16(clampedPort))
+        await sender.updateUnicastAddresses(config.deviceAddresses)
 
         guard isStarting, lifecycleGeneration == startGeneration else {
             await sender.close()
@@ -278,6 +275,12 @@ actor SoundSyncManager: SoundSyncManaging {
         processor.setSquelch(squelch: squelch)
         let clamped = processor.squelch
         updateState { $0.squelch = clamped }
+    }
+
+    /// Updates the UDP port used when sound sync starts.
+    func setPort(_ port: Int32) {
+        let clamped = UdpSoundSyncPacket.Companion.shared.coercePort(port: port)
+        updateState { $0.port = clamped }
     }
 
     /// Updates the list of device addresses for unicast sending.

@@ -1311,6 +1311,35 @@
         }
       }
     },
+    "Enter a valid port between 1 and 65535" : {
+      "comment" : "Validation error when the user enters an out-of-range UDP port in Sound Sync.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib einen gültigen Port zwischen 1 und 65535 ein"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid port between 1 and 65535"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrez un port valide entre 1 et 65535"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 1 到 65535 之间的有效端口"
+          }
+        }
+      }
+    },
     "Failed to start audio capture." : {
       "comment" : "Error message when audio capture fails to start.",
       "localizations" : {
@@ -3691,6 +3720,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启或关闭 WLED 设备。"
+          }
+        }
+      }
+    },
+    "UDP Port" : {
+      "comment" : "Label for the UDP port text field in Sound Sync.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDP-Port"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDP Port"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port UDP"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDP 端口"
+          }
+        }
+      }
+    },
+    "UDP port used to send audio data. Must match the port set in your WLED devices' audio sync settings (default: 11988)." : {
+      "comment" : "Description explaining the UDP port setting in Sound Sync.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDP-Port für das Senden von Audiodaten. Muss mit dem Port in den Audio-Sync-Einstellungen deiner WLED-Geräte übereinstimmen (Standard: 11988)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UDP port used to send audio data. Must match the port set in your WLED devices' audio sync settings (default: 11988)."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port UDP utilisé pour envoyer les données audio. Doit correspondre au port défini dans les paramètres de synchronisation audio de vos appareils WLED (par défaut : 11988)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于发送音频数据的 UDP 端口。必须与 WLED 设备音频同步设置中的端口一致（默认：11988）。"
           }
         }
       }

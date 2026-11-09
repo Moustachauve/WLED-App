@@ -42,12 +42,17 @@ struct SoundSyncViewSnapshotTests {
         viewModel.agcEnabled = true
         let view = SoundSyncView(viewModel: viewModel)
 
+        let deviceConfig = ViewImageConfig(
+            safeArea: ViewImageConfig.iPhone13Pro.safeArea,
+            size: CGSize(width: 390, height: 1000),
+            traits: ViewImageConfig.iPhone13Pro.traits
+        )
         assertSnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
                 precision: 0.99,
-                layout: .device(config: .iPhone13Pro),
+                layout: .device(config: deviceConfig),
                 traits: UITraitCollection(userInterfaceStyle: style)
             ),
             named: "1",

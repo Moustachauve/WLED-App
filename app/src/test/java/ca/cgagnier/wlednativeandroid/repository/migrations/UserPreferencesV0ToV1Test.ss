@@ -16,6 +16,7 @@
   "soundSyncAgcEnabled": false,
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
+  "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false
 }
 ╔═ [end of file] ═╗

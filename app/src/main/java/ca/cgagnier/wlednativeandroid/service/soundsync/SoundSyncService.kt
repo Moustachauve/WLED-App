@@ -60,7 +60,8 @@ class SoundSyncService : Service() {
                     AgcMode.entries.firstOrNull { it.name == name }
                 } ?: AgcMode.NORMAL
                 val squelch = intent.getIntExtra(EXTRA_SQUELCH, SoundSyncProcessor.DEFAULT_SQUELCH)
-                val started = soundSyncManager.start(gain, agcEnabled, agcMode, squelch)
+                val port = intent.getIntExtra(EXTRA_PORT, UdpSoundSyncPacket.DEFAULT_PORT)
+                val started = soundSyncManager.start(gain, agcEnabled, agcMode, squelch, port)
                 if (!started) {
                     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -185,14 +186,16 @@ class SoundSyncService : Service() {
         const val EXTRA_AGC_ENABLED = "extra_agc_enabled"
         const val EXTRA_AGC_MODE = "extra_agc_mode"
         const val EXTRA_SQUELCH = "extra_squelch"
+        const val EXTRA_PORT = "extra_port"
 
-        fun startIntent(context: Context, gain: Float, agcEnabled: Boolean, agcMode: AgcMode, squelch: Int): Intent =
+        fun startIntent(context: Context, state: SoundSyncState): Intent =
             Intent(context, SoundSyncService::class.java).apply {
                 action = ACTION_START
-                putExtra(EXTRA_GAIN, gain)
-                putExtra(EXTRA_AGC_ENABLED, agcEnabled)
-                putExtra(EXTRA_AGC_MODE, agcMode.name)
-                putExtra(EXTRA_SQUELCH, squelch)
+                putExtra(EXTRA_GAIN, state.gain)
+                putExtra(EXTRA_AGC_ENABLED, state.agcEnabled)
+                putExtra(EXTRA_AGC_MODE, state.agcMode.name)
+                putExtra(EXTRA_SQUELCH, state.squelch)
+                putExtra(EXTRA_PORT, state.port)
             }
 
         fun stopIntent(context: Context): Intent = Intent(context, SoundSyncService::class.java).apply {

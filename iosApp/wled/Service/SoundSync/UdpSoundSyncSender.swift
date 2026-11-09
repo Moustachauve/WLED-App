@@ -10,21 +10,21 @@ private let logger = Logger(
 
 /// Sends UDP Sound Sync V2 packets to WLED devices.
 ///
-/// Sends unicast UDP datagrams on port 11988 to all known visible WLED device addresses.
+/// Sends unicast UDP datagrams on the configured port (11988 by default) to all known visible WLED device addresses.
 /// On iOS 14+, sending IP multicast to `239.0.0.1` requires the restricted
 /// `com.apple.developer.networking.multicast` entitlement; because WLED's Sound Sync V2
-/// receiver accepts both multicast and unicast packets on port 11988, unicast delivery
+/// receiver accepts both multicast and unicast packets on its configured UDP port, unicast delivery
 /// works reliably across all discovered devices without requiring special entitlements.
 actor UdpSoundSyncSender {
 
     // MARK: - Constants
 
-    private static let port = UInt16(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT)
     private static let frameCounterOffset = Int(UdpSoundSyncPacket.Companion.shared.OFFSET_FRAME_COUNTER)
     private static let reconnectBackoff: Duration = .seconds(2)
 
     // MARK: - Properties
 
+    private let port: UInt16
     private var targetAddresses: Set<String> = []
     private var unicastConnections: [String: NWConnection] = [:]
     private var retryAfter: [String: ContinuousClock.Instant] = [:]
@@ -33,7 +33,9 @@ actor UdpSoundSyncSender {
 
     // MARK: - Public API
 
-    init() {}
+    init(port: UInt16 = UInt16(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT)) {
+        self.port = port
+    }
 
     /// Sends a sound sync packet to all unicast target addresses.
     /// The packet's frame counter is overridden with an auto-incrementing value.
@@ -109,8 +111,8 @@ actor UdpSoundSyncSender {
     }
 
     private func createConnection(to host: String, label: String) -> NWConnection? {
-        guard let nwPort = NWEndpoint.Port(rawValue: Self.port) else {
-            logger.error("Invalid UDP port: \(Self.port)")
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
+            logger.error("Invalid UDP port: \(self.port)")
             return nil
         }
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: nwPort)

@@ -50,19 +50,14 @@ actor FakeSoundSyncManager: SoundSyncManaging {
         return requestPermissionResult
     }
 
-    func start(
-        gain: Float,
-        agcEnabled: Bool,
-        agcMode: AgcMode,
-        squelch: Int32,
-        deviceAddresses: [String]
-    ) async -> Bool {
+    func start(_ config: SoundSyncStartConfig) async -> Bool {
         startCallCount += 1
-        lastStartedAddresses = deviceAddresses
-        state.gain = gain
-        state.agcEnabled = agcEnabled
-        state.agcMode = agcMode
-        state.squelch = squelch
+        lastStartedAddresses = config.deviceAddresses
+        state.gain = config.gain
+        state.agcEnabled = config.agcEnabled
+        state.agcMode = config.agcMode
+        state.squelch = config.squelch
+        state.port = config.port
         if startResult {
             state.isRunning = true
             state.errorMessage = nil
@@ -99,6 +94,11 @@ actor FakeSoundSyncManager: SoundSyncManaging {
 
     func setSquelch(_ squelch: Int32) async {
         state.squelch = squelch
+        stateContinuation?.yield(state)
+    }
+
+    func setPort(_ port: Int32) async {
+        state.port = port
         stateContinuation?.yield(state)
     }
 

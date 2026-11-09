@@ -52,6 +52,18 @@ struct SoundSyncViewModelTests {
         #expect(await manager.getState().squelch == 35)
     }
 
+    @Test func observeLoadsPersistedPortWhenNotRunning() async throws {
+        try await database.userPreferencesRepository.updateSoundSyncPort(port: 12345)
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        try await runObserveUntil(viewModel: viewModel, manager: manager) {
+            viewModel.port == 12345
+        }
+
+        #expect(await manager.getState().port == 12345)
+    }
+
     @Test func observePreservesLiveGainWhenAlreadyRunning() async throws {
         try await database.userPreferencesRepository.updateSoundSyncGain(gain: 1.0)
         let runningState = SoundSyncState(isRunning: true, gain: 7.5, agcEnabled: false)
@@ -92,6 +104,19 @@ struct SoundSyncViewModelTests {
         }
 
         #expect(await manager.getState().squelch == 48)
+    }
+
+    @Test func observePreservesLivePortWhenAlreadyRunning() async throws {
+        try await database.userPreferencesRepository.updateSoundSyncPort(port: 11988)
+        let runningState = SoundSyncState(isRunning: true, port: 14000)
+        let manager = FakeSoundSyncManager(initialState: runningState)
+        let viewModel = makeViewModel(manager: manager)
+
+        try await runObserveUntil(viewModel: viewModel, manager: manager) {
+            viewModel.isRunning && viewModel.port == 14000
+        }
+
+        #expect(await manager.getState().port == 14000)
     }
 
     @Test func setAgcModeUpdatesManagerAndPersistsPreference() async throws {
@@ -135,6 +160,20 @@ struct SoundSyncViewModelTests {
             return managerSquelch == 65 && persistedSquelch == 65
         }
         #expect(viewModel.squelch == 65)
+    }
+
+    @Test func setPortUpdatesManagerAndPersistsPreference() async throws {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        viewModel.setPort(15000)
+
+        try await waitUntil {
+            let managerPort = await manager.getState().port
+            let persistedPort = await database.userPreferencesRepository.soundSyncPort.firstValue()?.int32Value
+            return managerPort == 15000 && persistedPort == 15000
+        }
+        #expect(viewModel.port == 15000)
     }
 
     @Test func startWhenPermissionDeniedOpensSettingsAndDoesNotStart() async {
