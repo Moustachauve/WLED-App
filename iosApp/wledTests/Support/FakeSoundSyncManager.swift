@@ -97,11 +97,6 @@ actor FakeSoundSyncManager: SoundSyncManaging {
         stateContinuation?.yield(state)
     }
 
-    func setPort(_ port: Int32) async {
-        state.port = port
-        stateContinuation?.yield(state)
-    }
-
     func updateDeviceAddresses(_ addresses: [String]) async {
         lastStartedAddresses = addresses
     }

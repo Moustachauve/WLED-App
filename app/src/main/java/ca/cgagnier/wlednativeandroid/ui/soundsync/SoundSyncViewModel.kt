@@ -36,7 +36,6 @@ class SoundSyncViewModel(
                 soundSyncManager.setAgcEnabled(preferencesRepository.soundSyncAgcEnabled.first())
                 soundSyncManager.setAgcMode(preferencesRepository.soundSyncAgcMode.first())
                 soundSyncManager.setSquelch(preferencesRepository.soundSyncSquelch.first())
-                soundSyncManager.setPort(preferencesRepository.soundSyncPort.first())
             }
         }
     }
@@ -44,7 +43,8 @@ class SoundSyncViewModel(
     val uiState: StateFlow<SoundSyncUiState> = combine(
         soundSyncManager.state,
         hasRecordAudioPermission,
-    ) { state, hasPermission ->
+        preferencesRepository.soundSyncPort,
+    ) { state, hasPermission, savedPort ->
         SoundSyncUiState(
             isRunning = state.isRunning,
             gain = state.gain,
@@ -52,7 +52,7 @@ class SoundSyncViewModel(
             agcEnabled = state.agcEnabled,
             agcMode = state.agcMode,
             squelch = state.squelch,
-            port = state.port,
+            port = if (state.isRunning) state.port else savedPort,
             error = state.error,
             hasRecordAudioPermission = hasPermission,
         )
@@ -81,7 +81,7 @@ class SoundSyncViewModel(
             refreshPermissionState()
             return
         }
-        val current = soundSyncManager.state.value
+        val current = soundSyncManager.state.value.copy(port = uiState.value.port)
         val intent = SoundSyncService.startIntent(
             context = context,
             state = current,
@@ -136,10 +136,8 @@ class SoundSyncViewModel(
     }
 
     fun setPort(port: Int) {
-        soundSyncManager.setPort(port)
-        val clampedPort = soundSyncManager.state.value.port
         viewModelScope.launch {
-            preferencesRepository.updateSoundSyncPort(clampedPort)
+            preferencesRepository.updateSoundSyncPort(port)
         }
     }
 

@@ -130,8 +130,5 @@ data class UdpSoundSyncPacket(
 
         /** Returns `true` if [port] is within the valid UDP port range (`1..65535`). */
         fun isValidPort(port: Int): Boolean = port in MIN_PORT..MAX_PORT
-
-        /** Clamps [port] to the valid UDP port range (`1..65535`). */
-        fun coercePort(port: Int): Int = port.coerceIn(MIN_PORT, MAX_PORT)
     }
 }

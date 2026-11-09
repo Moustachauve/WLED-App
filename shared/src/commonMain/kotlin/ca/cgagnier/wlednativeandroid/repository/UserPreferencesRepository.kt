@@ -1,7 +1,6 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.DataStore
-import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.shared.currentTimeMillis
@@ -145,10 +144,9 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
 
     suspend fun updateSoundSyncPort(port: Int) {
         logger.d { "updateSoundSyncPort" }
-        val clamped = UdpSoundSyncPacket.coercePort(port)
         dataStore.updateData {
             it.copy(
-                soundSyncPort = clamped,
+                soundSyncPort = port,
                 dateLastWritten = currentTimeMillis(),
             )
         }

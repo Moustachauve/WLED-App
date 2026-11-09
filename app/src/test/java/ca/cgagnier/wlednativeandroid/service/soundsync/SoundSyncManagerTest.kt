@@ -109,15 +109,6 @@ class SoundSyncManagerTest {
     }
 
     @Test
-    fun setPort_clampsAndUpdatesState() = runTest {
-        val manager = createManager(audioSource = FakeAudioSource(permissionGranted = true))
-
-        manager.setPort(70000)
-
-        assertEquals(UdpSoundSyncPacket.MAX_PORT, manager.state.value.port)
-    }
-
-    @Test
     fun start_passesConfiguredPortToSenderFactory() = runTest {
         val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
         var capturedPort = 0

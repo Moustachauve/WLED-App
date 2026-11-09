@@ -6,15 +6,12 @@ private typealias State = SwiftUI.State
 private let chartHeight: CGFloat = 120
 private let channelMaxValue: Float = 255
 private let barGapRatio: CGFloat = 0.15
-private let maxPortDigits = 5
 
 struct SoundSyncView: View {
 
     @Bindable var viewModel: SoundSyncViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    @State private var editingPortText: String?
-    @FocusState private var isPortFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -209,18 +206,17 @@ struct SoundSyncView: View {
                     Spacer()
                     TextField(
                         "UDP Port",
-                        text: portTextBinding,
+                        text: $viewModel.portText,
                         prompt: Text(verbatim: String(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT))
                     )
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
-                    .focused($isPortFieldFocused)
                     .disabled(viewModel.isRunning)
                     .frame(maxWidth: 120)
                 }
 
-                if !isPortInputValid {
+                if !viewModel.isPortValid {
                     Text("Enter a valid port between 1 and 65535")
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -232,36 +228,6 @@ struct SoundSyncView: View {
             }
             .padding(.vertical, 4)
         }
-        .onChange(of: isPortFieldFocused) { _, focused in
-            if !focused { editingPortText = nil }
-        }
-        .onChange(of: viewModel.isRunning) { _, isRunning in
-            if isRunning {
-                isPortFieldFocused = false
-                editingPortText = nil
-            }
-        }
-    }
-
-    private var portTextBinding: Binding<String> {
-        Binding(
-            get: { viewModel.isRunning ? String(viewModel.port) : (editingPortText ?? String(viewModel.port)) },
-            set: { newValue in
-                let digitsOnly = String(newValue.filter(\.isNumber).prefix(maxPortDigits))
-                editingPortText = digitsOnly
-                if let parsed = Int32(digitsOnly),
-                   UdpSoundSyncPacket.Companion.shared.isValidPort(port: parsed),
-                   viewModel.port != parsed {
-                    viewModel.setPort(parsed)
-                }
-            }
-        )
-    }
-
-    private var isPortInputValid: Bool {
-        guard !viewModel.isRunning, let editingPortText else { return true }
-        guard let parsed = Int32(editingPortText) else { return false }
-        return UdpSoundSyncPacket.Companion.shared.isValidPort(port: parsed)
     }
 
     private var visualizationSection: some View {

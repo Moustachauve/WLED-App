@@ -113,7 +113,7 @@ class SoundSyncManager(
             stop()
         }
 
-        val clampedPort = UdpSoundSyncPacket.coercePort(port)
+        val clampedPort = port.coerceIn(UdpSoundSyncPacket.MIN_PORT, UdpSoundSyncPacket.MAX_PORT)
         var clampedGain = 0f
         var clampedSquelch = 0
         val initialEffectiveGain = synchronized(processorLock) {
@@ -227,12 +227,6 @@ class SoundSyncManager(
             processor.squelch
         }
         _state.update { it.copy(squelch = clamped) }
-    }
-
-    /** Updates the UDP port used when sound sync starts. */
-    fun setPort(port: Int) {
-        val clamped = UdpSoundSyncPacket.coercePort(port)
-        _state.update { it.copy(port = clamped) }
     }
 
     @Synchronized

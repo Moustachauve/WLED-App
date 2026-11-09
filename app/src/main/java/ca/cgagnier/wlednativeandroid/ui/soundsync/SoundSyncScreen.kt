@@ -24,16 +24,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
@@ -73,7 +69,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -550,22 +545,12 @@ private fun SquelchSection(
 @Composable
 private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit) {
     val portLabel = stringResource(R.string.sound_sync_port)
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     var editingPortText by rememberSaveable { mutableStateOf<String?>(null) }
-    var hadFocus by remember { mutableStateOf(false) }
-    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
-
-    LaunchedEffect(hadFocus, imeBottom) {
-        if (hadFocus && imeBottom > 0) {
-            bringIntoViewRequester.bringIntoView()
-        }
-    }
 
     val displayedPortText = if (isRunning) port.toString() else editingPortText ?: port.toString()
-    val parsedPort = displayedPortText.toIntOrNull()
-    val isPortValid = parsedPort != null && UdpSoundSyncPacket.isValidPort(parsedPort)
+    val isPortValid = displayedPortText.toValidPortOrNull() != null
 
-    SoundSyncCard(modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester)) {
+    SoundSyncCard {
         SectionTitle(portLabel)
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
@@ -573,10 +558,7 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
             onValueChange = { newValue ->
                 val digitsOnly = newValue.filter { it.isDigit() }.take(MAX_PORT_DIGITS)
                 editingPortText = digitsOnly
-                val candidate = digitsOnly.toIntOrNull()
-                if (candidate != null && UdpSoundSyncPacket.isValidPort(candidate)) {
-                    onPortChanged(candidate)
-                }
+                digitsOnly.toValidPortOrNull()?.let(onPortChanged)
             },
             enabled = !isRunning,
             singleLine = true,
@@ -586,14 +568,7 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = portLabel }
-                .onFocusChanged { focusState ->
-                    if (focusState.isFocused) {
-                        hadFocus = true
-                    } else if (hadFocus) {
-                        hadFocus = false
-                        editingPortText = null
-                    }
-                },
+                .onFocusChanged { if (!it.isFocused) editingPortText = null },
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -605,6 +580,8 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
         )
     }
 }
+
+private fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)
 
 private fun AgcMode.labelResId(): Int = when (this) {
     AgcMode.NORMAL -> R.string.sound_sync_agc_mode_normal

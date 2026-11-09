@@ -45,7 +45,6 @@ protocol SoundSyncManaging: Sendable {
     func setAgcEnabled(_ enabled: Bool) async
     func setAgcMode(_ mode: AgcMode) async
     func setSquelch(_ squelch: Int32) async
-    func setPort(_ port: Int32) async
     func updateDeviceAddresses(_ addresses: [String]) async
 }
 
@@ -130,7 +129,8 @@ actor SoundSyncManager: SoundSyncManaging {
         let startGeneration = lifecycleGeneration
         isStarting = true
 
-        let clampedPort = UdpSoundSyncPacket.Companion.shared.coercePort(port: config.port)
+        let packetCompanion = UdpSoundSyncPacket.Companion.shared
+        let clampedPort = min(max(config.port, packetCompanion.MIN_PORT), packetCompanion.MAX_PORT)
         processor.reset()
         processor.setGain(gain: config.gain)
         processor.setAgcEnabled(enabled: config.agcEnabled)
@@ -275,12 +275,6 @@ actor SoundSyncManager: SoundSyncManaging {
         processor.setSquelch(squelch: squelch)
         let clamped = processor.squelch
         updateState { $0.squelch = clamped }
-    }
-
-    /// Updates the UDP port used when sound sync starts.
-    func setPort(_ port: Int32) {
-        let clamped = UdpSoundSyncPacket.Companion.shared.coercePort(port: port)
-        updateState { $0.port = clamped }
     }
 
     /// Updates the list of device addresses for unicast sending.

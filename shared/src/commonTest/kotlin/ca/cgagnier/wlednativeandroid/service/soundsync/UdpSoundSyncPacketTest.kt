@@ -141,16 +141,4 @@ class UdpSoundSyncPacketTest {
             assertFalse(UdpSoundSyncPacket.isValidPort(port), "Expected $port to be invalid")
         }
     }
-
-    @Test
-    fun coercePort_clampsToValidPortRange() {
-        listOf(
-            0 to UdpSoundSyncPacket.MIN_PORT,
-            -100 to UdpSoundSyncPacket.MIN_PORT,
-            11988 to 11988,
-            65536 to UdpSoundSyncPacket.MAX_PORT,
-        ).forEach { (input, expected) ->
-            assertEquals(expected, UdpSoundSyncPacket.coercePort(input), "input=$input")
-        }
-    }
 }

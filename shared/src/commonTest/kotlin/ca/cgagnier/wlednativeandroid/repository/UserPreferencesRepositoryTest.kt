@@ -149,15 +149,9 @@ class UserPreferencesRepositoryTest {
     }
 
     @Test
-    fun updateSoundSyncPort_clampsAndUpdatesFlow() = withRepository { repo ->
-        listOf(
-            12000 to 12000,
-            70000 to UdpSoundSyncPacket.MAX_PORT,
-            0 to UdpSoundSyncPacket.MIN_PORT,
-        ).forEach { (input, expected) ->
-            repo.updateSoundSyncPort(input)
-            assertEquals(expected, repo.soundSyncPort.first(), "input=$input")
-        }
+    fun updateSoundSyncPort_updatesFlow() = withRepository { repo ->
+        repo.updateSoundSyncPort(12000)
+        assertEquals(12000, repo.soundSyncPort.first())
     }
 
     @Test

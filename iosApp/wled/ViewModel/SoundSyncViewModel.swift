@@ -15,13 +15,35 @@ final class SoundSyncViewModel {
 
     // MARK: - Observable Properties
 
+    private static let maxPortDigits = 5
+
     var isRunning: Bool = false
     var gain: Float = 1.0
     var effectiveGain: Float = 1.0
     var agcEnabled: Bool = false
     var agcMode: AgcMode = .normal
     var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
-    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT
+    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT {
+        didSet {
+            let text = String(port)
+            if portText != text {
+                portText = text
+            }
+        }
+    }
+    var portText: String = String(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT) {
+        didSet {
+            let digitsOnly = String(portText.filter(\.isNumber).prefix(Self.maxPortDigits))
+            if portText != digitsOnly {
+                portText = digitsOnly
+                return
+            }
+            guard portText != oldValue else { return }
+            if let parsed = parsedValidPort, port != parsed {
+                setPort(parsed)
+            }
+        }
+    }
     var fftChannels: [UInt8] = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
     var sampleLevel: Float = 0
     var isPeak: Bool = false
@@ -32,8 +54,20 @@ final class SoundSyncViewModel {
         (isRunning && agcEnabled) ? effectiveGain : gain
     }
 
+    var isPortValid: Bool {
+        parsedValidPort != nil
+    }
+
     var isPermissionDenied: Bool {
         recordPermission == .denied
+    }
+
+    private var parsedValidPort: Int32? {
+        guard let parsed = Int32(portText),
+              UdpSoundSyncPacket.Companion.shared.isValidPort(port: parsed) else {
+            return nil
+        }
+        return parsed
     }
 
     // MARK: - Private Properties
@@ -101,6 +135,10 @@ final class SoundSyncViewModel {
 
         let devices = await deviceRepository.allDevices.firstValue() ?? []
         let addresses = Self.visibleAddresses(from: devices)
+        // Reset any invalid or incomplete text entry back to the last valid port before starting.
+        if portText != String(port) {
+            portText = String(port)
+        }
         let started = await soundSyncManager.start(
             SoundSyncStartConfig(
                 gain: gain,
@@ -191,12 +229,10 @@ final class SoundSyncViewModel {
 
     /// Updates the UDP port and persists the preference.
     func setPort(_ newPort: Int32) {
-        let clamped = UdpSoundSyncPacket.Companion.shared.coercePort(port: newPort)
-        port = clamped
+        port = newPort
         portUpdateTask?.cancel()
-        portUpdateTask = Task { [soundSyncManager, userPreferencesRepository] in
-            await soundSyncManager.setPort(clamped)
-            try? await userPreferencesRepository.updateSoundSyncPort(port: clamped)
+        portUpdateTask = Task { [userPreferencesRepository] in
+            try? await userPreferencesRepository.updateSoundSyncPort(port: newPort)
         }
     }
 
@@ -267,7 +303,6 @@ final class SoundSyncViewModel {
         if port != resolvedPort {
             port = resolvedPort
         }
-        await soundSyncManager.setPort(resolvedPort)
     }
 
     private func applyState(_ state: SoundSyncState) {

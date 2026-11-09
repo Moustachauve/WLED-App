@@ -61,7 +61,7 @@ struct SoundSyncViewModelTests {
             viewModel.port == 12345
         }
 
-        #expect(await manager.getState().port == 12345)
+        #expect(viewModel.portText == "12345")
     }
 
     @Test func observePreservesLiveGainWhenAlreadyRunning() async throws {
@@ -162,18 +162,42 @@ struct SoundSyncViewModelTests {
         #expect(viewModel.squelch == 65)
     }
 
-    @Test func setPortUpdatesManagerAndPersistsPreference() async throws {
+    @Test func setPortPersistsPreference() async throws {
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
 
         viewModel.setPort(15000)
 
         try await waitUntil {
-            let managerPort = await manager.getState().port
             let persistedPort = await database.userPreferencesRepository.soundSyncPort.firstValue()?.int32Value
-            return managerPort == 15000 && persistedPort == 15000
+            return persistedPort == 15000
         }
         #expect(viewModel.port == 15000)
+        #expect(viewModel.portText == "15000")
+    }
+
+    @Test(
+        arguments: [
+            ("abc123456", "12345", true, Int32(12345)),
+            ("70000", "70000", false, UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT),
+            ("0", "0", false, UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT),
+            ("", "", false, UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT)
+        ]
+    )
+    func portTextFiltersNonDigitsAndValidatesRange(
+        input: String,
+        expectedText: String,
+        expectedValid: Bool,
+        expectedPort: Int32
+    ) {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        viewModel.portText = input
+
+        #expect(viewModel.portText == expectedText)
+        #expect(viewModel.isPortValid == expectedValid)
+        #expect(viewModel.port == expectedPort)
     }
 
     @Test func startWhenPermissionDeniedOpensSettingsAndDoesNotStart() async {
