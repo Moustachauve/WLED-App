@@ -406,7 +406,7 @@ private fun AgcModeSection(
     onAgcModeChanged: (AgcMode) -> Unit,
 ) {
     val modes = AgcMode.entries
-    var animateVisibility by rememberSaveable { mutableStateOf(false) }
+    var animateVisibility by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
