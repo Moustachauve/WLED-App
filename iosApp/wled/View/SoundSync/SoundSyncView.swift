@@ -167,7 +167,7 @@ struct SoundSyncView: View {
                         "Squelch",
                         value: Binding(
                             get: { viewModel.squelch },
-                            set: { viewModel.setSquelch($0) }
+                            set: { viewModel.stepSquelch(to: $0) }
                         ),
                         in: minSquelchInt...maxSquelchInt
                     )

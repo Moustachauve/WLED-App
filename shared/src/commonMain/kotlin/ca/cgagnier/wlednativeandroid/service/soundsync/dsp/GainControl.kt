@@ -12,12 +12,16 @@ import kotlin.math.min
  * [agcEnabled] is `true`, AGC tracks the unscaled input peak envelope with a slow
  * peak hold ([AgcMode.peakDecayTimeSec]) using the selected [agcMode] (`NORMAL`,
  * `VIVID`, or `LAZY`) and adjusts gain using two speed zones:
- * - **Normal zone** (`[zoneLow]..[zoneHigh]`): Gain glides slowly ([AgcMode.slowFollowTimeSec])
- *   toward [AgcMode.targetLevel] so musical dynamics between beats and phrases are preserved.
- * - **Emergency zone** (`< zoneLow` or `> zoneHigh`): Gain adapts quickly
+ * - **Normal zone** (`squelchAmplitude + ZONE_LOW..ZONE_HIGH`): Gain glides slowly
+ *   ([AgcMode.slowFollowTimeSec]) toward [AgcMode.targetLevel] so musical dynamics between
+ *   beats and phrases are preserved.
+ * - **Emergency zone** (`< squelchAmplitude + ZONE_LOW` or `> ZONE_HIGH`): Gain adapts quickly
  *   ([AgcMode.fastFollowTimeSec]) to prevent sustained clipping or dead LEDs.
  * - **Squelch freeze**: When the unscaled signal is below [squelchAmplitude],
  *   AGC holds its gain steady instead of amplifying background room noise.
+ *
+ * WLED's PI integrator is intentionally omitted; P-only settles on the setpoint without
+ * integrator overshoot or windup.
  *
  * Output is hard-clipped to `[-MAX_AMPLITUDE, MAX_AMPLITUDE]` to prevent distortion.
  */
@@ -33,8 +37,7 @@ class GainControl(
         private set
     var agcEnabled: Boolean = agcEnabled
         private set
-    var agcMode: AgcMode = agcMode
-        private set
+    private var agcMode: AgcMode = agcMode
 
     private var currentSampleRate: Int = sampleRate.coerceAtLeast(MIN_SAMPLE_RATE)
     private var currentSquelchAmplitude: Float = squelchAmplitude.coerceAtLeast(MIN_SQUELCH_AMPLITUDE)
@@ -130,9 +133,6 @@ class GainControl(
         // and hold agcGain steady so ambient room noise is not amplified to MAX_AGC_GAIN.
         if (chunkPeak < currentSquelchAmplitude) {
             peakEnvelope *= peakDecayRetention
-            if (peakEnvelope < MIN_PEAK_ENVELOPE) {
-                peakEnvelope = 0f
-            }
             return
         }
 
@@ -140,7 +140,7 @@ class GainControl(
             peakEnvelope < currentSquelchAmplitude -> chunkPeak
 
             // Attack quickly when chunkPeak rises above peakEnvelope, or when peakEnvelope * agcGain
-            // exceeds OVERDRIVE_RECOVERY_CEILING (125% of full scale): pulling peakEnvelope down
+            // exceeds OVERDRIVE_RECOVERY_CEILING (WLED's agcZoneStop check): pulling peakEnvelope down
             // toward the current chunkPeak after a brief transient spike prevents a stale inflated
             // envelope from driving desiredGain toward zero.
             chunkPeak > peakEnvelope || peakEnvelope * agcGain > OVERDRIVE_RECOVERY_CEILING ->
@@ -149,22 +149,17 @@ class GainControl(
             else -> peakEnvelope * peakDecayRetention
         }
 
-        if (peakEnvelope > MIN_PEAK_ENVELOPE) {
-            val desiredGain = (mode.targetLevel / peakEnvelope).coerceIn(MIN_AGC_GAIN, MAX_AGC_GAIN)
-            val amplifiedPeak = chunkPeak * agcGain
-            val lowEmergencyThreshold = (currentSquelchAmplitude + mode.zoneLow)
-                .coerceAtMost(mode.targetLevel * LOW_ZONE_TARGET_CAP_RATIO)
-            val inEmergencyZone = amplifiedPeak > mode.zoneHigh || amplifiedPeak < lowEmergencyThreshold
-            val followTimeSec = if (inEmergencyZone) mode.fastFollowTimeSec else mode.slowFollowTimeSec
-            val gainRetention = exp(-dtSec / followTimeSec)
-            agcGain = (agcGain * gainRetention + desiredGain * (1f - gainRetention))
-                .coerceIn(MIN_AGC_GAIN, MAX_AGC_GAIN)
-        }
+        val desiredGain = (mode.targetLevel / peakEnvelope).coerceIn(MIN_AGC_GAIN, MAX_AGC_GAIN)
+        val amplifiedPeak = chunkPeak * agcGain
+        val inEmergencyZone = amplifiedPeak > ZONE_HIGH || amplifiedPeak < currentSquelchAmplitude + ZONE_LOW
+        val followTimeSec = if (inEmergencyZone) mode.fastFollowTimeSec else mode.slowFollowTimeSec
+        val gainRetention = exp(-dtSec / followTimeSec)
+        agcGain = agcGain * gainRetention + desiredGain * (1f - gainRetention)
     }
 
     companion object {
         const val MAX_MANUAL_GAIN = 30.0f
-        const val DEFAULT_SQUELCH_AMPLITUDE = 0.005f
+        private const val DEFAULT_SQUELCH_AMPLITUDE = 0.005f
         private const val MAX_AMPLITUDE = 1.0f
         private const val MIN_SQUELCH_AMPLITUDE = 0.0001f
         private const val MIN_SAMPLE_RATE = 8000
@@ -173,13 +168,15 @@ class GainControl(
         private const val MAX_AGC_GAIN = 90.0f
         private const val AGC_UPDATE_INTERVAL = 256
         private const val PEAK_ATTACK_BLEND = 0.5f
+        private const val ZONE_LOW = 0.12f
+        private const val ZONE_HIGH = 0.90f
 
         /**
-         * Amplified envelope ceiling (`125%` of [MAX_AMPLITUDE]) above which `peakEnvelope`
-         * converges rapidly toward `chunkPeak` so a stale transient spike cannot pin gain near zero.
+         * WLED `agcZoneStop` overdrive ceiling (`125%` of [MAX_AMPLITUDE]) above which
+         * `peakEnvelope` converges rapidly toward `chunkPeak` so a stale transient spike
+         * cannot pin gain near zero. A single `1.25f` value is used deliberately across all
+         * presets instead of WLED's per-preset values (`~1.32 / 1.76 / 1.19`).
          */
         private const val OVERDRIVE_RECOVERY_CEILING = 1.25f
-        private const val LOW_ZONE_TARGET_CAP_RATIO = 0.5f
-        private const val MIN_PEAK_ENVELOPE = 0.0001f
     }
 }

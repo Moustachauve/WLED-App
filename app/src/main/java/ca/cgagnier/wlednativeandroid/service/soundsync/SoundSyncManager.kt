@@ -6,7 +6,6 @@ import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.MicrophoneAudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
-import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -111,16 +110,19 @@ class SoundSyncManager(
             stop()
         }
 
-        val clampedGain = gain.coerceIn(0f, GainControl.MAX_MANUAL_GAIN)
-        val (clampedSquelch, initialEffectiveGain) = synchronized(processorLock) {
+        var clampedGain = 0f
+        var clampedSquelch = 0
+        val initialEffectiveGain = synchronized(processorLock) {
             capturedSamples = 0L
             processor.reset()
             processor.configureSampleRate(audioSource.sampleRate)
-            processor.setGain(clampedGain)
+            processor.setGain(gain)
             processor.setAgcEnabled(agcEnabled)
             processor.setAgcMode(agcMode)
             processor.setSquelch(squelch)
-            processor.squelch to processor.effectiveGain
+            clampedGain = processor.gain
+            clampedSquelch = processor.squelch
+            processor.effectiveGain
         }
         _state.update {
             it.copy(
@@ -178,9 +180,9 @@ class SoundSyncManager(
 
     /** Updates the manual gain in real-time. */
     fun setGain(gain: Float) {
-        val clampedGain = gain.coerceIn(0f, GainControl.MAX_MANUAL_GAIN)
-        synchronized(processorLock) {
-            processor.setGain(clampedGain)
+        val clampedGain = synchronized(processorLock) {
+            processor.setGain(gain)
+            processor.gain
         }
         _state.update { it.copy(gain = clampedGain) }
     }

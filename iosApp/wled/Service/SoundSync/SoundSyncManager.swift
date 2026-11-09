@@ -135,12 +135,12 @@ actor SoundSyncManager: SoundSyncManaging {
         let startGeneration = lifecycleGeneration
         isStarting = true
 
-        let clampedGain = min(max(gain, 0), GainControl.Companion.shared.MAX_MANUAL_GAIN)
         processor.reset()
-        processor.setGain(gain: clampedGain)
+        processor.setGain(gain: gain)
         processor.setAgcEnabled(enabled: agcEnabled)
         processor.setAgcMode(mode: agcMode)
         processor.setSquelch(squelch: squelch)
+        let clampedGain = processor.gain
         let clampedSquelch = processor.squelch
         let initialEffectiveGain = processor.effectiveGain
 
@@ -248,8 +248,8 @@ actor SoundSyncManager: SoundSyncManaging {
 
     /// Updates the manual gain in real-time.
     func setGain(_ gain: Float) {
-        let clampedGain = min(max(gain, 0), GainControl.Companion.shared.MAX_MANUAL_GAIN)
-        processor.setGain(gain: clampedGain)
+        processor.setGain(gain: gain)
+        let clampedGain = processor.gain
         updateState { $0.gain = clampedGain }
     }
 

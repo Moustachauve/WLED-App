@@ -108,11 +108,11 @@ struct SoundSyncViewModelTests {
         #expect(viewModel.agcMode == .lazy)
     }
 
-    @Test func setSquelchUpdatesManagerAndPersistsPreference() async throws {
+    @Test func stepSquelchUpdatesManagerAndPersistsPreference() async throws {
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
 
-        viewModel.setSquelch(42)
+        viewModel.stepSquelch(to: 42)
 
         try await waitUntil {
             let managerSquelch = await manager.getState().squelch

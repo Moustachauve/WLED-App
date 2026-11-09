@@ -58,7 +58,6 @@ class SoundSyncProcessor(
     val gain: Float get() = gainControl.manualGain
     val effectiveGain: Float
         get() = if (gainControl.agcEnabled) smoothedEffectiveGain else gainControl.manualGain
-    val agcMode: AgcMode get() = gainControl.agcMode
     val agcEnabled: Boolean get() = gainControl.agcEnabled
 
     /**

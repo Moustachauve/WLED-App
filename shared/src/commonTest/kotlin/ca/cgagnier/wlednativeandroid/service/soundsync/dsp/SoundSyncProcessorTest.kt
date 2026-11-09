@@ -89,12 +89,7 @@ class SoundSyncProcessorTest {
 
     @Test
     fun process_whenAgcEnabled_roomNoiseDoesNotOpenNoiseGate() {
-        val processor = SoundSyncProcessor(
-            sampleRate = 44100,
-            manualGain = 1.0f,
-            agcEnabled = true,
-            agcMode = AgcMode.NORMAL,
-        )
+        val processor = SoundSyncProcessor(sampleRate = 44100, manualGain = 1.0f, agcEnabled = true)
         val windowSize = SoundSyncProcessor.FFT_WINDOW_SIZE
         // Quiet passage just above the gate (0.006 > 0.005) ramps AGC; then room drops to 0.003 noise
         val quietPassage =
@@ -230,18 +225,8 @@ class SoundSyncProcessorTest {
             count = SoundSyncProcessor.FFT_WINDOW_SIZE * 2,
             amplitude = 0.02f,
         )
-        val twentyMsProcessor = SoundSyncProcessor(
-            sampleRate = 44100,
-            manualGain = 1.5f,
-            agcEnabled = true,
-            agcMode = AgcMode.NORMAL,
-        )
-        val fortyMsProcessor = SoundSyncProcessor(
-            sampleRate = 44100,
-            manualGain = 1.5f,
-            agcEnabled = true,
-            agcMode = AgcMode.NORMAL,
-        )
+        val twentyMsProcessor = SoundSyncProcessor(sampleRate = 44100, manualGain = 1.5f, agcEnabled = true)
+        val fortyMsProcessor = SoundSyncProcessor(sampleRate = 44100, manualGain = 1.5f, agcEnabled = true)
 
         assertNotNull(twentyMsProcessor.process(quietWave, nowMs = 0L))
         assertNotNull(fortyMsProcessor.process(quietWave, nowMs = 0L))
@@ -260,29 +245,6 @@ class SoundSyncProcessorTest {
         processor.setAgcEnabled(true)
 
         assertEquals(SoundSyncProcessor.DEFAULT_GAIN, processor.effectiveGain, 0.0001f)
-    }
-
-    @Test
-    fun setAgcMode_betweenActiveModes_preservesSmoothedEffectiveGain() {
-        val processor = SoundSyncProcessor(
-            sampleRate = 44100,
-            manualGain = 1.0f,
-            agcEnabled = true,
-            agcMode = AgcMode.VIVID,
-        )
-        val quietWave = generateSineWave(
-            frequency = 440f,
-            sampleRate = 44100,
-            count = SoundSyncProcessor.FFT_WINDOW_SIZE * 4,
-            amplitude = 0.02f,
-        )
-        assertNotNull(processor.process(quietWave, nowMs = 0L))
-        val activeGain = processor.effectiveGain
-        assertTrue(activeGain > SoundSyncProcessor.DEFAULT_GAIN)
-
-        processor.setAgcMode(AgcMode.LAZY)
-
-        assertEquals(activeGain, processor.effectiveGain, 0.0001f)
     }
 
     @Test

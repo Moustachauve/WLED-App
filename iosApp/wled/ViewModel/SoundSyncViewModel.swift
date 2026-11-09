@@ -179,7 +179,7 @@ final class SoundSyncViewModel {
     }
 
     /// Updates the squelch threshold by a discrete step and immediately persists the preference.
-    func setSquelch(_ newSquelch: Int32) {
+    func stepSquelch(to newSquelch: Int32) {
         squelch = newSquelch
         saveSquelch()
     }

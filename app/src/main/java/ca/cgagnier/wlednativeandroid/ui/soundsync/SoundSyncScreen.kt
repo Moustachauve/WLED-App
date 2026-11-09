@@ -11,8 +11,14 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -61,6 +67,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,7 +101,6 @@ data class SoundSyncActions(
     val navigateUp: () -> Unit = {},
     val onStart: () -> Unit = {},
     val onStop: () -> Unit = {},
-    val onRequestPermissionOrSettings: () -> Unit = {},
     val onGainChanged: (Float) -> Unit = {},
     val onGainChangeFinished: () -> Unit = {},
     val onAgcEnabledChanged: (Boolean) -> Unit = {},
@@ -131,18 +139,22 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
         permanentlyDenied = false
     }
 
-    val actions = remember(navigateUp, viewModel, permanentlyDenied, context) {
+    val hasRecordAudioPermission = uiState.hasRecordAudioPermission
+    val actions = remember(navigateUp, viewModel, hasRecordAudioPermission, permanentlyDenied, context) {
         SoundSyncActions(
             navigateUp = navigateUp,
-            onStart = { viewModel.start() },
-            onStop = { viewModel.stop() },
-            onRequestPermissionOrSettings = {
-                if (permanentlyDenied) {
-                    openAppSettings(context)
+            onStart = {
+                if (!hasRecordAudioPermission) {
+                    if (permanentlyDenied) {
+                        openAppSettings(context)
+                    } else {
+                        permissionLauncher.launch(requiredPermissions())
+                    }
                 } else {
-                    permissionLauncher.launch(requiredPermissions())
+                    viewModel.start()
                 }
             },
+            onStop = { viewModel.stop() },
             onGainChanged = { viewModel.setGain(it) },
             onGainChangeFinished = { viewModel.saveGain() },
             onAgcEnabledChanged = { viewModel.setAgcEnabled(it) },
@@ -216,19 +228,15 @@ fun SoundSyncContent(
                     .padding(vertical = 6.dp)
                     .widthIn(0.dp, 1100.dp),
             ) {
-                DescriptionCard(
-                    isRunning = uiState.isRunning,
-                    hasRecordAudioPermission = uiState.hasRecordAudioPermission,
-                    permanentlyDenied = permanentlyDenied,
-                    onStart = {
-                        if (!uiState.hasRecordAudioPermission) {
-                            actions.onRequestPermissionOrSettings()
-                        } else {
-                            actions.onStart()
-                        }
-                    },
-                    onStop = actions.onStop,
-                )
+                DescriptionCard {
+                    StartStopControls(
+                        isRunning = uiState.isRunning,
+                        hasRecordAudioPermission = uiState.hasRecordAudioPermission,
+                        permanentlyDenied = permanentlyDenied,
+                        onStart = actions.onStart,
+                        onStop = actions.onStop,
+                    )
+                }
                 uiState.error?.let { ErrorCard(it) }
                 if (uiState.isRunning) {
                     VisualizationCard(latestPacketFlow = latestPacketFlow)
@@ -243,13 +251,7 @@ fun SoundSyncContent(
 }
 
 @Composable
-private fun DescriptionCard(
-    isRunning: Boolean,
-    hasRecordAudioPermission: Boolean,
-    permanentlyDenied: Boolean,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-) {
+private fun DescriptionCard(content: @Composable ColumnScope.() -> Unit) {
     SoundSyncCard(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -274,13 +276,7 @@ private fun DescriptionCard(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        StartStopControls(
-            isRunning = isRunning,
-            hasRecordAudioPermission = hasRecordAudioPermission,
-            permanentlyDenied = permanentlyDenied,
-            onStart = onStart,
-            onStop = onStop,
-        )
+        content()
     }
 }
 
@@ -318,59 +314,86 @@ private fun SoundSyncCard(
 }
 
 @Composable
-private fun GainCard(uiState: SoundSyncUiState, actions: SoundSyncActions) {
-    val gain = uiState.displayedGain
-    val agcEnabled = uiState.agcEnabled
-    val animatedAgcGain by animateFloatAsState(
-        targetValue = gain,
-        label = "agcGainSlider",
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
     )
-    val sliderGain = if (agcEnabled) animatedAgcGain else gain
+}
 
+@Composable
+private fun SectionDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+}
+
+@Composable
+private fun GainCard(uiState: SoundSyncUiState, actions: SoundSyncActions) {
     SoundSyncCard {
-        Text(
-            stringResource(R.string.sound_sync_gain),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
+        GainSection(
+            displayedGain = uiState.displayedGain,
+            agcEnabled = uiState.agcEnabled,
+            onGainChanged = actions.onGainChanged,
+            onGainChangeFinished = actions.onGainChangeFinished,
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Slider(
-                value = sliderGain,
-                onValueChange = actions.onGainChanged,
-                onValueChangeFinished = actions.onGainChangeFinished,
-                valueRange = 0f..GainControl.MAX_MANUAL_GAIN,
-                modifier = Modifier.weight(1f),
-                enabled = !agcEnabled,
-            )
-            Text(
-                text = stringResource(R.string.sound_sync_gain_value, gain),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant,
-        )
+        SectionDivider()
         AgcModeSection(
             agcEnabled = uiState.agcEnabled,
             agcMode = uiState.agcMode,
             onAgcEnabledChanged = actions.onAgcEnabledChanged,
             onAgcModeChanged = actions.onAgcModeChanged,
         )
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant,
-        )
+        SectionDivider()
         SquelchSection(
             squelch = uiState.squelch,
             onSquelchChanged = actions.onSquelchChanged,
             onSquelchChangeFinished = actions.onSquelchChangeFinished,
             onSquelchStepped = actions.onSquelchStepped,
+        )
+    }
+}
+
+@Composable
+private fun GainSection(
+    displayedGain: Float,
+    agcEnabled: Boolean,
+    onGainChanged: (Float) -> Unit,
+    onGainChangeFinished: () -> Unit,
+) {
+    val animatedAgcGain by animateFloatAsState(
+        targetValue = displayedGain,
+        label = "agcGainSlider",
+    )
+    val sliderGain = if (agcEnabled) animatedAgcGain else displayedGain
+    val gainLabel = stringResource(R.string.sound_sync_gain)
+    val gainValueText = stringResource(R.string.sound_sync_gain_value, displayedGain)
+
+    SectionTitle(gainLabel)
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Slider(
+            value = sliderGain,
+            onValueChange = onGainChanged,
+            onValueChangeFinished = onGainChangeFinished,
+            valueRange = 0f..GainControl.MAX_MANUAL_GAIN,
+            modifier = Modifier
+                .weight(1f)
+                .semantics {
+                    contentDescription = gainLabel
+                    stateDescription = gainValueText
+                },
+            enabled = !agcEnabled,
+        )
+        Text(
+            text = gainValueText,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
         )
     }
 }
@@ -383,34 +406,36 @@ private fun AgcModeSection(
     onAgcModeChanged: (AgcMode) -> Unit,
 ) {
     val modes = AgcMode.entries
+    var animateVisibility by rememberSaveable { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .toggleable(
                 value = agcEnabled,
                 role = Role.Switch,
-                onValueChange = onAgcEnabledChanged,
+                onValueChange = {
+                    animateVisibility = true
+                    onAgcEnabledChanged(it)
+                },
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.sound_sync_agc),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            SectionTitle(stringResource(R.string.sound_sync_agc))
             Text(
                 text = stringResource(R.string.sound_sync_agc_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(
-            checked = agcEnabled,
-            onCheckedChange = null,
-        )
+        Switch(checked = agcEnabled, onCheckedChange = null)
     }
-    AnimatedVisibility(visible = agcEnabled) {
+    AnimatedVisibility(
+        visible = agcEnabled,
+        enter = if (animateVisibility) fadeIn() + expandVertically() else EnterTransition.None,
+        exit = if (animateVisibility) fadeOut() + shrinkVertically() else ExitTransition.None,
+    ) {
         Column {
             Spacer(modifier = Modifier.height(12.dp))
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -446,11 +471,8 @@ private fun SquelchSection(
     onSquelchChangeFinished: () -> Unit,
     onSquelchStepped: (Int) -> Unit,
 ) {
-    Text(
-        text = stringResource(R.string.sound_sync_squelch),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-    )
+    val squelchLabel = stringResource(R.string.sound_sync_squelch)
+    SectionTitle(squelchLabel)
     Spacer(modifier = Modifier.height(4.dp))
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -470,7 +492,11 @@ private fun SquelchSection(
             onValueChange = { onSquelchChanged(it.roundToInt()) },
             onValueChangeFinished = onSquelchChangeFinished,
             valueRange = SoundSyncProcessor.MIN_SQUELCH.toFloat()..SoundSyncProcessor.MAX_SQUELCH.toFloat(),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .semantics {
+                    contentDescription = squelchLabel
+                },
         )
         IconButton(
             onClick = { onSquelchStepped(1) },
@@ -523,11 +549,7 @@ private fun VisualizationCard(latestPacketFlow: StateFlow<UdpSoundSyncPacket>) {
     }
 
     SoundSyncCard {
-        Text(
-            stringResource(R.string.sound_sync_fft_visualization),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        SectionTitle(stringResource(R.string.sound_sync_fft_visualization))
         Spacer(modifier = Modifier.height(8.dp))
         FftBarChart(
             fftChannelsProvider = { packet.fftResult },
