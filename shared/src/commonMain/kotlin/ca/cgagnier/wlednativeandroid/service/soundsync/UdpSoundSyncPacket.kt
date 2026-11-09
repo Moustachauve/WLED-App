@@ -116,10 +116,19 @@ data class UdpSoundSyncPacket(
         /** Default UDP port for WLED sound sync. */
         const val DEFAULT_PORT = 11988
 
+        /** Minimum valid UDP port number. */
+        const val MIN_PORT = 1
+
+        /** Maximum valid UDP port number. */
+        const val MAX_PORT = 65535
+
         /** Maximum packets per second (50 fps = one packet every 20ms). */
         const val MAX_PACKETS_PER_SECOND = 50
 
         /** Interval between packets in milliseconds. */
         const val PACKET_INTERVAL_MS = 1000L / MAX_PACKETS_PER_SECOND
+
+        /** Returns `true` if [port] is within the valid UDP port range (`1..65535`). */
+        fun isValidPort(port: Int): Boolean = port in MIN_PORT..MAX_PORT
     }
 }

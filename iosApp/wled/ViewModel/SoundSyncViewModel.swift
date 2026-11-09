@@ -15,12 +15,35 @@ final class SoundSyncViewModel {
 
     // MARK: - Observable Properties
 
+    private static let maxPortDigits = 5
+
     var isRunning: Bool = false
     var gain: Float = 1.0
     var effectiveGain: Float = 1.0
     var agcEnabled: Bool = false
     var agcMode: AgcMode = .normal
     var squelch: Int32 = SoundSyncProcessor.Companion.shared.DEFAULT_SQUELCH
+    var port: Int32 = UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT {
+        didSet {
+            let text = String(port)
+            if portText != text {
+                portText = text
+            }
+        }
+    }
+    var portText: String = String(UdpSoundSyncPacket.Companion.shared.DEFAULT_PORT) {
+        didSet {
+            let digitsOnly = String(portText.filter(\.isNumber).prefix(Self.maxPortDigits))
+            if portText != digitsOnly {
+                portText = digitsOnly
+                return
+            }
+            guard portText != oldValue else { return }
+            if let parsed = parsedValidPort, port != parsed {
+                setPort(parsed)
+            }
+        }
+    }
     var fftChannels: [UInt8] = Array(repeating: 0, count: Int(UdpSoundSyncPacket.Companion.shared.FFT_CHANNEL_COUNT))
     var sampleLevel: Float = 0
     var isPeak: Bool = false
@@ -31,8 +54,20 @@ final class SoundSyncViewModel {
         (isRunning && agcEnabled) ? effectiveGain : gain
     }
 
+    var isPortValid: Bool {
+        parsedValidPort != nil
+    }
+
     var isPermissionDenied: Bool {
         recordPermission == .denied
+    }
+
+    private var parsedValidPort: Int32? {
+        guard let parsed = Int32(portText),
+              UdpSoundSyncPacket.Companion.shared.isValidPort(port: parsed) else {
+            return nil
+        }
+        return parsed
     }
 
     // MARK: - Private Properties
@@ -44,6 +79,7 @@ final class SoundSyncViewModel {
     @ObservationIgnored private var deviceObservationTask: Task<Void, Never>?
     @ObservationIgnored private var gainUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var squelchUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var portUpdateTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -99,12 +135,19 @@ final class SoundSyncViewModel {
 
         let devices = await deviceRepository.allDevices.firstValue() ?? []
         let addresses = Self.visibleAddresses(from: devices)
+        // Reset any invalid or incomplete text entry back to the last valid port before starting.
+        if portText != String(port) {
+            portText = String(port)
+        }
         let started = await soundSyncManager.start(
-            gain: gain,
-            agcEnabled: agcEnabled,
-            agcMode: agcMode,
-            squelch: squelch,
-            deviceAddresses: addresses
+            SoundSyncStartConfig(
+                gain: gain,
+                agcEnabled: agcEnabled,
+                agcMode: agcMode,
+                squelch: squelch,
+                port: port,
+                deviceAddresses: addresses
+            )
         )
         let currentState = await soundSyncManager.getState()
         applyState(currentState)
@@ -184,25 +227,44 @@ final class SoundSyncViewModel {
         saveSquelch()
     }
 
+    /// Updates the UDP port and persists the preference.
+    func setPort(_ newPort: Int32) {
+        port = newPort
+        portUpdateTask?.cancel()
+        portUpdateTask = Task { [userPreferencesRepository] in
+            try? await userPreferencesRepository.updateSoundSyncPort(port: newPort)
+        }
+    }
+
     // MARK: - Private
 
     private func syncInitialPreferences(from initialState: SoundSyncState) async {
         if initialState.isRunning {
-            if gain != initialState.gain {
-                gain = initialState.gain
-            }
-            if agcEnabled != initialState.agcEnabled {
-                agcEnabled = initialState.agcEnabled
-            }
-            if agcMode != initialState.agcMode {
-                agcMode = initialState.agcMode
-            }
-            if squelch != initialState.squelch {
-                squelch = initialState.squelch
-            }
+            applyRunningPreferences(from: initialState)
             return
         }
+        await loadSavedPreferences(fallback: initialState)
+    }
 
+    private func applyRunningPreferences(from state: SoundSyncState) {
+        if gain != state.gain {
+            gain = state.gain
+        }
+        if agcEnabled != state.agcEnabled {
+            agcEnabled = state.agcEnabled
+        }
+        if agcMode != state.agcMode {
+            agcMode = state.agcMode
+        }
+        if squelch != state.squelch {
+            squelch = state.squelch
+        }
+        if port != state.port {
+            port = state.port
+        }
+    }
+
+    private func loadSavedPreferences(fallback initialState: SoundSyncState) async {
         let resolvedGain = await userPreferencesRepository.soundSyncGain.firstValue()?.floatValue
             ?? initialState.gain
         guard !Task.isCancelled else { return }
@@ -234,6 +296,13 @@ final class SoundSyncViewModel {
             squelch = resolvedSquelch
         }
         await soundSyncManager.setSquelch(resolvedSquelch)
+
+        let resolvedPort = await userPreferencesRepository.soundSyncPort.firstValue()?.int32Value
+            ?? initialState.port
+        guard !Task.isCancelled else { return }
+        if port != resolvedPort {
+            port = resolvedPort
+        }
     }
 
     private func applyState(_ state: SoundSyncState) {

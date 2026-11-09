@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.repository
 
+import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +66,7 @@ class UserPreferencesRepositoryTest {
         assertFalse(repo.soundSyncAgcEnabled.first())
         assertEquals(AgcMode.NORMAL, repo.soundSyncAgcMode.first())
         assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, repo.soundSyncSquelch.first())
+        assertEquals(UdpSoundSyncPacket.DEFAULT_PORT, repo.soundSyncPort.first())
         assertFalse(repo.soundSyncBetaEnabled.first())
     }
 
@@ -144,6 +146,12 @@ class UserPreferencesRepositoryTest {
             repo.updateSoundSyncSquelch(input)
             assertEquals(expected, repo.soundSyncSquelch.first(), "input=$input")
         }
+    }
+
+    @Test
+    fun updateSoundSyncPort_updatesFlow() = withRepository { repo ->
+        repo.updateSoundSyncPort(12000)
+        assertEquals(12000, repo.soundSyncPort.first())
     }
 
     @Test

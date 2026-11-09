@@ -163,6 +163,9 @@
     <string name="sound_sync_squelch_decrease">Rauschsperre verringern</string>
     <string name="sound_sync_squelch_increase">Rauschsperre erhöhen</string>
     <string name="sound_sync_squelch_description">Ignoriert Hintergrundgeräusche unterhalb dieses Schwellenwerts bei Stille.</string>
+    <string name="sound_sync_port">UDP-Port</string>
+    <string name="sound_sync_port_description">UDP-Port für das Senden von Audiodaten. Muss mit dem Port in den Audio-Sync-Einstellungen deiner WLED-Geräte übereinstimmen (Standard: 11988).</string>
+    <string name="sound_sync_port_error">Gib einen gültigen Port zwischen 1 und 65535 ein</string>
     <string name="sound_sync_start">Sound Sync starten</string>
     <string name="sound_sync_stop">Sound Sync stoppen</string>
     <string name="sound_sync_running">Sound Sync läuft</string>
