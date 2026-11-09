@@ -112,7 +112,16 @@ class SoundSyncManager(
         }
 
         val clampedGain = gain.coerceIn(0f, GainControl.MAX_MANUAL_GAIN)
-        val clampedSquelch = squelch.coerceIn(SoundSyncProcessor.MIN_SQUELCH, SoundSyncProcessor.MAX_SQUELCH)
+        val (clampedSquelch, initialEffectiveGain) = synchronized(processorLock) {
+            capturedSamples = 0L
+            processor.reset()
+            processor.configureSampleRate(audioSource.sampleRate)
+            processor.setGain(clampedGain)
+            processor.setAgcEnabled(agcEnabled)
+            processor.setAgcMode(agcMode)
+            processor.setSquelch(squelch)
+            processor.squelch to processor.effectiveGain
+        }
         _state.update {
             it.copy(
                 gain = clampedGain,
@@ -126,17 +135,6 @@ class SoundSyncManager(
         if (!audioSource.hasPermission()) {
             _state.update { it.copy(error = SoundSyncError.PERMISSION_REQUIRED) }
             return false
-        }
-
-        val initialEffectiveGain = synchronized(processorLock) {
-            capturedSamples = 0L
-            processor.reset()
-            processor.configureSampleRate(audioSource.sampleRate)
-            processor.setGain(clampedGain)
-            processor.setAgcEnabled(agcEnabled)
-            processor.setAgcMode(agcMode)
-            processor.setSquelch(clampedSquelch)
-            processor.effectiveGain
         }
 
         acquireMulticastLock()
@@ -217,9 +215,9 @@ class SoundSyncManager(
 
     /** Updates the squelch noise gate threshold in real-time. */
     fun setSquelch(squelch: Int) {
-        val clamped = squelch.coerceIn(SoundSyncProcessor.MIN_SQUELCH, SoundSyncProcessor.MAX_SQUELCH)
-        synchronized(processorLock) {
-            processor.setSquelch(clamped)
+        val clamped = synchronized(processorLock) {
+            processor.setSquelch(squelch)
+            processor.squelch
         }
         _state.update { it.copy(squelch = clamped) }
     }

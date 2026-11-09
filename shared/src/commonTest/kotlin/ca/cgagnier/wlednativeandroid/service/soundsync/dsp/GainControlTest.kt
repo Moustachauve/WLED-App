@@ -165,24 +165,28 @@ class GainControlTest {
 
     @Test
     fun process_vividAdjustsFasterThanNormalAndNormalFasterThanLazy() {
-        // Amplitude 0.30f starts inside the normal zone (0.30 * 1.0 = 0.30 in 0.14..0.90)
-        // and moves upward toward targetLevel (0.55..0.65 -> gain ~1.83..2.16)
-        val input = sineWave(amplitude = 0.30f, count = 22050)
-        val vivid = GainControl(agcEnabled = true, agcMode = AgcMode.VIVID)
-        val normal = GainControl(agcEnabled = true, agcMode = AgcMode.NORMAL)
-        val lazy = GainControl(agcEnabled = true, agcMode = AgcMode.LAZY)
+        // Amplitude 0.30f starts inside all three modes' normal zones (amplifiedPeak = 0.30f)
+        // and glides upward toward each mode's targetGain (mode.targetLevel / 0.30f).
+        val amplitude = 0.30f
+        val input = sineWave(amplitude = amplitude, count = 22050)
+        fun progressTowardTarget(mode: AgcMode): Float {
+            val control = GainControl(agcEnabled = true, agcMode = mode)
+            control.process(input)
+            val targetGain = mode.targetLevel / amplitude
+            return (control.effectiveGain - 1.0f) / (targetGain - 1.0f)
+        }
 
-        vivid.process(input)
-        normal.process(input)
-        lazy.process(input)
+        val vividProgress = progressTowardTarget(AgcMode.VIVID)
+        val normalProgress = progressTowardTarget(AgcMode.NORMAL)
+        val lazyProgress = progressTowardTarget(AgcMode.LAZY)
 
         assertTrue(
-            vivid.effectiveGain > normal.effectiveGain,
-            "Vivid (${vivid.effectiveGain}) should adjust faster than Normal (${normal.effectiveGain})",
+            vividProgress > normalProgress,
+            "Vivid ($vividProgress) should cover more distance toward its target than Normal ($normalProgress)",
         )
         assertTrue(
-            normal.effectiveGain > lazy.effectiveGain,
-            "Normal (${normal.effectiveGain}) should adjust faster than Lazy (${lazy.effectiveGain})",
+            normalProgress > lazyProgress,
+            "Normal ($normalProgress) should cover more distance toward its target than Lazy ($lazyProgress)",
         )
     }
 

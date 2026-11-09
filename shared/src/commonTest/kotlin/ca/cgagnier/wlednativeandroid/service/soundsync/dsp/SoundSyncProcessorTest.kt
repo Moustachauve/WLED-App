@@ -122,6 +122,22 @@ class SoundSyncProcessorTest {
     }
 
     @Test
+    fun squelchToAmplitude_mapsSquelchRangeLinearly() {
+        listOf(
+            0 to 0f,
+            10 to 0.005f,
+            100 to 0.05f,
+        ).forEach { (squelch, expectedAmplitude) ->
+            assertEquals(
+                expectedAmplitude,
+                SoundSyncProcessor.squelchToAmplitude(squelch),
+                0.00001f,
+                "squelch=$squelch",
+            )
+        }
+    }
+
+    @Test
     fun setSquelch_higherThresholdGatesModerateBackgroundNoise() {
         val processor = SoundSyncProcessor(sampleRate = 44100, manualGain = 5.0f, squelch = 50)
         // squelch = 50 -> threshold = 0.025f; 0.02f signal should be gated to 0

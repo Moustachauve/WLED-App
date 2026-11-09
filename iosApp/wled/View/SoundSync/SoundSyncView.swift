@@ -28,7 +28,6 @@ struct SoundSyncView: View {
 
                 gainSection
             }
-            .animation(.default, value: viewModel.agcEnabled)
             .navigationTitle("Sound Sync")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -170,10 +169,10 @@ struct SoundSyncView: View {
                             get: { viewModel.squelch },
                             set: { viewModel.setSquelch($0) }
                         ),
-                        in: minSquelchInt...maxSquelchInt,
-                        step: 1
+                        in: minSquelchInt...maxSquelchInt
                     )
                     .labelsHidden()
+                    .accessibilityValue(Text(verbatim: viewModel.squelch.formatted(.number)))
                 }
                 Slider(
                     value: Binding(

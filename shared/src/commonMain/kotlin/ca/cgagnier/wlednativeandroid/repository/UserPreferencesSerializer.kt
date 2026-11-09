@@ -9,6 +9,7 @@ import okio.BufferedSource
 
 private val defaultJson = Json {
     ignoreUnknownKeys = true
+    coerceInputValues = true
     encodeDefaults = true
     prettyPrint = false
 }

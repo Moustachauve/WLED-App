@@ -39,7 +39,7 @@ struct SoundSyncViewSnapshotTests {
             userPreferencesRepository: database.userPreferencesRepository,
             deviceRepository: database.deviceRepository
         )
-        viewModel.setAgcEnabled(true)
+        viewModel.agcEnabled = true
         let view = SoundSyncView(viewModel: viewModel)
 
         assertSnapshot(

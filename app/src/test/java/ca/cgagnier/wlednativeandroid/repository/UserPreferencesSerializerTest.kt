@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.CorruptionException
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.test.TestJson
 import com.diffplug.selfie.Selfie.expectSelfie
 import kotlinx.coroutines.test.runTest
@@ -91,5 +92,16 @@ class UserPreferencesSerializerTest {
         val deserialized = serializer.readFrom(buffer)
 
         expectSelfie(TestJson.preferences.encodeToString(deserialized)).toMatchDisk()
+    }
+
+    @Test
+    fun readFrom_unknownAgcMode_coercesToNormalAndPreservesOtherFields() = runTest {
+        val json = """{"theme":"Dark","automaticDiscovery":false,"soundSyncAgcMode":"UNKNOWN"}"""
+        val buffer = Buffer().writeUtf8(json)
+        val deserialized = serializer.readFrom(buffer)
+
+        assertEquals(AgcMode.NORMAL, deserialized.soundSyncAgcMode)
+        assertEquals(ThemeSettings.Dark, deserialized.theme)
+        assertEquals(false, deserialized.automaticDiscovery)
     }
 }

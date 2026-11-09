@@ -266,10 +266,7 @@ class SoundSyncProcessor(
         /** Noise gate threshold below which `sampleSmth` snaps to 0 (matches WLED `volumeSmth < 1`). */
         private const val MIN_SMOOTHED_SAMPLE = 1.0f
 
-        internal fun squelchToAmplitude(squelch: Int): Float {
-            val clamped = squelch.coerceIn(MIN_SQUELCH, MAX_SQUELCH)
-            return (clamped * SQUELCH_AMPLITUDE_STEP).coerceAtLeast(GainControl.MIN_SQUELCH_AMPLITUDE)
-        }
+        internal fun squelchToAmplitude(squelch: Int): Float = squelch * SQUELCH_AMPLITUDE_STEP
     }
 }
 

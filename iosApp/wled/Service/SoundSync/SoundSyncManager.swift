@@ -136,15 +136,12 @@ actor SoundSyncManager: SoundSyncManaging {
         isStarting = true
 
         let clampedGain = min(max(gain, 0), GainControl.Companion.shared.MAX_MANUAL_GAIN)
-        let clampedSquelch = min(
-            max(squelch, SoundSyncProcessor.Companion.shared.MIN_SQUELCH),
-            SoundSyncProcessor.Companion.shared.MAX_SQUELCH
-        )
         processor.reset()
         processor.setGain(gain: clampedGain)
         processor.setAgcEnabled(enabled: agcEnabled)
         processor.setAgcMode(mode: agcMode)
-        processor.setSquelch(squelch: clampedSquelch)
+        processor.setSquelch(squelch: squelch)
+        let clampedSquelch = processor.squelch
         let initialEffectiveGain = processor.effectiveGain
 
         updateState {
@@ -278,11 +275,8 @@ actor SoundSyncManager: SoundSyncManaging {
 
     /// Updates the squelch noise gate threshold in real-time.
     func setSquelch(_ squelch: Int32) {
-        let clamped = min(
-            max(squelch, SoundSyncProcessor.Companion.shared.MIN_SQUELCH),
-            SoundSyncProcessor.Companion.shared.MAX_SQUELCH
-        )
-        processor.setSquelch(squelch: clamped)
+        processor.setSquelch(squelch: squelch)
+        let clamped = processor.squelch
         updateState { $0.squelch = clamped }
     }
 

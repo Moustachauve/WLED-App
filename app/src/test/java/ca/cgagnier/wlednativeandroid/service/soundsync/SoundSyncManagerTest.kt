@@ -5,6 +5,7 @@ import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
+import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -100,12 +101,11 @@ class SoundSyncManagerTest {
 
     @Test
     fun setSquelch_clampsAndUpdatesState() = runTest {
-        val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
-        val manager = createManager(audioSource = audioSource)
+        val manager = createManager(audioSource = FakeAudioSource(permissionGranted = true))
 
-        manager.setSquelch(42)
+        manager.setSquelch(150)
 
-        assertEquals(42, manager.state.value.squelch)
+        assertEquals(SoundSyncProcessor.MAX_SQUELCH, manager.state.value.squelch)
     }
 
     @Test

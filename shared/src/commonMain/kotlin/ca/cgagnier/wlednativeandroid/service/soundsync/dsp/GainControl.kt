@@ -16,7 +16,7 @@ import kotlin.math.min
  *   toward [AgcMode.targetLevel] so musical dynamics between beats and phrases are preserved.
  * - **Emergency zone** (`< zoneLow` or `> zoneHigh`): Gain adapts quickly
  *   ([AgcMode.fastFollowTimeSec]) to prevent sustained clipping or dead LEDs.
- * - **Squelch freeze**: When the unscaled signal is at or below [squelchAmplitude],
+ * - **Squelch freeze**: When the unscaled signal is below [squelchAmplitude],
  *   AGC holds its gain steady instead of amplifying background room noise.
  *
  * Output is hard-clipped to `[-MAX_AMPLITUDE, MAX_AMPLITUDE]` to prevent distortion.
@@ -126,9 +126,9 @@ class GainControl(
         val dtSec = count.toFloat() / currentSampleRate
         val peakDecayRetention = exp(-dtSec / mode.peakDecayTimeSec)
 
-        // When signal is at or below the squelch threshold, slowly decay peakEnvelope
+        // When signal is below the squelch threshold, slowly decay peakEnvelope
         // and hold agcGain steady so ambient room noise is not amplified to MAX_AGC_GAIN.
-        if (chunkPeak <= currentSquelchAmplitude) {
+        if (chunkPeak < currentSquelchAmplitude) {
             peakEnvelope *= peakDecayRetention
             if (peakEnvelope < MIN_PEAK_ENVELOPE) {
                 peakEnvelope = 0f
@@ -137,11 +137,13 @@ class GainControl(
         }
 
         peakEnvelope = when {
-            peakEnvelope <= currentSquelchAmplitude -> chunkPeak
+            peakEnvelope < currentSquelchAmplitude -> chunkPeak
 
-            chunkPeak > peakEnvelope -> peakEnvelope + PEAK_ATTACK_BLEND * (chunkPeak - peakEnvelope)
-
-            peakEnvelope * agcGain > OVERDRIVE_RECOVERY_CEILING ->
+            // Attack quickly when chunkPeak rises above peakEnvelope, or when peakEnvelope * agcGain
+            // exceeds OVERDRIVE_RECOVERY_CEILING (125% of full scale): pulling peakEnvelope down
+            // toward the current chunkPeak after a brief transient spike prevents a stale inflated
+            // envelope from driving desiredGain toward zero.
+            chunkPeak > peakEnvelope || peakEnvelope * agcGain > OVERDRIVE_RECOVERY_CEILING ->
                 peakEnvelope + PEAK_ATTACK_BLEND * (chunkPeak - peakEnvelope)
 
             else -> peakEnvelope * peakDecayRetention
@@ -164,13 +166,18 @@ class GainControl(
         const val MAX_MANUAL_GAIN = 30.0f
         const val DEFAULT_SQUELCH_AMPLITUDE = 0.005f
         private const val MAX_AMPLITUDE = 1.0f
-        internal const val MIN_SQUELCH_AMPLITUDE = 0.0001f
+        private const val MIN_SQUELCH_AMPLITUDE = 0.0001f
         private const val MIN_SAMPLE_RATE = 8000
         private const val MIN_GAIN_MULTIPLIER = 0.001f
         private const val MIN_AGC_GAIN = 0.1f
         private const val MAX_AGC_GAIN = 90.0f
         private const val AGC_UPDATE_INTERVAL = 256
         private const val PEAK_ATTACK_BLEND = 0.5f
+
+        /**
+         * Amplified envelope ceiling (`125%` of [MAX_AMPLITUDE]) above which `peakEnvelope`
+         * converges rapidly toward `chunkPeak` so a stale transient spike cannot pin gain near zero.
+         */
         private const val OVERDRIVE_RECOVERY_CEILING = 1.25f
         private const val LOW_ZONE_TARGET_CAP_RATIO = 0.5f
         private const val MIN_PEAK_ENVELOPE = 0.0001f

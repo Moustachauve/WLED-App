@@ -124,12 +124,8 @@ class SoundSyncViewModel(
     }
 
     fun stepSquelch(delta: Int) {
-        val nextSquelch = (soundSyncManager.state.value.squelch + delta)
-            .coerceIn(SoundSyncProcessor.MIN_SQUELCH, SoundSyncProcessor.MAX_SQUELCH)
-        soundSyncManager.setSquelch(nextSquelch)
-        viewModelScope.launch {
-            preferencesRepository.updateSoundSyncSquelch(nextSquelch)
-        }
+        soundSyncManager.setSquelch(soundSyncManager.state.value.squelch + delta)
+        saveSquelch()
     }
 
     fun saveSquelch() {

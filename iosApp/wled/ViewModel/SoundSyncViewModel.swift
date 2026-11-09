@@ -160,11 +160,11 @@ final class SoundSyncViewModel {
 
     /// Updates the squelch threshold in real-time while dragging.
     func updateLiveSquelch(_ newSquelch: Int32) {
-        let clamped = clampSquelch(newSquelch)
-        squelch = clamped
+        guard newSquelch != squelch else { return }
+        squelch = newSquelch
         squelchUpdateTask?.cancel()
         squelchUpdateTask = Task { [soundSyncManager] in
-            await soundSyncManager.setSquelch(clamped)
+            await soundSyncManager.setSquelch(newSquelch)
         }
     }
 
@@ -180,18 +180,11 @@ final class SoundSyncViewModel {
 
     /// Updates the squelch threshold by a discrete step and immediately persists the preference.
     func setSquelch(_ newSquelch: Int32) {
-        squelch = clampSquelch(newSquelch)
+        squelch = newSquelch
         saveSquelch()
     }
 
     // MARK: - Private
-
-    private func clampSquelch(_ value: Int32) -> Int32 {
-        min(
-            max(value, SoundSyncProcessor.Companion.shared.MIN_SQUELCH),
-            SoundSyncProcessor.Companion.shared.MAX_SQUELCH
-        )
-    }
 
     private func syncInitialPreferences(from initialState: SoundSyncState) async {
         if initialState.isRunning {

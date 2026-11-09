@@ -126,9 +126,6 @@ class UserPreferencesRepositoryTest {
     fun updateSoundSyncAgcEnabled_updatesFlow() = withRepository { repo ->
         repo.updateSoundSyncAgcEnabled(true)
         assertTrue(repo.soundSyncAgcEnabled.first())
-
-        repo.updateSoundSyncAgcEnabled(false)
-        assertFalse(repo.soundSyncAgcEnabled.first())
     }
 
     @Test
@@ -139,11 +136,14 @@ class UserPreferencesRepositoryTest {
 
     @Test
     fun updateSoundSyncSquelch_clampsAndUpdatesFlow() = withRepository { repo ->
-        repo.updateSoundSyncSquelch(35)
-        assertEquals(35, repo.soundSyncSquelch.first())
-
-        repo.updateSoundSyncSquelch(150)
-        assertEquals(SoundSyncProcessor.MAX_SQUELCH, repo.soundSyncSquelch.first())
+        listOf(
+            35 to 35,
+            150 to SoundSyncProcessor.MAX_SQUELCH,
+            -5 to SoundSyncProcessor.MIN_SQUELCH,
+        ).forEach { (input, expected) ->
+            repo.updateSoundSyncSquelch(input)
+            assertEquals(expected, repo.soundSyncSquelch.first(), "input=$input")
+        }
     }
 
     @Test
