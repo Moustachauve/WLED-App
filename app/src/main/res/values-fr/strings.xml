@@ -81,4 +81,11 @@
     <string name="save_after_branch_change">Veuillez sauvegarder après avoir changer la variante de MàJ pour vérifier les MàJ</string>
     <string name="downloading_file">Téléchargement en cours</string>
     <string name="support_me">Supporter Moustachauve</string>
+    <string name="try_new_beta_version">Essayer la nouvelle version bêta</string>
+    <string name="beta_version_available">Version bêta (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)</string>
+    <string name="learn_more_beta_app">En savoir plus sur la version bêta et la nouvelle application</string>
+    <string name="beta_cloudapp_url">https://illumidel.com/cloudapp/</string>
+    <string name="beta_migration_card_warning">Attention : La mise à jour vers la version bêta fait passer votre contrôleur à la nouvelle application Illumidel. Cette action est irréversible et cette application ne fonctionnera plus avec ce contrôleur.</string>
+    <string name="beta_update_disclaimer_title">Passer à la version bêta (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)?</string>
+    <string name="beta_update_disclaimer_warning">Cette mise à jour fait passer votre contrôleur à la nouvelle application Illumidel. Cette action est irréversible et cette application ne fonctionnera plus avec ce contrôleur.</string>
 </resources>

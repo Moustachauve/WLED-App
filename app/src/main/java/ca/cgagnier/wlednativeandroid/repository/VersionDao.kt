@@ -29,12 +29,26 @@ interface VersionDao {
     suspend fun deleteAll()
 
     @Transaction
-    @Query("SELECT * FROM version WHERE isPrerelease = 0 ORDER BY publishedDate DESC LIMIT 1")
+    @Query(
+        "SELECT * FROM version " +
+            "WHERE isPrerelease = 0 " +
+            "AND description NOT LIKE '%beta%' " +
+            "AND description NOT LIKE '%bêta%' " +
+            "AND description NOT LIKE '%Bêta%' " +
+            "ORDER BY publishedDate DESC LIMIT 1"
+    )
     suspend fun getLatestStableVersionWithAssets(): VersionWithAssets?
 
     @Transaction
-    @Query("SELECT * FROM version ORDER BY publishedDate DESC LIMIT 1")
-    suspend fun getLatestBetaVersionWithAssets(): VersionWithAssets?
+    @Query(
+        "SELECT * FROM version " +
+            "WHERE isPrerelease = 1 " +
+            "OR description LIKE '%beta%' " +
+            "OR description LIKE '%bêta%' " +
+            "OR description LIKE '%Bêta%' " +
+            "ORDER BY publishedDate DESC LIMIT 1"
+    )
+    fun getLatestBetaVersionWithAssetsFlow(): Flow<VersionWithAssets?>
 
     @Transaction
     @Query("SELECT * FROM version WHERE tagName = :tagName LIMIT 1")

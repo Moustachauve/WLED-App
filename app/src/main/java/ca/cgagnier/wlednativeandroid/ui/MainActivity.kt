@@ -12,6 +12,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import ca.cgagnier.wlednativeandroid.FileUploadContract
 import ca.cgagnier.wlednativeandroid.FileUploadContractResult
+import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
 import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
@@ -30,6 +31,8 @@ class MainActivity : ComponentActivity() {
     lateinit var userPreferencesRepository: UserPreferencesRepository
     @Inject
     lateinit var versionWithAssetsRepository: VersionWithAssetsRepository
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
 
     // For WebView file upload support
     var uploadMessage: ValueCallback<Array<Uri>>? = null
@@ -61,16 +64,36 @@ class MainActivity : ComponentActivity() {
      */
     private fun updateDeviceVersionList() {
         lifecycleScope.launch(Dispatchers.IO) {
+            val releaseService = ReleaseService(versionWithAssetsRepository)
+            sanitizeDeviceUpdateTags(releaseService)
             userPreferencesRepository.lastUpdateCheckDate.collect {
                 val now = System.currentTimeMillis()
                 if (now < it) {
                     Log.i(TAG, "Not updating version list since it was done recently.")
                     return@collect
                 }
-                val releaseService = ReleaseService(versionWithAssetsRepository)
                 releaseService.refreshVersions(applicationContext.cacheDir)
+                sanitizeDeviceUpdateTags(releaseService)
                 // Set the next date to check in minimum 24 hours from now.
                 userPreferencesRepository.updateLastUpdateCheckDate(now + (24 * 60 * 60 * 1000))
+            }
+        }
+    }
+
+    private suspend fun sanitizeDeviceUpdateTags(releaseService: ReleaseService) {
+        for (device in deviceRepository.getAllDevices()) {
+            if (device.newUpdateVersionTagAvailable.isNotEmpty()) {
+                val validStableTag = releaseService.getNewerReleaseTag(
+                    version = device.version,
+                    brand = device.brand,
+                    ignoreVersion = device.skipUpdateTag,
+                    ipAddress = device.address,
+                )
+                if (validStableTag != device.newUpdateVersionTagAvailable) {
+                    deviceRepository.update(
+                        device.copy(newUpdateVersionTagAvailable = validStableTag)
+                    )
+                }
             }
         }
     }

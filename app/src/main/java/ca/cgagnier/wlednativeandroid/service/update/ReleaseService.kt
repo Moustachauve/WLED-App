@@ -3,8 +3,8 @@ package ca.cgagnier.wlednativeandroid.service.update
 import android.util.Log
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Branch
+import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.Version
-import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.model.githubapi.Release
 import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
@@ -13,8 +13,7 @@ import com.vdurmont.semver4j.Semver
 import java.io.File
 
 private const val TAG = "updateService"
-private const val WLED_BRAND = "WLED"
-private const val WLED_PRODUCT = "FOSS"
+private const val WLED_BRAND = "ILLUMIDEL"
 
 class ReleaseService(private val versionWithAssetsRepository: VersionWithAssetsRepository) {
 
@@ -29,41 +28,44 @@ class ReleaseService(private val versionWithAssetsRepository: VersionWithAssetsR
      *      otherwise an empty string.
      */
     suspend fun getNewerReleaseTag(deviceInfo: Info, branch: Branch, ignoreVersion: String): String {
-        if (deviceInfo.version.isNullOrEmpty()) {
-            return ""
-        }
-        // This would need some major refactoring in order to support different sources for OTA.
-        if (deviceInfo.brand != WLED_BRAND || deviceInfo.product != WLED_PRODUCT) {
-            return ""
-        }
-
         // The options bitmask at 0x01 being 0 means OTA is disabled on the device.
         if (deviceInfo.options?.and(0x01) == 0) {
             return ""
         }
+        return getNewerReleaseTag(
+            version = deviceInfo.version,
+            brand = deviceInfo.brand,
+            ignoreVersion = ignoreVersion,
+            ipAddress = deviceInfo.ipAddress,
+        )
+    }
 
-        val latestVersion = getLatestVersionWithAssets(branch) ?: return ""
+    suspend fun getNewerReleaseTag(
+        version: String?,
+        brand: String?,
+        ignoreVersion: String,
+        ipAddress: String? = null,
+    ): String {
+        if (version.isNullOrEmpty() || version == Device.UNKNOWN_VALUE) {
+            return ""
+        }
+        // This would need some major refactoring in order to support different sources for OTA.
+        if (brand != WLED_BRAND) {
+            return ""
+        }
+
+        val latestVersion = versionWithAssetsRepository.getLatestStableVersionWithAssets() ?: return ""
         if (latestVersion.version.tagName == ignoreVersion) {
             return ""
         }
 
-        val betaSuffixes = listOf("-a", "-b", "-rc")
-        Log.w(TAG, "Device ${deviceInfo.ipAddress}: ${deviceInfo.version} to ${latestVersion.version.tagName}")
-        if (branch == Branch.STABLE && betaSuffixes.any { deviceInfo.version.contains(it, ignoreCase = true)}) {
-            // If we're on a beta branch but looking for a stable branch, always offer to "update" to
-            // the stable branch.
-            return latestVersion.version.tagName
-        } else if (branch == Branch.BETA && betaSuffixes.none { deviceInfo.version.contains(it, ignoreCase = true)}) {
-            // Same if we are on a stable branch but looking for a beta branch, we should offer to
-            // "update" to the latest beta branch, even if its older.
-            return latestVersion.version.tagName
-        }
+        Log.w(TAG, "Device $ipAddress: $version to ${latestVersion.version.tagName}")
 
         try {
             return if (Semver(
                     latestVersion.version.tagName.drop(1),
                     Semver.SemverType.LOOSE
-                ).isGreaterThan(deviceInfo.version)
+                ).isGreaterThan(version)
             ) {
                 latestVersion.version.tagName
             } else {
@@ -74,14 +76,6 @@ class ReleaseService(private val versionWithAssetsRepository: VersionWithAssetsR
         }
 
         return ""
-    }
-
-    private suspend fun getLatestVersionWithAssets(branch: Branch): VersionWithAssets? {
-        if (branch == Branch.BETA) {
-            return versionWithAssetsRepository.getLatestBetaVersionWithAssets()
-        }
-
-        return versionWithAssetsRepository.getLatestStableVersionWithAssets()
     }
 
     suspend fun refreshVersions(cacheDir: File) {
@@ -109,15 +103,27 @@ class ReleaseService(private val versionWithAssetsRepository: VersionWithAssetsR
         versionWithAssetsRepository.insertMany(versionModels, assetsModels)
     }
 
-    private fun createVersion(version: Release): Version {
+    internal fun createVersion(version: Release): Version {
         return Version(
             version.tagName,
             version.name,
             version.body,
-            version.prerelease,
+            isBetaRelease(version),
             version.publishedAt,
             version.htmlUrl
         )
+    }
+
+    internal fun isBetaRelease(version: Release): Boolean {
+        if (version.prerelease) {
+            return true
+        }
+        val betaKeywords = listOf("beta", "bêta")
+        return betaKeywords.any { keyword ->
+            version.tagName.contains(keyword, ignoreCase = true) ||
+                version.name.contains(keyword, ignoreCase = true) ||
+                version.body.contains(keyword, ignoreCase = true)
+        }
     }
 
     private fun createAssetsForVersion(version: Release): List<Asset> {

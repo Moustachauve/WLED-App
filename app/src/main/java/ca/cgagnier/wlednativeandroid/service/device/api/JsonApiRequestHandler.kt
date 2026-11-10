@@ -125,7 +125,8 @@ class JsonApiRequestHandler @Inject constructor(
             }
         }
 
-        val branch = if (device.productName.lowercase() == "en") {
+        val productName = deviceStateInfo.info.product ?: device.productName
+        val branch = if (productName.lowercase() == "en") {
             // Beta is english
             Branch.BETA
         } else {
@@ -203,9 +204,23 @@ class JsonApiRequestHandler @Inject constructor(
         device: Device, t: Throwable? = null
     ): Device {
         if (t != null) {
-            Log.e(TAG, t.message!!)
+            Log.e(TAG, t.message ?: t.toString())
         }
-        val updatedDevice = device.copy(isOnline = false, isRefreshing = false)
+        val newUpdateTag = if (device.newUpdateVersionTagAvailable.isNotEmpty()) {
+            releaseService.getNewerReleaseTag(
+                version = device.version,
+                brand = device.brand,
+                ignoreVersion = device.skipUpdateTag,
+                ipAddress = device.address,
+            )
+        } else {
+            ""
+        }
+        val updatedDevice = device.copy(
+            isOnline = false,
+            isRefreshing = false,
+            newUpdateVersionTagAvailable = newUpdateTag,
+        )
 
         Log.d(TAG, "[${updatedDevice.address}] Saving device API onFailure: ${device.name}")
         deviceRepository.update(updatedDevice)

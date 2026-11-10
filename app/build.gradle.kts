@@ -22,8 +22,8 @@ android {
         applicationId = "ca.cgagnier.illumidel"
         minSdk = 24
         targetSdk = 36
-        versionCode = 41
-        versionName = "5.1.0"
+        versionCode = 44
+        versionName = "5.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,6 +54,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
     kotlin {
         compilerOptions {

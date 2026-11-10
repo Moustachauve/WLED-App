@@ -83,4 +83,11 @@
     <string name="save_after_branch_change">Save the device after changing the channel to check for updates</string>
     <string name="downloading_file">Downloading File</string>
     <string name="support_me">Support Moustachauve</string>
+    <string name="try_new_beta_version">Try the new beta version</string>
+    <string name="beta_version_available">Beta Version (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)</string>
+    <string name="learn_more_beta_app">Learn more about the beta and the new app</string>
+    <string name="beta_cloudapp_url">https://illumidel.com/en/cloudapp/</string>
+    <string name="beta_migration_card_warning">Warning: Updating to the beta version moves your controller to the new Illumidel app. This action cannot be undone and this app will no longer work with this controller.</string>
+    <string name="beta_update_disclaimer_title">Migrate to Beta (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)?</string>
+    <string name="beta_update_disclaimer_warning">This update moves your controller to the new Illumidel app. It cannot be undone and this app will no longer work with this controller.</string>
 </resources>

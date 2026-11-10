@@ -15,7 +15,10 @@ import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,6 +42,14 @@ class DeviceEditViewModel @Inject constructor(
 
     private var _isCheckingUpdates = MutableStateFlow(false)
     val isCheckingUpdates = _isCheckingUpdates.asStateFlow()
+
+    val latestBetaVersion: StateFlow<VersionWithAssets?> =
+        versionWithAssetsRepository.getLatestBetaVersionWithAssetsFlow()
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5000),
+                initialValue = null
+            )
 
     fun updateCustomName(device: Device, name: String) = viewModelScope.launch(Dispatchers.IO) {
         val isCustomName = name != ""

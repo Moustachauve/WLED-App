@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -46,21 +47,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceVisibleSwitch
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
+import com.vdurmont.semver4j.Semver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,6 +87,7 @@ fun DeviceEdit(
     val updateDisclaimerVersion by viewModel.updateDisclaimerVersion.collectAsState()
     val updateInstallVersion by viewModel.updateInstallVersion.collectAsState()
     val isCheckingUpdates by viewModel.isCheckingUpdates.collectAsState()
+    val latestBetaVersion by viewModel.latestBetaVersion.collectAsState()
 
     Scaffold(
         topBar = {
@@ -129,7 +135,7 @@ fun DeviceEdit(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.update_channel),
+                        stringResource(R.string.device_language),
                         maxLines = 2,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
@@ -175,6 +181,16 @@ fun DeviceEdit(
                         }
                     }
                 }
+                latestBetaVersion?.let { betaVersion ->
+                    if (isBetaVersionNewer(device.version, betaVersion.version.tagName)) {
+                        BetaUpdateAvailableCard(
+                            betaVersion = betaVersion,
+                            onTryBeta = {
+                                viewModel.showUpdateDisclaimer(betaVersion)
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -197,6 +213,7 @@ fun DeviceEdit(
     }
     updateDisclaimerVersion?.let { versionDisclaimer ->
         UpdateDisclaimerDialog(
+            version = versionDisclaimer,
             onDismiss = {
                 viewModel.hideUpdateDisclaimer()
             },
@@ -353,5 +370,88 @@ fun UpdateAvailable(device: Device, seeUpdateDetails: () -> Unit) {
                 Text(stringResource(R.string.see_update_details))
             }
         }
+    }
+}
+
+@Composable
+fun BetaUpdateAvailableCard(
+    betaVersion: VersionWithAssets,
+    onTryBeta: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    val betaCloudAppUrl = stringResource(R.string.beta_cloudapp_url)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(R.drawable.baseline_experiment_24),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+                Text(
+                    stringResource(R.string.beta_version_available, betaVersion.version.tagName),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clickable {
+                        uriHandler.openUri(betaCloudAppUrl)
+                    },
+            ) {
+                Text(
+                    stringResource(R.string.learn_more_beta_app),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_baseline_launch_24),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .width(16.dp)
+                        .height(16.dp),
+                )
+            }
+            Text(
+                stringResource(R.string.beta_migration_card_warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            OutlinedButton(
+                modifier = Modifier.padding(top = 8.dp),
+                onClick = onTryBeta,
+            ) {
+                Text(stringResource(R.string.try_new_beta_version))
+            }
+        }
+    }
+}
+
+private fun isBetaVersionNewer(deviceVersion: String, betaTagName: String): Boolean {
+    if (deviceVersion.isEmpty() || deviceVersion == Device.UNKNOWN_VALUE) {
+        return false
+    }
+    return try {
+        Semver(betaTagName.removePrefix("v"), Semver.SemverType.LOOSE)
+            .isGreaterThan(deviceVersion)
+    } catch (_: Exception) {
+        false
     }
 }

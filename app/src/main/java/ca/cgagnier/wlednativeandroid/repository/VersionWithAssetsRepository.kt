@@ -5,6 +5,7 @@ import androidx.room.Transaction
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 class VersionWithAssetsRepository @Inject constructor(private val versionDao: VersionDao, private val assetDao: AssetDao) {
@@ -19,8 +20,9 @@ class VersionWithAssetsRepository @Inject constructor(private val versionDao: Ve
     suspend fun getLatestStableVersionWithAssets(): VersionWithAssets? {
         return versionDao.getLatestStableVersionWithAssets()
     }
-    suspend fun getLatestBetaVersionWithAssets(): VersionWithAssets? {
-        return versionDao.getLatestBetaVersionWithAssets()
+
+    fun getLatestBetaVersionWithAssetsFlow(): Flow<VersionWithAssets?> {
+        return versionDao.getLatestBetaVersionWithAssetsFlow()
     }
 
     suspend fun getVersionByTag(tagName: String): VersionWithAssets? {
