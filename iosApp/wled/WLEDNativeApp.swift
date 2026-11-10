@@ -14,6 +14,7 @@ struct WLEDNativeApp: App {
             } else {
                 DeviceListView(database: .shared)
                     .task {
+                        await SoundSyncManager.shared.endStaleLiveActivitiesIfNeeded()
                         await AppDatabase.shared.refreshVersionsIfNeeded()
                     }
             }

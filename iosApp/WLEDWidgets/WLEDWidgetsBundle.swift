@@ -5,5 +5,6 @@ import WidgetKit
 struct WLEDWidgetsBundle: WidgetBundle {
     var body: some Widget {
         WledDeviceWidget()
+        SoundSyncLiveActivityWidget()
     }
 }

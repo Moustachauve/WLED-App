@@ -2636,6 +2636,35 @@
         }
       }
     },
+    "Sending audio data to WLED devices" : {
+      "comment" : "Subtitle shown in the Sound Sync Live Activity while audio capture is active.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sende Audiodaten an WLED-Geräte"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending audio data to WLED devices"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoi des données audio aux appareils WLED"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在向 WLED 设备发送音频数据"
+          }
+        }
+      }
+    },
     "Set ${device} brightness to ${brightnessPercent}%" : {
       "localizations" : {
         "de" : {
@@ -3109,6 +3138,35 @@
         }
       }
     },
+    "Sound Sync Active" : {
+      "comment" : "Title shown in the Sound Sync Live Activity while audio capture is active.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound Sync aktiv"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound Sync Active"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchro Sonore active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声音同步已开启"
+          }
+        }
+      }
+    },
     "Sound sync error: %@" : {
       "comment" : "Error message format for Sound Sync. %@ is the error detail.",
       "localizations" : {
@@ -3368,6 +3426,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "状态：离线"
+          }
+        }
+      }
+    },
+    "Stop" : {
+      "comment" : "Action button label in the Sound Sync Live Activity to stop audio capture.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stoppen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêter"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
           }
         }
       }

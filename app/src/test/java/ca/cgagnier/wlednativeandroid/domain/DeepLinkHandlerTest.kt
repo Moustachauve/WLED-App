@@ -150,6 +150,19 @@ class DeepLinkHandlerTest {
         assertNull(result)
     }
 
+    @Test
+    fun `parseUri routes wled app paths and bare soundsync host`() {
+        listOf(
+            "wled://app/soundsync" to DeepLink.SoundSync,
+            "WLED://APP/SOUNDSYNC" to DeepLink.SoundSync,
+            "wled://App/SoundSync" to DeepLink.SoundSync,
+            "wled://soundsync" to DeepLink.Address("soundsync"),
+            "wled://app/unknown" to null,
+        ).forEach { (uriString, expected) ->
+            assertEquals(expected, handler.parseUri(mockUri(uriString)), "URI: $uriString")
+        }
+    }
+
     // --- parseIntent tests ---
 
     @Test

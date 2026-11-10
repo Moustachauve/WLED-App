@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="false">
+    <item android:duration="200">
+        <layer-list>
+            <item android:drawable="@drawable/ic_sound_sync_akemi" />
+            <item>
+                <vector
+                    android:width="24dp"
+                    android:height="24dp"
+                    android:viewportWidth="32"
+                    android:viewportHeight="32">
+                    <path
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M1,5h2v5h-2zM5,2h2v11h-2zM25,4h2v7h-2zM29,6h2v3h-2z" />
+                </vector>
+            </item>
+        </layer-list>
+    </item>
+    <item android:duration="200">
+        <layer-list>
+            <item android:drawable="@drawable/ic_sound_sync_akemi" />
+            <item>
+                <vector
+                    android:width="24dp"
+                    android:height="24dp"
+                    android:viewportWidth="32"
+                    android:viewportHeight="32">
+                    <path
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M1,3h2v9h-2zM5,5h2v5h-2zM25,2h2v11h-2zM29,4h2v7h-2z" />
+                </vector>
+            </item>
+        </layer-list>
+    </item>
+    <item android:duration="200">
+        <layer-list>
+            <item android:drawable="@drawable/ic_sound_sync_akemi" />
+            <item>
+                <vector
+                    android:width="24dp"
+                    android:height="24dp"
+                    android:viewportWidth="32"
+                    android:viewportHeight="32">
+                    <path
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M1,6h2v3h-2zM5,4h2v7h-2zM25,5h2v5h-2zM29,3h2v9h-2z" />
+                </vector>
+            </item>
+        </layer-list>
+    </item>
+    <item android:duration="200">
+        <layer-list>
+            <item android:drawable="@drawable/ic_sound_sync_akemi" />
+            <item>
+                <vector
+                    android:width="24dp"
+                    android:height="24dp"
+                    android:viewportWidth="32"
+                    android:viewportHeight="32">
+                    <path
+                        android:fillColor="#FFFFFFFF"
+                        android:pathData="M1,4h2v7h-2zM5,2h2v11h-2zM25,3h2v9h-2zM29,5h2v5h-2z" />
+                </vector>
+            </item>
+        </layer-list>
+    </item>
+</animation-list>

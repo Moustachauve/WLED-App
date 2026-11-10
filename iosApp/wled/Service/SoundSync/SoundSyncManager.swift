@@ -1,3 +1,4 @@
+import ActivityKit
 import AVFAudio
 import Foundation
 import OSLog
@@ -52,6 +53,10 @@ protocol SoundSyncManaging: Sendable {
 /// for the sound sync feature on iOS.
 actor SoundSyncManager: SoundSyncManaging {
 
+    // MARK: - Shared Instance
+
+    static let shared = SoundSyncManager()
+
     // MARK: - Types
 
     private struct CapturedAudioChunk: Sendable {
@@ -75,16 +80,16 @@ actor SoundSyncManager: SoundSyncManaging {
 
     // State
     private var _state = SoundSyncState()
-    private var stateContinuation: AsyncStream<SoundSyncState>.Continuation?
+    private var stateContinuations: [UUID: AsyncStream<SoundSyncState>.Continuation] = [:]
 
     // MARK: - Initialization
-
-    init() {}
 
     deinit {
         captureProcessingTask?.cancel()
         audioBufferContinuation?.finish()
-        stateContinuation?.finish()
+        for continuation in stateContinuations.values {
+            continuation.finish()
+        }
     }
 
     // MARK: - Public API
@@ -96,14 +101,23 @@ actor SoundSyncManager: SoundSyncManaging {
 
     /// Creates a new stream of state updates for a subscriber, immediately yielding the current state.
     func stateStream() -> AsyncStream<SoundSyncState> {
-        stateContinuation?.finish()
+        let id = UUID()
         let (stream, continuation) = AsyncStream.makeStream(
             of: SoundSyncState.self,
             bufferingPolicy: .bufferingNewest(1)
         )
         continuation.yield(_state)
-        stateContinuation = continuation
+        stateContinuations[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { [weak self] in
+                await self?.removeStateContinuation(id)
+            }
+        }
         return stream
+    }
+
+    private func removeStateContinuation(_ id: UUID) {
+        stateContinuations.removeValue(forKey: id)
     }
 
     /// Returns the current microphone record permission status.
@@ -211,13 +225,18 @@ actor SoundSyncManager: SoundSyncManaging {
                 await self?.processAudioSamples(chunk)
             }
         }
+        startLiveActivity()
         logger.info("Sound sync started")
         return true
     }
 
     /// Stops sound sync and releases all resources.
     func stop() async {
-        guard _state.isRunning || isStarting else { return }
+        guard _state.isRunning || isStarting else {
+            // Handles StopSoundSyncIntent relaunching the app after termination to dismiss an orphaned Live Activity
+            await endLiveActivities(ids: currentLiveActivityIds())
+            return
+        }
 
         lifecycleGeneration &+= 1
         isStarting = false
@@ -237,10 +256,42 @@ actor SoundSyncManager: SoundSyncManaging {
             $0.sampleLevel = 0
             $0.isPeak = false
         }
+        let activityIdsToEnd = currentLiveActivityIds()
 
         await audioCapture.stop()
         await sender?.close()
+        await endLiveActivities(ids: activityIdsToEnd)
         logger.info("Sound sync stopped")
+    }
+
+    /// Dismisses any leftover Live Activities on launch when Sound Sync is not active.
+    func endStaleLiveActivitiesIfNeeded() async {
+        guard !_state.isRunning, !isStarting else { return }
+        await endLiveActivities(ids: currentLiveActivityIds())
+    }
+
+    private func startLiveActivity() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        do {
+            _ = try Activity.request(
+                attributes: SoundSyncActivityAttributes(),
+                content: ActivityContent(state: .init(), staleDate: nil),
+                pushType: nil
+            )
+        } catch {
+            logger.warning("Failed to start Sound Sync Live Activity: \(error.localizedDescription)")
+        }
+    }
+
+    private func currentLiveActivityIds() -> [String] {
+        Activity<SoundSyncActivityAttributes>.activities.map(\.id)
+    }
+
+    private func endLiveActivities(ids: [String]) async {
+        for id in ids {
+            let activity = Activity<SoundSyncActivityAttributes>.activities.first { $0.id == id }
+            await activity?.end(nil, dismissalPolicy: .immediate)
+        }
     }
 
     /// Updates the manual gain in real-time.
@@ -320,7 +371,9 @@ actor SoundSyncManager: SoundSyncManaging {
 
     private func updateState(_ update: (inout SoundSyncState) -> Void) {
         update(&_state)
-        stateContinuation?.yield(_state)
+        for continuation in stateContinuations.values {
+            continuation.yield(_state)
+        }
     }
 }
 

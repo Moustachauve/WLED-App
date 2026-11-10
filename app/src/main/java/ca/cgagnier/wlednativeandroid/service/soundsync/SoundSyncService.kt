@@ -16,9 +16,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.domain.DeepLinkHandler
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
-import ca.cgagnier.wlednativeandroid.ui.MainActivity
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -132,13 +132,10 @@ class SoundSyncService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val openIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
         val openPendingIntent = PendingIntent.getActivity(
             this,
             0,
-            openIntent,
+            DeepLinkHandler.createSoundSyncIntent(this),
             PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -152,7 +149,7 @@ class SoundSyncService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.sound_sync_notification_title))
             .setContentText(getString(R.string.sound_sync_notification_text))
-            .setSmallIcon(R.drawable.baseline_graphic_eq_24)
+            .setSmallIcon(R.drawable.ic_sound_sync_notification_anim)
             .setContentIntent(openPendingIntent)
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
@@ -160,6 +157,7 @@ class SoundSyncService : Service() {
                 stopPendingIntent,
             )
             .setOngoing(true)
+            .setRequestPromotedOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }

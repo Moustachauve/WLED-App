@@ -140,9 +140,13 @@ struct DeviceListView: View {
             newTheme.applyToWindows()
         }
         .onChange(of: viewModel.soundSyncBetaEnabled) { _, isEnabled in
-            if !isEnabled, let soundSyncViewModel {
+            if !isEnabled {
                 Task {
-                    await soundSyncViewModel.stop()
+                    if let soundSyncViewModel {
+                        await soundSyncViewModel.stop()
+                    } else {
+                        await SoundSyncManager.shared.stop()
+                    }
                 }
             }
         }
@@ -164,11 +168,6 @@ struct DeviceListView: View {
                 viewModel.onResume()
             case .background:
                 viewModel.onPause()
-                if let soundSyncViewModel {
-                    Task {
-                        await soundSyncViewModel.stop()
-                    }
-                }
             case .inactive:
                 break // Don't disconnect during transient gestures (app switcher, notifications)
             @unknown default:
@@ -335,12 +334,7 @@ private extension DeviceListView {
             // 2. Sound Sync Button
             if viewModel.soundSyncBetaEnabled {
                 Button {
-                    if soundSyncViewModel == nil {
-                        soundSyncViewModel = SoundSyncViewModel(
-                            userPreferencesRepository: database.userPreferencesRepository,
-                            deviceRepository: database.deviceRepository
-                        )
-                    }
+                    ensureSoundSyncViewModel()
                     showSoundSyncSheet.toggle()
                 } label: {
                     SoundSyncToolbarIcon(viewModel: soundSyncViewModel)
@@ -366,7 +360,23 @@ private extension DeviceListView {
         viewModel.onResume()
     }
 
+    func ensureSoundSyncViewModel() {
+        if soundSyncViewModel == nil {
+            soundSyncViewModel = SoundSyncViewModel(
+                userPreferencesRepository: database.userPreferencesRepository,
+                deviceRepository: database.deviceRepository
+            )
+        }
+    }
+
     func handleOpenURL(_ url: URL) {
+        if SoundSyncActivityAttributes.isSoundSyncDeepLink(url) {
+            ensureSoundSyncViewModel()
+            addDeviceButtonActive = false
+            showSettingsSheet = false
+            showSoundSyncSheet = true
+            return
+        }
         guard let macAddress = WledWidgetData.parseDeepLinkMacAddress(url) else { return }
         let devices = viewModel.allDevicesWithState
         pendingDeepLinkMac = (selectDevice(withMacAddress: macAddress, from: devices) || !devices.isEmpty)

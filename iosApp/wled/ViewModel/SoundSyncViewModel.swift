@@ -76,7 +76,7 @@ final class SoundSyncViewModel {
     private let userPreferencesRepository: UserPreferencesRepository
     private let deviceRepository: DeviceRepository
     private let openSettings: @MainActor () -> Void
-    @ObservationIgnored private var deviceObservationTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var deviceObservationTask: Task<Void, Never>?
     @ObservationIgnored private var gainUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var squelchUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var portUpdateTask: Task<Void, Never>?
@@ -84,7 +84,7 @@ final class SoundSyncViewModel {
     // MARK: - Initialization
 
     init(
-        soundSyncManager: any SoundSyncManaging = SoundSyncManager(),
+        soundSyncManager: any SoundSyncManaging = SoundSyncManager.shared,
         userPreferencesRepository: UserPreferencesRepository,
         deviceRepository: DeviceRepository,
         openSettings: @escaping @MainActor () -> Void = SoundSyncViewModel.defaultOpenAppSettings
@@ -158,7 +158,6 @@ final class SoundSyncViewModel {
 
     /// Stops sound sync.
     func stop() async {
-        stopObservingDevices()
         await soundSyncManager.stop()
         let currentState = await soundSyncManager.getState()
         applyState(currentState)
@@ -308,6 +307,9 @@ final class SoundSyncViewModel {
     private func applyState(_ state: SoundSyncState) {
         if isRunning != state.isRunning {
             isRunning = state.isRunning
+            if !state.isRunning {
+                stopObservingDevices()
+            }
         }
         if effectiveGain != state.effectiveGain {
             effectiveGain = state.effectiveGain

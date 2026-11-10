@@ -28,6 +28,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.rememberNavBackStack
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.ui.components.ChangelogBottomSheet
 import ca.cgagnier.wlednativeandroid.ui.theme.ThemeViewModel
@@ -50,17 +51,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        viewModel.handleIntent(intent)
+        // Only handle the launch intent once so deep links don't replay on recreation
+        if (savedInstanceState == null) {
+            viewModel.handleIntent(intent)
+        }
 
         setContent {
             WLEDNativeTheme(themeViewModel = themeViewModel) {
+                val backStack = rememberNavBackStack(DeviceListDetailKey)
                 DeepLinkStateHandler(
                     viewModel = viewModel,
                     onNavigate = { event ->
                         navigationEvent = event
                     },
+                    onNavigateToSoundSync = {
+                        backStack.navigateToSoundSync()
+                    },
                 )
                 MainNavHost(
+                    backStack = backStack,
                     startDeviceAddress = navigationEvent,
                     openChangelogs = { changelogViewModel.showAllChangelogs() },
                 )
@@ -82,7 +91,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun DeepLinkStateHandler(viewModel: MainViewModel, onNavigate: (NavigationEvent) -> Unit) {
+private fun DeepLinkStateHandler(
+    viewModel: MainViewModel,
+    onNavigate: (NavigationEvent) -> Unit,
+    onNavigateToSoundSync: () -> Unit,
+) {
     val deepLinkState by viewModel.deepLinkState.collectAsStateWithLifecycle()
 
     // Handle navigation when device is found
@@ -90,6 +103,11 @@ private fun DeepLinkStateHandler(viewModel: MainViewModel, onNavigate: (Navigati
         when (val state = deepLinkState) {
             is DeepLinkState.NavigateToDevice -> {
                 onNavigate(state.event)
+                viewModel.clearDeepLinkState()
+            }
+
+            is DeepLinkState.NavigateToSoundSync -> {
+                onNavigateToSoundSync()
                 viewModel.clearDeepLinkState()
             }
 

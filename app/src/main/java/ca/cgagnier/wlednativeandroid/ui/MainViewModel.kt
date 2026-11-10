@@ -31,6 +31,7 @@ sealed class DeepLinkState {
     data object Idle : DeepLinkState()
     data object Loading : DeepLinkState()
     data class NavigateToDevice(val event: NavigationEvent) : DeepLinkState()
+    data object NavigateToSoundSync : DeepLinkState()
     data class Error(val messageResId: Int, val address: String) : DeepLinkState()
 }
 
@@ -108,12 +109,21 @@ class MainViewModel(
     }
 
     private fun handleDeepLink(deepLink: DeepLink) {
-        deepLinkJob?.cancel()
-        deepLinkJob = viewModelScope.launch(Dispatchers.IO) {
-            when (deepLink) {
-                is DeepLink.MacAddress -> handleMacAddressDeepLink(deepLink.mac)
-                is DeepLink.Address -> handleAddressDeepLink(deepLink.address)
-                is DeepLink.ApMode -> handleApModeDeepLink()
+        when (deepLink) {
+            is DeepLink.SoundSync -> _deepLinkState.value = DeepLinkState.NavigateToSoundSync
+
+            is DeepLink.MacAddress,
+            is DeepLink.Address,
+            is DeepLink.ApMode,
+            -> {
+                deepLinkJob?.cancel()
+                deepLinkJob = viewModelScope.launch(Dispatchers.IO) {
+                    when (deepLink) {
+                        is DeepLink.MacAddress -> handleMacAddressDeepLink(deepLink.mac)
+                        is DeepLink.Address -> handleAddressDeepLink(deepLink.address)
+                        is DeepLink.ApMode -> handleApModeDeepLink()
+                    }
+                }
             }
         }
     }

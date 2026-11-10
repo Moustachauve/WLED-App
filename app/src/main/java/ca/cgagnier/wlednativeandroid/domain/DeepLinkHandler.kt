@@ -19,12 +19,16 @@ sealed class DeepLink {
 
     /** Deep link to AP mode (4.3.2.1). */
     data object ApMode : DeepLink()
+
+    /** Deep link to the Sound Sync screen (wled://app/soundsync). */
+    data object SoundSync : DeepLink()
 }
 
 /**
  * Handles parsing of deep links from intents.
  *
  * Supports:
+ * - wled://app/soundsync - Opens the Sound Sync screen
  * - wled://{mac_address} - e.g., wled://AABBCCDDEEFF
  * - wled://{ip_or_hostname} - e.g., wled://192.168.1.50 or wled://wled.local
  * - http://4.3.2.1 - Default WLED AP mode IP
@@ -34,6 +38,8 @@ class DeepLinkHandler {
     companion object {
         private const val SCHEME_WLED = "wled"
         private const val SCHEME_HTTP = "http"
+        private const val HOST_APP = "app"
+        private const val PATH_SOUND_SYNC = "soundsync"
         private val MAC_ADDRESS_REGEX = Regex("^[0-9A-Fa-f]{12}$")
 
         /**
@@ -49,6 +55,18 @@ class DeepLinkHandler {
                 .setClass(context, MainActivity::class.java)
                 .setPackage(context.packageName)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        /**
+         * Creates an Intent to open the app directly on the Sound Sync screen.
+         *
+         * @param context The context to create the intent with
+         * @return An Intent configured to open the Sound Sync screen
+         */
+        fun createSoundSyncIntent(context: Context): Intent =
+            Intent(Intent.ACTION_VIEW, "$SCHEME_WLED://$HOST_APP/$PATH_SOUND_SYNC".toUri())
+                .setClass(context, MainActivity::class.java)
+                .setPackage(context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 
     /**
@@ -83,6 +101,11 @@ class DeepLinkHandler {
     private fun parseWledScheme(uri: Uri): DeepLink? {
         // wled://identifier where identifier is the host
         val identifier = uri.host?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val pathSegment = uri.path?.trim('/')?.takeIf { it.isNotEmpty() }
+
+        if (identifier.equals(HOST_APP, ignoreCase = true) && pathSegment != null) {
+            return DeepLink.SoundSync.takeIf { pathSegment.equals(PATH_SOUND_SYNC, ignoreCase = true) }
+        }
 
         return if (isMacAddress(identifier)) {
             DeepLink.MacAddress(identifier.uppercase())

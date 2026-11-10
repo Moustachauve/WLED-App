@@ -303,6 +303,21 @@ struct SoundSyncViewModelTests {
         #expect(!viewModel.isRunning)
     }
 
+    @Test func externalStopCancelsDeviceObservation() async throws {
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+        let observeTask = Task { await viewModel.observe() }
+        defer { observeTask.cancel() }
+
+        await viewModel.start()
+        try await waitUntil { viewModel.isRunning }
+        #expect(viewModel.deviceObservationTask != nil)
+
+        await manager.stop()
+        try await waitUntil { !viewModel.isRunning }
+        #expect(viewModel.deviceObservationTask == nil)
+    }
+
     private func makeViewModel(
         manager: FakeSoundSyncManager,
         openSettings: @escaping @MainActor () -> Void = {}
