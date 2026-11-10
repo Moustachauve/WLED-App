@@ -111,39 +111,22 @@ class ReleaseServiceTest {
     }
 
     @Test
-    fun isBetaRelease_detectsPrereleaseFlagAndBetaDescriptions() {
+    fun createVersion_usesGithubPrereleaseFlagOnly() {
         val service = ReleaseService(VersionWithAssetsRepository(FakeVersionDao(), FakeAssetDao()))
 
         val stableRelease = createRelease(
             tagName = "v1.5.2",
             prerelease = false,
-            body = "# Français\n1. Intégration lumières COB.\n# English\n1. COB Lights integration."
+            body = "Regular release notes mentioning beta"
         )
-        assertFalse(service.isBetaRelease(stableRelease))
         assertFalse(service.createVersion(stableRelease).isPrerelease)
 
         val prereleaseFlagged = createRelease(
-            tagName = "v2.3.0",
-            prerelease = true,
-            body = "Release notes without keyword"
-        )
-        assertTrue(service.isBetaRelease(prereleaseFlagged))
-        assertTrue(service.createVersion(prereleaseFlagged).isPrerelease)
-
-        val v221BetaBody = createRelease(
             tagName = "v2.2.1",
-            prerelease = false,
-            body = "🚨 IMPORTANT — READ BEFORE INSTALLING\nIllumiDEL 2.0 · Beta\nThis update moves your controller to the new IllumiDEL app."
+            prerelease = true,
+            body = "Release notes"
         )
-        assertTrue(service.isBetaRelease(v221BetaBody))
-        assertTrue(service.createVersion(v221BetaBody).isPrerelease)
-
-        val frenchBetaBody = createRelease(
-            tagName = "v2.2.2",
-            prerelease = false,
-            body = "IllumiDEL 2.0 · Version bêta"
-        )
-        assertTrue(service.isBetaRelease(frenchBetaBody))
+        assertTrue(service.createVersion(prereleaseFlagged).isPrerelease)
     }
 
     @Test

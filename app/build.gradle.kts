@@ -22,8 +22,8 @@ android {
         applicationId = "ca.cgagnier.illumidel"
         minSdk = 24
         targetSdk = 36
-        versionCode = 44
-        versionName = "5.2.0"
+        versionCode = 45
+        versionName = "5.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

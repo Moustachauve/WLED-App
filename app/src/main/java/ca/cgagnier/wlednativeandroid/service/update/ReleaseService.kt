@@ -108,22 +108,10 @@ class ReleaseService(private val versionWithAssetsRepository: VersionWithAssetsR
             version.tagName,
             version.name,
             version.body,
-            isBetaRelease(version),
+            version.prerelease,
             version.publishedAt,
             version.htmlUrl
         )
-    }
-
-    internal fun isBetaRelease(version: Release): Boolean {
-        if (version.prerelease) {
-            return true
-        }
-        val betaKeywords = listOf("beta", "bêta")
-        return betaKeywords.any { keyword ->
-            version.tagName.contains(keyword, ignoreCase = true) ||
-                version.name.contains(keyword, ignoreCase = true) ||
-                version.body.contains(keyword, ignoreCase = true)
-        }
     }
 
     private fun createAssetsForVersion(version: Release): List<Asset> {
