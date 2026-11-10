@@ -72,6 +72,7 @@
 				Localizable.xcstrings,
 				Service/DeviceApi/DeviceExtensions.swift,
 				"View/Color+Extensions.swift",
+				Widget/SoundSyncActivityAttributes.swift,
 				Widget/WledAppIntents.swift,
 				Widget/WledDeviceEntity.swift,
 				Widget/WledDeviceWidgetTimelineProvider.swift,

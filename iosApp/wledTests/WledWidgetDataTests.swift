@@ -67,4 +67,23 @@ struct WledWidgetDataTests {
         let url = try #require(URL(string: testCase.urlString))
         #expect(WledWidgetData.parseDeepLinkMacAddress(url) == testCase.expectedMac)
     }
+
+    @Test(arguments: [
+        ("wled://app/soundsync", true),
+        ("WLED://APP/SOUNDSYNC", true),
+        ("wled://soundsync", false),
+        ("wled://app/soundsync/extra", false),
+        ("wled://device/aabbccddeeff", false),
+        ("https://app/soundsync", false)
+    ])
+    func isSoundSyncDeepLinkMatchesOnlyCanonicalAppSoundSyncPath(
+        urlString: String,
+        expectedMatch: Bool
+    ) throws {
+        let url = try #require(URL(string: urlString))
+        #expect(SoundSyncActivityAttributes.isSoundSyncDeepLink(url) == expectedMatch)
+        if urlString == "wled://app/soundsync" {
+            #expect(SoundSyncActivityAttributes.deepLinkURL == url)
+        }
+    }
 }

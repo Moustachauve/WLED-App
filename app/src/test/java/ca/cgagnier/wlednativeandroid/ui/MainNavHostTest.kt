@@ -64,4 +64,18 @@ class MainNavHostTest {
         assertEquals("DeviceListDetailKey", detailKey.toString())
         assertEquals("SettingsKey", settingsKey.toString())
     }
+
+    @Test
+    fun `navigateToSoundSync places SoundSyncKey at top without duplicating`() {
+        listOf(
+            listOf<NavKey>(DeviceListDetailKey),
+            listOf<NavKey>(DeviceListDetailKey, SoundSyncKey),
+        ).forEach { initialKeys ->
+            val backStack = NavBackStack(*initialKeys.toTypedArray())
+
+            backStack.navigateToSoundSync()
+
+            assertEquals(listOf(DeviceListDetailKey, SoundSyncKey), backStack.toList())
+        }
+    }
 }

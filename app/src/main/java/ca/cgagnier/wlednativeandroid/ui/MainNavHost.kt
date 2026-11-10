@@ -23,6 +23,12 @@ data object SettingsKey : NavKey
 @Serializable
 data object SoundSyncKey : NavKey
 
+fun NavBackStack<NavKey>.navigateToSoundSync() {
+    if (lastOrNull() != SoundSyncKey) {
+        add(SoundSyncKey)
+    }
+}
+
 @Composable
 fun MainNavHost(
     backStack: NavBackStack<NavKey> = rememberNavBackStack(DeviceListDetailKey),
@@ -49,7 +55,7 @@ fun MainNavHost(
                             backStack.add(SettingsKey)
                         },
                         openSoundSync = {
-                            backStack.add(SoundSyncKey)
+                            backStack.navigateToSoundSync()
                         },
                         openChangelogs = openChangelogs,
                     ),
