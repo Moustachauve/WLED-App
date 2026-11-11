@@ -72,6 +72,8 @@ private val TINY_HORIZONTAL_PADDING = 8.dp
 private val STANDARD_VERTICAL_PADDING = 14.dp
 private val COMPACT_VERTICAL_PADDING = 10.dp
 private val TINY_VERTICAL_PADDING = 6.dp
+private val STANDARD_ERROR_PADDING = 12.dp
+private val TINY_ERROR_PADDING = 6.dp
 
 private val WIDE_GLOW_WIDTH = 156.dp
 private val NARROW_GLOW_SIZE = 120.dp
@@ -154,7 +156,7 @@ private fun ErrorState(context: Context, appWidgetId: Int) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
-            .padding(if (isTiny) TINY_VERTICAL_PADDING else 12.dp)
+            .padding(if (isTiny) TINY_ERROR_PADDING else STANDARD_ERROR_PADDING)
             .clickable(actionStartActivity(configureIntent)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -211,7 +213,11 @@ private fun DeviceWidgetContentTiny(data: WidgetStateData) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PowerButton(isOn = data.isOn, isCompact = true)
+            PowerButton(
+                isOn = data.isOnline && data.isOn,
+                isCompact = true,
+                showOfflineIcon = !data.isOnline,
+            )
             Spacer(modifier = GlanceModifier.height(4.dp))
             Text(
                 text = data.name,
@@ -250,7 +256,7 @@ private fun DeviceWidgetContentTinyTall(data: WidgetStateData) {
             modifier = GlanceModifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PowerButton(isOn = data.isOn, isCompact = isCompactButton)
+            PowerButton(isOn = data.isOnline && data.isOn, isCompact = isCompactButton)
             Spacer(modifier = GlanceModifier.height(4.dp))
             RefreshTimerButton(lastUpdated = data.lastUpdated)
 
@@ -316,7 +322,7 @@ internal fun DeviceWidgetContentWide(data: WidgetStateData) {
 
                 Spacer(modifier = GlanceModifier.width(12.dp))
 
-                PowerButton(isOn = data.isOn, isCompact = false)
+                PowerButton(isOn = data.isOnline && data.isOn, isCompact = false)
             }
             // TODO: Add a way for users to configure quick actions
             if (data.quickActionsEnabled) {
@@ -355,7 +361,7 @@ private fun DeviceWidgetContentNarrow(data: WidgetStateData) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
             ) {
-                PowerButton(isOn = data.isOn, isCompact = true)
+                PowerButton(isOn = data.isOnline && data.isOn, isCompact = true)
                 Box(
                     modifier = GlanceModifier.defaultWeight(),
                     contentAlignment = Alignment.TopEnd,

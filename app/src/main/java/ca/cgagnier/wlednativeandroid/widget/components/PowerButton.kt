@@ -1,6 +1,8 @@
 package ca.cgagnier.wlednativeandroid.widget.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
@@ -22,71 +24,82 @@ import androidx.glance.layout.width
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.model.WifiSignalLevel
+import ca.cgagnier.wlednativeandroid.ui.components.toIconRes
+import ca.cgagnier.wlednativeandroid.widget.RefreshAction
 import ca.cgagnier.wlednativeandroid.widget.TogglePowerAction
 
-private val WIDE_BUTTON_SIZE = 52.dp
-private val WIDE_CORNER_RADIUS = 16.dp
-private val WIDE_ICON_SIZE = 24.dp
-
-private val COMPACT_BUTTON_SIZE = 40.dp
-private val COMPACT_CORNER_RADIUS = 13.dp
-private val COMPACT_ICON_SIZE = 20.dp
+private enum class PowerButtonStyle(
+    val buttonSize: Dp,
+    val cornerRadius: Dp,
+    val iconSize: Dp,
+    @param:DrawableRes val fillRes: Int,
+    @param:DrawableRes val outlineRes: Int,
+) {
+    WIDE(
+        buttonSize = 52.dp,
+        cornerRadius = 16.dp,
+        iconSize = 24.dp,
+        fillRes = R.drawable.widget_squircle_fill,
+        outlineRes = R.drawable.widget_squircle_outline,
+    ),
+    COMPACT(
+        buttonSize = 40.dp,
+        cornerRadius = 13.dp,
+        iconSize = 20.dp,
+        fillRes = R.drawable.widget_squircle_compact_fill,
+        outlineRes = R.drawable.widget_squircle_compact_outline,
+    ),
+}
 
 @Composable
-fun PowerButton(isOn: Boolean, isCompact: Boolean = false) {
-    val buttonSize = if (isCompact) COMPACT_BUTTON_SIZE else WIDE_BUTTON_SIZE
-    val cornerRadius = if (isCompact) COMPACT_CORNER_RADIUS else WIDE_CORNER_RADIUS
-    val iconSize = if (isCompact) COMPACT_ICON_SIZE else WIDE_ICON_SIZE
-    val fillRes = if (isCompact) R.drawable.widget_squircle_compact_fill else R.drawable.widget_squircle_fill
-    val outlineRes = if (isCompact) R.drawable.widget_squircle_compact_outline else R.drawable.widget_squircle_outline
-    val toggleDescription = LocalContext.current.getString(R.string.widget_toggle_power)
+fun PowerButton(isOn: Boolean, isCompact: Boolean = false, showOfflineIcon: Boolean = false) {
+    val style = if (isCompact) PowerButtonStyle.COMPACT else PowerButtonStyle.WIDE
+    val isActive = isOn && !showOfflineIcon
+    val context = LocalContext.current
+    val action = if (showOfflineIcon) {
+        actionRunCallback<RefreshAction>()
+    } else {
+        actionRunCallback<TogglePowerAction>(actionParametersOf(TogglePowerAction.keyIsOn to isOn))
+    }
+    val fillTint = if (isActive) GlanceTheme.colors.primary else GlanceTheme.colors.surfaceVariant
+    val iconRes = if (showOfflineIcon) WifiSignalLevel.OFFLINE.toIconRes() else R.drawable.outline_power_settings_new_24
+    val iconTint = when {
+        isActive -> GlanceTheme.colors.onPrimary
+        showOfflineIcon -> GlanceTheme.colors.error
+        else -> GlanceTheme.colors.onSurfaceVariant
+    }
+    val iconDescription = context.getString(
+        if (showOfflineIcon) R.string.is_offline else R.string.widget_toggle_power,
+    )
 
     Box(
         modifier = GlanceModifier
-            .size(buttonSize)
-            .cornerRadius(cornerRadius)
-            .clickable(
-                actionRunCallback<TogglePowerAction>(
-                    actionParametersOf(
-                        TogglePowerAction.keyIsOn to isOn,
-                    ),
-                ),
-            ),
+            .size(style.buttonSize)
+            .cornerRadius(style.cornerRadius)
+            .clickable(action),
         contentAlignment = Alignment.Center,
     ) {
-        if (isOn) {
+        Image(
+            provider = ImageProvider(style.fillRes),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxSize(),
+            colorFilter = ColorFilter.tint(fillTint),
+        )
+        if (!isActive) {
             Image(
-                provider = ImageProvider(fillRes),
-                contentDescription = null,
-                modifier = GlanceModifier.fillMaxSize(),
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
-            )
-            Image(
-                provider = ImageProvider(R.drawable.outline_power_settings_new_24),
-                contentDescription = toggleDescription,
-                modifier = GlanceModifier.size(iconSize),
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.onPrimary),
-            )
-        } else {
-            Image(
-                provider = ImageProvider(fillRes),
-                contentDescription = null,
-                modifier = GlanceModifier.fillMaxSize(),
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.surfaceVariant),
-            )
-            Image(
-                provider = ImageProvider(outlineRes),
+                provider = ImageProvider(style.outlineRes),
                 contentDescription = null,
                 modifier = GlanceModifier.fillMaxSize(),
                 colorFilter = ColorFilter.tint(GlanceTheme.colors.outline),
             )
-            Image(
-                provider = ImageProvider(R.drawable.outline_power_settings_new_24),
-                contentDescription = toggleDescription,
-                modifier = GlanceModifier.size(iconSize),
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurfaceVariant),
-            )
         }
+        Image(
+            provider = ImageProvider(iconRes),
+            contentDescription = iconDescription,
+            modifier = GlanceModifier.size(style.iconSize),
+            colorFilter = ColorFilter.tint(iconTint),
+        )
     }
 }
 

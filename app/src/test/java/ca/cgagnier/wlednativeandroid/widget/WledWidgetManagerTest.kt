@@ -157,7 +157,31 @@ class WledWidgetManagerTest {
     }
 
     @Test
-    fun `configureWidget reassigns existing widget to new device without altering other widgets`() = runTest {
+    fun `configureWidget reassigns existing widget to new device`() = runTest {
+        val editedWidgetId = registerWidget(
+            mac = "AA1122334455",
+            address = "192.168.1.10",
+            isOn = true,
+            isOnline = true,
+        )
+        val newDevice = Device(
+            macAddress = "CC9988776655",
+            address = "192.168.1.25",
+            originalName = "wled-patio",
+            customName = "Patio Strip",
+        )
+
+        widgetManager.configureWidget(context, editedWidgetId, newDevice)
+
+        val reassigned = checkNotNull(widgetStorage.savedUpdates[editedWidgetId])
+        assertEquals("CC9988776655", reassigned.macAddress)
+        assertEquals("192.168.1.25", reassigned.address)
+        assertEquals("Patio Strip", reassigned.name)
+        assertFalse(reassigned.isOn)
+    }
+
+    @Test
+    fun `configureWidget does not modify other widgets tracking previous device`() = runTest {
         val editedWidgetId = registerWidget(
             mac = "AA1122334455",
             address = "192.168.1.10",
@@ -174,17 +198,10 @@ class WledWidgetManagerTest {
             macAddress = "CC9988776655",
             address = "192.168.1.25",
             originalName = "wled-patio",
-            customName = "Patio Strip",
         )
 
         widgetManager.configureWidget(context, editedWidgetId, newDevice)
 
-        val reassigned = widgetStorage.savedUpdates[editedWidgetId]
-        assertNotNull(reassigned)
-        assertEquals("CC9988776655", reassigned!!.macAddress)
-        assertEquals("192.168.1.25", reassigned.address)
-        assertEquals("Patio Strip", reassigned.name)
-        assertFalse(reassigned.isOn)
         assertNull(widgetStorage.savedUpdates[untouchedWidgetId])
         assertEquals("AA1122334455", widgetStorage.states[untouchedWidgetId]?.macAddress)
     }
