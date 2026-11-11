@@ -142,29 +142,133 @@ class WledWidgetManagerTest {
         assertEquals(WifiSignalLevel.FAIR, saved.signalLevel)
     }
 
+    @Test
+    fun `getAssignedDeviceMac returns null for unconfigured widget`() = runTest {
+        val unconfiguredId = mockk<GlanceId>()
+
+        assertNull(widgetManager.getAssignedDeviceMac(context, unconfiguredId))
+    }
+
+    @Test
+    fun `getAssignedDeviceMac returns current device MAC for configured widget`() = runTest {
+        val glanceId = registerWidget(mac = "AA1122334455", address = "192.168.1.10")
+
+        assertEquals("AA1122334455", widgetManager.getAssignedDeviceMac(context, glanceId))
+    }
+
+    @Test
+    fun `configureWidget reassigns existing widget to new device without altering other widgets`() = runTest {
+        val editedWidgetId = registerWidget(
+            mac = "AA1122334455",
+            address = "192.168.1.10",
+            isOn = true,
+            isOnline = true,
+        )
+        val untouchedWidgetId = registerWidget(
+            mac = "AA1122334455",
+            address = "192.168.1.10",
+            isOn = true,
+            isOnline = true,
+        )
+        val newDevice = Device(
+            macAddress = "CC9988776655",
+            address = "192.168.1.25",
+            originalName = "wled-patio",
+            customName = "Patio Strip",
+        )
+
+        widgetManager.configureWidget(context, editedWidgetId, newDevice)
+
+        val reassigned = widgetStorage.savedUpdates[editedWidgetId]
+        assertNotNull(reassigned)
+        assertEquals("CC9988776655", reassigned!!.macAddress)
+        assertEquals("192.168.1.25", reassigned.address)
+        assertEquals("Patio Strip", reassigned.name)
+        assertFalse(reassigned.isOn)
+        assertNull(widgetStorage.savedUpdates[untouchedWidgetId])
+        assertEquals("AA1122334455", widgetStorage.states[untouchedWidgetId]?.macAddress)
+    }
+
+    @Test
+    fun `configureWidget seeds state from sibling widget already assigned to target device`() = runTest {
+        val siblingState = WidgetStateData(
+            macAddress = "DD1122334455",
+            address = "192.168.1.40",
+            name = "Old Name",
+            isOn = true,
+            isOnline = true,
+            color = 0xFFFF8800.toInt(),
+            signalLevel = WifiSignalLevel.FAIR,
+        )
+        registerWidget(siblingState)
+        val newWidgetId = mockk<GlanceId>()
+        val targetDevice = Device(
+            macAddress = "DD1122334455",
+            address = "192.168.1.42",
+            originalName = "Kitchen Strip",
+        )
+
+        widgetManager.configureWidget(context, newWidgetId, targetDevice)
+
+        assertEquals(
+            siblingState.copy(name = "Kitchen Strip", address = "192.168.1.42"),
+            widgetStorage.savedUpdates[newWidgetId],
+        )
+    }
+
+    @Test
+    fun `configureWidget preserves cached live state when re-selecting the already-assigned device`() = runTest {
+        val existingState = WidgetStateData(
+            macAddress = "EE1122334455",
+            address = "192.168.1.60",
+            name = "Desk Lamp",
+            isOn = true,
+            isOnline = true,
+            color = 0xFF00FF88.toInt(),
+            signalLevel = WifiSignalLevel.WEAK,
+        )
+        val glanceId = registerWidget(existingState)
+        val sameDevice = Device(
+            macAddress = "EE1122334455",
+            address = "192.168.1.61",
+            originalName = "Desk Lamp",
+        )
+
+        widgetManager.configureWidget(context, glanceId, sameDevice)
+
+        assertEquals(
+            existingState.copy(address = "192.168.1.61"),
+            widgetStorage.savedUpdates[glanceId],
+        )
+    }
+
+    private fun registerWidget(state: WidgetStateData): GlanceId {
+        val glanceId = mockk<GlanceId>()
+        widgetStorage.states[glanceId] = state
+        coEvery { deviceRepository.findDeviceByMacAddress(state.macAddress) } returns Device(
+            macAddress = state.macAddress,
+            address = state.address,
+            originalName = state.name,
+        )
+        return glanceId
+    }
+
     private fun registerWidget(
         mac: String,
         address: String,
         isOn: Boolean = false,
         isOnline: Boolean = true,
         signalLevel: WifiSignalLevel = if (isOnline) WifiSignalLevel.GOOD else WifiSignalLevel.OFFLINE,
-    ): GlanceId {
-        val glanceId = mockk<GlanceId>()
-        widgetStorage.states[glanceId] = WidgetStateData(
+    ): GlanceId = registerWidget(
+        WidgetStateData(
             macAddress = mac,
             address = address,
             name = "Lamp",
             isOn = isOn,
             isOnline = isOnline,
             signalLevel = signalLevel,
-        )
-        coEvery { deviceRepository.findDeviceByMacAddress(mac) } returns Device(
-            macAddress = mac,
-            address = address,
-            originalName = "Lamp",
-        )
-        return glanceId
-    }
+        ),
+    )
 
     private fun onlineState(isOn: Boolean) = State(
         isOn = isOn,
