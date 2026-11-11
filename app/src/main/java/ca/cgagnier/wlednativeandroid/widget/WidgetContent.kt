@@ -3,7 +3,9 @@ package ca.cgagnier.wlednativeandroid.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
@@ -52,22 +54,58 @@ import kotlinx.serialization.json.Json
 
 val WIDGET_DATA_KEY = stringPreferencesKey("widget_data")
 
+private const val TALL_MAX_TITLE_LINES = 3
+
+private val TINY_WIDGET_WIDTH_THRESHOLD = 110.dp
 private val NARROW_WIDGET_WIDTH_THRESHOLD = 160.dp
+private val TINY_MULTILINE_HEIGHT_THRESHOLD = 80.dp
+private val TINY_TALL_HEIGHT_THRESHOLD = 145.dp
+private val TINY_TALL_WIDE_BUTTON_WIDTH_THRESHOLD = 68.dp
+private val TINY_TALL_WIDE_BUTTON_HEIGHT_THRESHOLD = 175.dp
+private val TINY_TALL_THREE_LINE_HEIGHT_THRESHOLD = 200.dp
 private val COMPACT_WIDGET_HEIGHT_THRESHOLD = 90.dp
 private val MULTILINE_TITLE_HEIGHT_THRESHOLD = 104.dp
 
 private val WIDE_HORIZONTAL_PADDING = 16.dp
 private val NARROW_HORIZONTAL_PADDING = 14.dp
+private val TINY_HORIZONTAL_PADDING = 8.dp
 private val STANDARD_VERTICAL_PADDING = 14.dp
 private val COMPACT_VERTICAL_PADDING = 10.dp
+private val TINY_VERTICAL_PADDING = 6.dp
+private val STANDARD_ERROR_PADDING = 12.dp
+private val TINY_ERROR_PADDING = 6.dp
 
 private val WIDE_GLOW_WIDTH = 156.dp
 private val NARROW_GLOW_SIZE = 120.dp
+private val TINY_GLOW_HEIGHT = 120.dp
 
 private val STATUS_PILL_CORNER_RADIUS = 999.dp
 private val STATUS_PILL_HORIZONTAL_PADDING = 9.dp
+private val COMPACT_STATUS_PILL_HORIZONTAL_PADDING = 7.dp
 private val STATUS_PILL_VERTICAL_PADDING = 4.dp
 private val STATUS_ICON_SIZE = 12.dp
+
+private enum class GlowPosition(
+    val alignment: Alignment,
+    @param:DrawableRes val drawableRes: Int,
+    val imageModifier: GlanceModifier,
+) {
+    TOP_CENTER(
+        alignment = Alignment.TopCenter,
+        drawableRes = R.drawable.widget_ambient_glow_top_center,
+        imageModifier = GlanceModifier.fillMaxWidth().height(TINY_GLOW_HEIGHT),
+    ),
+    TOP_START(
+        alignment = Alignment.TopStart,
+        drawableRes = R.drawable.widget_ambient_glow_top_start,
+        imageModifier = GlanceModifier.size(NARROW_GLOW_SIZE),
+    ),
+    CENTER_END(
+        alignment = Alignment.CenterEnd,
+        drawableRes = R.drawable.widget_ambient_glow_end,
+        imageModifier = GlanceModifier.width(WIDE_GLOW_WIDTH).fillMaxHeight(),
+    ),
+}
 
 @Composable
 fun WidgetContent(context: Context, appWidgetId: Int) {
@@ -109,6 +147,7 @@ fun WidgetPreviewContent() {
 
 @Composable
 private fun ErrorState(context: Context, appWidgetId: Int) {
+    val isTiny = LocalSize.current.width < TINY_WIDGET_WIDTH_THRESHOLD
     val configureIntent = Intent(context, WledWidgetConfigureActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -117,7 +156,7 @@ private fun ErrorState(context: Context, appWidgetId: Int) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
-            .padding(12.dp)
+            .padding(if (isTiny) TINY_ERROR_PADDING else STANDARD_ERROR_PADDING)
             .clickable(actionStartActivity(configureIntent)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,18 +164,19 @@ private fun ErrorState(context: Context, appWidgetId: Int) {
         Image(
             provider = ImageProvider(R.drawable.baseline_error_outline_24),
             contentDescription = null,
-            modifier = GlanceModifier.size(24.dp),
+            modifier = GlanceModifier.size(if (isTiny) 20.dp else 24.dp),
             colorFilter = ColorFilter.tint(GlanceTheme.colors.error),
         )
-        Spacer(modifier = GlanceModifier.height(6.dp))
+        Spacer(modifier = GlanceModifier.height(if (isTiny) 4.dp else 6.dp))
         Text(
             text = context.getString(R.string.widget_please_configure),
             style = TextStyle(
                 color = GlanceTheme.colors.onSurface,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
+                fontSize = if (isTiny) 11.sp else 13.sp,
                 textAlign = TextAlign.Center,
             ),
+            maxLines = 2,
         )
     }
 }
@@ -144,18 +184,116 @@ private fun ErrorState(context: Context, appWidgetId: Int) {
 @Composable
 private fun DeviceWidgetContent(data: WidgetStateData) {
     val size = LocalSize.current
-    val isNarrow = size.width < NARROW_WIDGET_WIDTH_THRESHOLD
+    when {
+        size.width < TINY_WIDGET_WIDTH_THRESHOLD && size.height >= TINY_TALL_HEIGHT_THRESHOLD -> {
+            DeviceWidgetContentTinyTall(data)
+        }
 
-    if (isNarrow) {
-        DeviceWidgetContentNarrow(data)
+        size.width < TINY_WIDGET_WIDTH_THRESHOLD -> DeviceWidgetContentTiny(data)
+
+        size.width < NARROW_WIDGET_WIDTH_THRESHOLD -> DeviceWidgetContentNarrow(data)
+
+        else -> DeviceWidgetContentWide(data)
+    }
+}
+
+@Composable
+private fun DeviceWidgetContentTiny(data: WidgetStateData) {
+    val maxTitleLines = if (LocalSize.current.height >= TINY_MULTILINE_HEIGHT_THRESHOLD) 2 else 1
+    val titleColor = if (data.isOnline) GlanceTheme.colors.onSurface else GlanceTheme.colors.onSurfaceVariant
+
+    DeviceWidgetContainer(
+        data = data,
+        glowPosition = GlowPosition.TOP_CENTER,
+        horizontalPadding = 0.dp,
+        verticalPadding = TINY_VERTICAL_PADDING,
+    ) {
+        Column(
+            modifier = GlanceModifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PowerButton(
+                isOn = data.isOnline && data.isOn,
+                isCompact = true,
+                showOfflineIcon = !data.isOnline,
+            )
+            Spacer(modifier = GlanceModifier.height(4.dp))
+            Text(
+                text = data.name,
+                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = TINY_HORIZONTAL_PADDING),
+                style = TextStyle(
+                    color = titleColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                ),
+                maxLines = maxTitleLines,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceWidgetContentTinyTall(data: WidgetStateData) {
+    val size = LocalSize.current
+    val isCompactButton =
+        size.width < TINY_TALL_WIDE_BUTTON_WIDTH_THRESHOLD || size.height < TINY_TALL_WIDE_BUTTON_HEIGHT_THRESHOLD
+    val verticalPadding = if (size.height < TINY_TALL_WIDE_BUTTON_HEIGHT_THRESHOLD) {
+        COMPACT_VERTICAL_PADDING
     } else {
-        DeviceWidgetContentWide(data)
+        STANDARD_VERTICAL_PADDING
+    }
+    val maxTitleLines = if (size.height >= TINY_TALL_THREE_LINE_HEIGHT_THRESHOLD) TALL_MAX_TITLE_LINES else 2
+
+    DeviceWidgetContainer(
+        data = data,
+        glowPosition = GlowPosition.TOP_CENTER,
+        horizontalPadding = 0.dp,
+        verticalPadding = verticalPadding,
+    ) {
+        Column(
+            modifier = GlanceModifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PowerButton(isOn = data.isOnline && data.isOn, isCompact = isCompactButton)
+            Spacer(modifier = GlanceModifier.height(4.dp))
+            RefreshTimerButton(lastUpdated = data.lastUpdated)
+
+            Spacer(modifier = GlanceModifier.defaultWeight())
+
+            Box(modifier = GlanceModifier.padding(horizontal = 4.dp)) {
+                StatusPill(data, horizontalPadding = COMPACT_STATUS_PILL_HORIZONTAL_PADDING)
+            }
+            Spacer(modifier = GlanceModifier.height(6.dp))
+            Text(
+                text = data.name,
+                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = TINY_HORIZONTAL_PADDING),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                ),
+                maxLines = maxTitleLines,
+            )
+        }
     }
 }
 
 @Composable
 internal fun DeviceWidgetContentWide(data: WidgetStateData) {
-    DeviceWidgetContainer(data = data, isNarrow = false) {
+    val verticalPadding = if (LocalSize.current.height < COMPACT_WIDGET_HEIGHT_THRESHOLD) {
+        COMPACT_VERTICAL_PADDING
+    } else {
+        STANDARD_VERTICAL_PADDING
+    }
+    DeviceWidgetContainer(
+        data = data,
+        glowPosition = GlowPosition.CENTER_END,
+        horizontalPadding = WIDE_HORIZONTAL_PADDING,
+        verticalPadding = verticalPadding,
+    ) {
         Column(
             modifier = GlanceModifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
@@ -184,7 +322,7 @@ internal fun DeviceWidgetContentWide(data: WidgetStateData) {
 
                 Spacer(modifier = GlanceModifier.width(12.dp))
 
-                PowerButton(isOn = data.isOn, isCompact = false)
+                PowerButton(isOn = data.isOnline && data.isOn, isCompact = false)
             }
             // TODO: Add a way for users to configure quick actions
             if (data.quickActionsEnabled) {
@@ -204,7 +342,17 @@ internal fun DeviceWidgetContentWide(data: WidgetStateData) {
 
 @Composable
 private fun DeviceWidgetContentNarrow(data: WidgetStateData) {
-    DeviceWidgetContainer(data = data, isNarrow = true) {
+    val verticalPadding = if (LocalSize.current.height < COMPACT_WIDGET_HEIGHT_THRESHOLD) {
+        COMPACT_VERTICAL_PADDING
+    } else {
+        STANDARD_VERTICAL_PADDING
+    }
+    DeviceWidgetContainer(
+        data = data,
+        glowPosition = GlowPosition.TOP_START,
+        horizontalPadding = NARROW_HORIZONTAL_PADDING,
+        verticalPadding = verticalPadding,
+    ) {
         Column(
             modifier = GlanceModifier.fillMaxSize(),
             horizontalAlignment = Alignment.Start,
@@ -213,7 +361,7 @@ private fun DeviceWidgetContentNarrow(data: WidgetStateData) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
             ) {
-                PowerButton(isOn = data.isOn, isCompact = true)
+                PowerButton(isOn = data.isOnline && data.isOn, isCompact = true)
                 Box(
                     modifier = GlanceModifier.defaultWeight(),
                     contentAlignment = Alignment.TopEnd,
@@ -233,15 +381,14 @@ private fun DeviceWidgetContentNarrow(data: WidgetStateData) {
 }
 
 @Composable
-private fun DeviceWidgetContainer(data: WidgetStateData, isNarrow: Boolean, content: @Composable () -> Unit) {
+private fun DeviceWidgetContainer(
+    data: WidgetStateData,
+    glowPosition: GlowPosition,
+    horizontalPadding: Dp,
+    verticalPadding: Dp,
+    content: @Composable () -> Unit,
+) {
     val intent = data.toOpenWidgetInAppIntent(LocalContext.current)
-    val size = LocalSize.current
-    val horizontalPadding = if (isNarrow) NARROW_HORIZONTAL_PADDING else WIDE_HORIZONTAL_PADDING
-    val verticalPadding = if (size.height < COMPACT_WIDGET_HEIGHT_THRESHOLD) {
-        COMPACT_VERTICAL_PADDING
-    } else {
-        STANDARD_VERTICAL_PADDING
-    }
 
     Box(
         modifier = GlanceModifier
@@ -250,7 +397,7 @@ private fun DeviceWidgetContainer(data: WidgetStateData, isNarrow: Boolean, cont
             .clickable(actionStartActivity(intent)),
     ) {
         if (data.isOnline && data.isOn) {
-            AmbientButtonGlow(isNarrow = isNarrow)
+            AmbientButtonGlow(glowPosition = glowPosition)
         }
 
         Box(
@@ -264,33 +411,18 @@ private fun DeviceWidgetContainer(data: WidgetStateData, isNarrow: Boolean, cont
 }
 
 @Composable
-private fun AmbientButtonGlow(isNarrow: Boolean) {
-    if (isNarrow) {
-        Box(
-            modifier = GlanceModifier.fillMaxSize(),
-            contentAlignment = Alignment.TopStart,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.widget_ambient_glow_top_start),
-                contentDescription = null,
-                modifier = GlanceModifier.size(NARROW_GLOW_SIZE),
-                contentScale = ContentScale.FillBounds,
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
-            )
-        }
-    } else {
-        Box(
-            modifier = GlanceModifier.fillMaxSize(),
-            contentAlignment = Alignment.CenterEnd,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.widget_ambient_glow_end),
-                contentDescription = null,
-                modifier = GlanceModifier.width(WIDE_GLOW_WIDTH).fillMaxHeight(),
-                contentScale = ContentScale.FillBounds,
-                colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
-            )
-        }
+private fun AmbientButtonGlow(glowPosition: GlowPosition) {
+    Box(
+        modifier = GlanceModifier.fillMaxSize(),
+        contentAlignment = glowPosition.alignment,
+    ) {
+        Image(
+            provider = ImageProvider(glowPosition.drawableRes),
+            contentDescription = null,
+            modifier = glowPosition.imageModifier,
+            contentScale = ContentScale.FillBounds,
+            colorFilter = ColorFilter.tint(GlanceTheme.colors.primary),
+        )
     }
 }
 
@@ -329,7 +461,7 @@ private fun DeviceDetailsColumn(data: WidgetStateData, isNarrow: Boolean, modifi
 }
 
 @Composable
-private fun StatusPill(data: WidgetStateData) {
+private fun StatusPill(data: WidgetStateData, horizontalPadding: Dp = STATUS_PILL_HORIZONTAL_PADDING) {
     Box(
         modifier = GlanceModifier
             .background(
@@ -338,7 +470,7 @@ private fun StatusPill(data: WidgetStateData) {
             )
             .cornerRadius(STATUS_PILL_CORNER_RADIUS)
             .padding(
-                horizontal = STATUS_PILL_HORIZONTAL_PADDING,
+                horizontal = horizontalPadding,
                 vertical = STATUS_PILL_VERTICAL_PADDING,
             ),
         contentAlignment = Alignment.Center,
@@ -399,6 +531,42 @@ private fun RefreshTimerButton(lastUpdated: Long) {
         contentAlignment = Alignment.Center,
     ) {
         ElapsedTimeChronometer(lastUpdated = lastUpdated)
+    }
+}
+
+@Suppress("MagicNumber")
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 76, heightDp = 96)
+@Composable
+private fun DeviceWidgetContentPreviewTiny() {
+    val widgetData = WidgetStateData(
+        macAddress = "AA:BB:CC:DD:EE:FF",
+        address = "192.168.1.100",
+        name = "Dig2Go-Audio",
+        isOn = true,
+        isOnline = true,
+        color = 0xFFFF8C00.toInt(),
+    )
+    WLEDWidgetTheme(widgetData) {
+        DeviceWidgetContent(widgetData)
+    }
+}
+
+@Suppress("MagicNumber")
+@OptIn(ExperimentalGlancePreviewApi::class)
+@Preview(widthDp = 80, heightDp = 210)
+@Composable
+private fun DeviceWidgetContentPreviewTinyTall() {
+    val widgetData = WidgetStateData(
+        macAddress = "AA:BB:CC:DD:EE:FF",
+        address = "192.168.1.100",
+        name = "WLED bureau",
+        isOn = true,
+        isOnline = true,
+        color = 0xFF5D6BFF.toInt(),
+    )
+    WLEDWidgetTheme(widgetData) {
+        DeviceWidgetContent(widgetData)
     }
 }
 

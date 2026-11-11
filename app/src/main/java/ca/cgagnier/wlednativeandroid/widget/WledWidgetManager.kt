@@ -16,6 +16,7 @@ import ca.cgagnier.wlednativeandroid.model.resolveDeviceName
 import ca.cgagnier.wlednativeandroid.model.wledapi.JsonPost
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
@@ -79,6 +80,44 @@ class WledWidgetManager internal constructor(
     }
 
     /**
+     * Returns the MAC address of the device currently assigned to [glanceId], or `null` if
+     * the widget has not been configured yet.
+     */
+    suspend fun getAssignedDeviceMac(context: Context, glanceId: GlanceId): String? =
+        widgetStorage.getWidgetState(context, glanceId)?.macAddress
+
+    /**
+     * Assigns (or reassigns) [glanceId] to [device] and pushes an immediate initial state update.
+     * Preserves cached state when re-selecting the already-assigned device or when another widget
+     * is already tracking the same device.
+     */
+    suspend fun configureWidget(context: Context, glanceId: GlanceId, device: Device) {
+        val displayName = resolveDeviceName(device, context.getString(R.string.default_device_name))
+        val existingState = widgetStorage.getWidgetState(context, glanceId)
+            ?.takeIf { it.macAddress == device.macAddress }
+            ?: widgetStorage.getGlanceIds(context).firstNotNullOfOrNull { id ->
+                if (id == glanceId) {
+                    null
+                } else {
+                    widgetStorage.getWidgetState(context, id)?.takeIf { it.macAddress == device.macAddress }
+                }
+            }
+
+        val widgetData = existingState?.copy(
+            name = displayName,
+            address = device.address,
+        ) ?: WidgetStateData(
+            macAddress = device.macAddress,
+            address = device.address,
+            name = displayName,
+            isOn = false,
+            lastUpdated = System.currentTimeMillis(),
+        )
+
+        widgetStorage.saveStateAndPush(context, glanceId, widgetData)
+    }
+
+    /**
      * Updates all widgets for a device based on a projected [WidgetSnapshot]
      * received from an external source (e.g., WebSocket state sync).
      *
@@ -108,6 +147,8 @@ class WledWidgetManager internal constructor(
 
         try {
             sendRequestAndUpdateData(stateData, context)
+        } catch (e: CancellationException) {
+            throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.e(TAG, "Exception updating widget ${stateData.address}", e)
             val newData = stateData.copy(
@@ -128,6 +169,8 @@ class WledWidgetManager internal constructor(
                 context,
                 JsonPost(isOn = targetState, verbose = true),
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             Log.e(TAG, "Exception toggling widget ${stateData.macAddress}", e)
             val newData = stateData.copy(
