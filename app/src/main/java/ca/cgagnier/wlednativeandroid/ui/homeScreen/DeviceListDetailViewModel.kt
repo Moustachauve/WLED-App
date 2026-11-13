@@ -1,215 +1,163 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen
 
-import android.app.Application
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import ca.cgagnier.wlednativeandroid.model.Device
-import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.DeviceDiscovery
+import ca.cgagnier.wlednativeandroid.service.DeviceFirstContactService
+import ca.cgagnier.wlednativeandroid.service.DiscoveredDevice
 import ca.cgagnier.wlednativeandroid.service.NetworkConnectivityManager
-import ca.cgagnier.wlednativeandroid.service.device.StateFactory
-import ca.cgagnier.wlednativeandroid.service.device.api.request.RefreshRequest
-import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 private const val TAG = "DeviceListDetailViewModel"
+private const val SUBSCRIPTION_TIMEOUT_MS = 5000L
+private const val DEFAULT_DISCOVERY_DURATION_MS = 10_000L
 
-@HiltViewModel
-class DeviceListDetailViewModel @Inject constructor(
-    application: Application,
-    private val repository: DeviceRepository,
-    private val stateFactory: StateFactory,
+@Suppress("LongParameterList") // DI constructor requires multiple dependencies
+class DeviceListDetailViewModel(
     private val preferencesRepository: UserPreferencesRepository,
-    networkManager: NetworkConnectivityManager
-): AndroidViewModel(application) {
+    networkManager: NetworkConnectivityManager,
+    private val deviceFirstContactService: DeviceFirstContactService,
+    private val discoveryService: DeviceDiscovery,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val processLifecycle: Lifecycle? = null,
+) : ViewModel(),
+    DefaultLifecycleObserver {
     val isWLEDCaptivePortal = networkManager.isWLEDCaptivePortal
-
-    private var isPolling by mutableStateOf(false)
-    private var job: Job? = null
 
     val showHiddenDevices = preferencesRepository.showHiddenDevices
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            initialValue = false
+            SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
+            initialValue = false,
         )
 
-    private val discoveryService = DeviceDiscovery(
-        context = getApplication<Application>().applicationContext,
-        onDeviceDiscovered = {
-            deviceDiscovered(it)
-        }
-    )
+    private val _isAddDeviceDialogVisible = MutableStateFlow(false)
+    val isAddDeviceDialogVisible: StateFlow<Boolean> = _isAddDeviceDialogVisible
 
-    private val _isAddDeviceBottomSheetVisible = MutableStateFlow(false)
-    val isAddDeviceBottomSheetVisible: StateFlow<Boolean> = _isAddDeviceBottomSheetVisible
+    private var timedDiscoveryJob: Job? = null
 
-    fun getDeviceByAddress(address: String): Flow<Device?> {
-        Log.d(TAG, "Getting device by address $address")
-
-        if (address == Device.DEFAULT_WLED_AP_IP) {
-            return flow {
-                emit(Device.getDefaultAPDevice())
+    init {
+        viewModelScope.launch {
+            discoveryService.discoveredDevices.collect { device ->
+                deviceDiscovered(device)
             }
         }
-
-        return repository.findLiveDeviceByAddress(address)
+        observeAutoDiscoveryChanges()
+        // This ensures onStart/onStop are called only when the APP goes background/foreground,
+        // not when the screen rotates or when a system permission dialog appears on top.
+        processLifecycle?.addObserver(this)
     }
 
-    fun startRefreshDevicesLoop() {
-        if (isPolling) {
-            return
-        }
-        isPolling = true
-        // If there's an existing job that's not registered, kill it.
-        job?.cancel()
-        Log.i(TAG, "Starting refresh devices loop")
-        job = viewModelScope.launch(Dispatchers.IO) {
-            while (isPolling && isActive) {
-                Log.i(TAG, "Looping refreshes")
-                refreshDevices(silent = true)
-                delay(10000)
-            }
-            // If we left the loop, the job either got cancelled or is not active anymore.
-            // Let's make sure the state is set correctly.
-            stopRefreshDevicesLoop()
-        }
+    override fun onStart(owner: LifecycleOwner) {
+        super.onStart(owner)
+        Log.i(TAG, "App in foreground, starting discovery if enabled")
+        startAutoDiscoveryIfEnabled()
     }
 
-    fun stopRefreshDevicesLoop() {
-        Log.i(TAG, "Stopping refresh devices loop")
-        job?.cancel()
-        isPolling = false
-        job = null
-    }
-
-    fun refreshDevices(silent: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            Log.i(TAG, "Refreshing devices")
-            val devices = repository.getAllDevices()
-            Log.d(TAG, "devices found: ${devices.size}")
-            for (device in devices) {
-                refreshDevice(device, silent)
-            }
-        }
-    }
-
-    private fun refreshDevice(device: Device, silent: Boolean) {
-        Log.d(TAG, "Refreshing device ${device.name} - ${device.address}")
-        stateFactory.getState(device).requestsManager.addRequest(
-            RefreshRequest(
-                device,
-                silentRefresh = silent,
-            )
-        )
-    }
-
-    private fun startDiscoveryService() {
-        Log.i(TAG, "Start device discovery")
-        discoveryService.start()
-    }
-
-    fun startDiscoveryServiceTimed(timeMillis: Long = 10000) = viewModelScope.launch(Dispatchers.IO) {
-        Log.i(TAG, "Start device discovery")
-        startDiscoveryService()
-        delay(timeMillis)
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+        Log.i(TAG, "App in background, stopping discovery")
         stopDiscoveryService()
+    }
+
+    /**
+     * Called when the user grants the Android 17+ `ACCESS_LOCAL_NETWORK` runtime permission so
+     * automatic discovery can immediately run without waiting for a foreground transition.
+     */
+    fun onLocalNetworkPermissionGranted(): Job = startAutoDiscoveryIfEnabled()
+
+    override fun onCleared() {
+        super.onCleared()
+        processLifecycle?.removeObserver(this)
+        stopDiscoveryService()
+    }
+
+    /**
+     * Starts a timed discovery regardless of the auto-discovery preference. Used for explicit user
+     * actions such as pull-to-refresh.
+     */
+    fun startDiscoveryServiceTimed(timeMillis: Long = DEFAULT_DISCOVERY_DURATION_MS): Job =
+        launchTimedDiscovery(timeMillis) { true }
+
+    /**
+     * Starts a timed discovery only if the user has automatic discovery enabled. The preference is
+     * read inside the job so that a quick [onStop] cancels it before discovery ever starts.
+     */
+    private fun startAutoDiscoveryIfEnabled(timeMillis: Long = DEFAULT_DISCOVERY_DURATION_MS): Job =
+        launchTimedDiscovery(timeMillis) {
+            preferencesRepository.autoDiscovery.first().also { enabled ->
+                if (!enabled) Log.i(TAG, "Automatic discovery disabled, skipping")
+            }
+        }
+
+    private fun launchTimedDiscovery(timeMillis: Long, shouldStart: suspend () -> Boolean): Job {
+        timedDiscoveryJob?.cancel()
+        val job = viewModelScope.launch(ioDispatcher) {
+            if (!shouldStart()) return@launch
+            Log.i(TAG, "Starting timed device discovery")
+            discoveryService.start()
+            delay(timeMillis)
+            Log.i(TAG, "Timed device discovery elapsed, stopping discovery")
+            discoveryService.stop()
+        }
+        timedDiscoveryJob = job
+        return job
+    }
+
+    /**
+     * Reacts to the user toggling automatic discovery in Settings: enabling it scans right away,
+     * disabling it stops any scan in progress. The first emission (current value) is skipped since
+     * [onStart] already handles the initial state.
+     */
+    private fun observeAutoDiscoveryChanges() {
+        viewModelScope.launch {
+            preferencesRepository.autoDiscovery.drop(1).collect { enabled ->
+                if (enabled) startDiscoveryServiceTimed() else stopDiscoveryService()
+            }
+        }
     }
 
     fun stopDiscoveryService() {
         Log.i(TAG, "Stop device discovery")
+        timedDiscoveryJob?.cancel()
+        timedDiscoveryJob = null
         discoveryService.stop()
     }
 
-    private fun deviceDiscovered(device: Device) {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (repository.contains(device)) {
-                Log.i(TAG, "Device already exists")
-                return@launch
-            }
-            Log.i(TAG, "IP: ${device.address}\tName: ${device.name}\t")
-
-            val request = RefreshRequest(
-                device,
-                silentRefresh = true,
-                saveChanges = false
-            ) { refreshedDevice ->
-                if (refreshedDevice.brand != "ILLUMIDEL") {
-                    Log.i(TAG, "Device is not Illumidel: ${device.address}")
-                    return@RefreshRequest
-                }
-                val existingDevice = findWithSameMacAddress(refreshedDevice)
-                if (existingDevice != null && refreshedDevice.macAddress != Device.UNKNOWN_VALUE) {
-                    Log.i(
-                        TAG,
-                        "Device ${existingDevice.address} already exists with the same mac address ${existingDevice.macAddress}"
-                    )
-                    val refreshedExistingDevice = existingDevice.copy(
-                        address = refreshedDevice.address,
-                        isOnline = refreshedDevice.isOnline,
-                        name = refreshedDevice.name,
-                        brightness = refreshedDevice.brightness,
-                        isPoweredOn = refreshedDevice.isPoweredOn,
-                        color = refreshedDevice.color,
-                        networkRssi = refreshedDevice.networkRssi,
-                        isEthernet = refreshedDevice.isEthernet,
-                        platformName = refreshedDevice.platformName,
-                        version = refreshedDevice.version,
-                        brand = refreshedDevice.brand,
-                        productName = refreshedDevice.productName,
-                    )
-                    delete(existingDevice)
-                    insert(refreshedExistingDevice)
-                } else {
-                    insert(refreshedDevice)
-                }
-            }
-            stateFactory.getState(device).requestsManager.addRequest(request)
+    private fun deviceDiscovered(device: DiscoveredDevice) {
+        viewModelScope.launch(ioDispatcher) {
+            deviceFirstContactService.processDiscoveredDevice(device)
         }
     }
 
-    private suspend fun findWithSameMacAddress(device: Device): Device? {
-        return repository.findDeviceByMacAddress(device.macAddress)
-    }
-
-    fun insert(device: Device) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d(TAG, "Inserting device ${device.name} - ${device.address}")
-        repository.insert(device)
-    }
-
-    fun delete(device: Device) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d(TAG, "Deleting device ${device.name} - ${device.address}")
-        repository.delete(device)
-    }
-
-    fun toggleShowHiddenDevices() = viewModelScope.launch(Dispatchers.IO) {
+    fun toggleShowHiddenDevices() = viewModelScope.launch(ioDispatcher) {
         preferencesRepository.updateShowHiddenDevices(!showHiddenDevices.value)
     }
 
-    fun showAddDeviceBottomSheet() {
-        _isAddDeviceBottomSheetVisible.update {
+    fun showAddDeviceDialog() {
+        _isAddDeviceDialogVisible.update {
             true
         }
     }
-    fun hideAddDeviceBottomSheet() {
-        _isAddDeviceBottomSheetVisible.update {
+
+    fun hideAddDeviceDialog() {
+        _isAddDeviceDialogVisible.update {
             false
         }
     }

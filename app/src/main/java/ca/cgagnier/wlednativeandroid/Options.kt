@@ -1,12 +1,12 @@
 package ca.cgagnier.wlednativeandroid
 
-import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-@JsonClass(generateAdapter = true)
+@Serializable
 data class Options(
-    @Json(name = "version")
+    @SerialName("version")
     val version: Int,
-    @Json(name = "lastSelectedAddress")
-    val lastSelectedAddress: String
+    @SerialName("lastSelectedAddress")
+    val lastSelectedAddress: String,
 )

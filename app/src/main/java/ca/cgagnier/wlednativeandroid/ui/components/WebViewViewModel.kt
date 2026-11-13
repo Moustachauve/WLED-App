@@ -1,27 +1,47 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
 import android.content.Context
+import android.net.Uri
+import android.webkit.ValueCallback
 import android.webkit.WebView
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import ca.cgagnier.wlednativeandroid.WebViewLiveData
+import ca.cgagnier.wlednativeandroid.WebViewHolder
 import ca.cgagnier.wlednativeandroid.model.Device
+import kotlinx.coroutines.flow.StateFlow
 
-class WebViewViewModel(context: Context) : ViewModel() {
-    private val webView = WebViewLiveData(context)
-    fun webView(): LiveData<WebView> = webView
+class WebViewViewModel(private val webViewHolder: WebViewHolder) : ViewModel() {
+    constructor(context: Context) : this(WebViewHolder(context))
+
+    fun webView(): StateFlow<WebView> = webViewHolder.webViewFlow
 
     val backQueue = ArrayDeque<String>(5)
     var displayedDevice: Device? = null
 
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
     var firstLoad: Boolean
         get() {
-            return webView.firstLoad
+            return webViewHolder.firstLoad
         }
         set(isFirstLoad) {
-            webView.firstLoad = isFirstLoad
+            webViewHolder.firstLoad = isFirstLoad
         }
+
+    fun onStartFileUpload(callback: ValueCallback<Array<Uri>>) {
+        filePathCallback?.onReceiveValue(null)
+        filePathCallback = callback
+    }
+
+    fun onReceiveFileUploadResult(uris: Array<Uri>?) {
+        filePathCallback?.onReceiveValue(uris)
+        filePathCallback = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        onReceiveFileUploadResult(null)
+    }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

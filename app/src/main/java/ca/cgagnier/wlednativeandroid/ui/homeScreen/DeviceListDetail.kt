@@ -1,34 +1,15 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen
 
-import android.util.Log
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -38,44 +19,46 @@ import androidx.compose.material3.adaptive.navigation.BackNavigationBehavior
 import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ca.cgagnier.wlednativeandroid.R
-import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.model.AP_MODE_MAC_ADDRESS
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
+import ca.cgagnier.wlednativeandroid.ui.NavigationEvent
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.detail.DeviceDetail
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.detail.DeviceDetailActions
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceAdd.DeviceAdd
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit.DeviceEdit
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.list.DeviceList
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.list.DeviceListActions
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.list.DeviceWebsocketListViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 
-private const val TAG = "screen_DeviceListDetail"
+private const val POST_OTA_WEBVIEW_RELOAD_DELAY_MS = 1500L
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
+@Suppress("LongMethod") // Navigator requires type inference, limiting extraction options
 @Composable
 fun DeviceListDetail(
     modifier: Modifier = Modifier,
-    openSettings: () -> Unit,
-    viewModel: DeviceListDetailViewModel = hiltViewModel(),
+    initialDeviceMacAddress: NavigationEvent? = null,
+    actions: DeviceListDetailActions,
+    viewModel: DeviceListDetailViewModel = koinViewModel(),
+    deviceWebsocketListViewModel: DeviceWebsocketListViewModel = koinViewModel(),
 ) {
-    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     val defaultScaffoldDirective = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo())
     val customScaffoldDirective = defaultScaffoldDirective.copy(
@@ -85,92 +68,61 @@ fun DeviceListDetail(
         rememberListDetailPaneScaffoldNavigator<Any>(scaffoldDirective = customScaffoldDirective)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    val selectedDeviceAddress = navigator.currentDestination?.contentKey as? String ?: ""
-    val selectedDevice =
-        viewModel.getDeviceByAddress(selectedDeviceAddress).collectAsStateWithLifecycle(null)
+    val localNetworkPermission = rememberLocalNetworkPermissionController(
+        onPermissionGranted = {
+            deviceWebsocketListViewModel.refreshOfflineDevices()
+            viewModel.onLocalNetworkPermissionGranted()
+        },
+    )
+
+    LaunchedEffect(initialDeviceMacAddress) {
+        if (initialDeviceMacAddress != null) {
+            navigator.navigateTo(
+                pane = ListDetailPaneScaffoldRole.Detail,
+                contentKey = initialDeviceMacAddress.macAddress,
+            )
+        }
+    }
+
+    val devices by deviceWebsocketListViewModel.allDevicesWithState.collectAsStateWithLifecycle()
+    val selectedDeviceMacAddress = navigator.currentDestination?.contentKey as? String
+    val selectedDevice = rememberSelectedDevice(devices, selectedDeviceMacAddress)
 
     val showHiddenDevices by viewModel.showHiddenDevices.collectAsStateWithLifecycle()
     val isWLEDCaptivePortal by viewModel.isWLEDCaptivePortal.collectAsStateWithLifecycle()
-    val isAddDeviceBottomSheetVisible by viewModel.isAddDeviceBottomSheetVisible.collectAsStateWithLifecycle()
-    val addDevice = {
-        viewModel.showAddDeviceBottomSheet()
-    }
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
-    )
+    val isAddDeviceDialogVisible by viewModel.isAddDeviceDialogVisible.collectAsStateWithLifecycle()
+    var pendingWebViewReloadMac by rememberSaveable { mutableStateOf<String?>(null) }
 
-    DisposableEffect(key1 = lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                Log.i(TAG, "== ON RESUME ==")
-                viewModel.startDiscoveryServiceTimed()
-                viewModel.startRefreshDevicesLoop()
-            }
-            if (event == Lifecycle.Event.ON_PAUSE) {
-                Log.i(TAG, "== ON PAUSE ==")
-                viewModel.stopRefreshDevicesLoop()
-                viewModel.stopDiscoveryService()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    val navigateToDeviceDetail: (Device) -> Unit = { device: Device ->
+    val navigateToDetail: (DeviceWithState) -> Unit = { device ->
         coroutineScope.launch {
-            navigator.navigateTo(
-                pane = ListDetailPaneScaffoldRole.Detail,
-                contentKey = device.address
-            )
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, device.device.macAddress)
         }
     }
-    val navigateToDeviceEdit = { device: Device ->
+    val navigateToEdit: (DeviceWithState) -> Unit = { device ->
         coroutineScope.launch {
-            navigator.navigateTo(
-                pane = ListDetailPaneScaffoldRole.Extra,
-                contentKey = device.address
-            )
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Extra, device.device.macAddress)
         }
     }
-
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet {
-                DrawerContent(
+                DrawerSheetContent(
+                    coroutineScope = coroutineScope,
+                    drawerState = drawerState,
                     showHiddenDevices = showHiddenDevices,
-                    addDevice = {
-                        coroutineScope.launch {
-                            addDevice()
-                            drawerState.close()
-                        }
-                    },
-                    toggleShowHiddenDevices = {
-                        coroutineScope.launch {
-                            viewModel.toggleShowHiddenDevices()
-                            drawerState.close()
-                        }
-                    },
-                    openSettings = {
-                        coroutineScope.launch {
-                            openSettings()
-                            drawerState.close()
-                        }
-                    }
+                    viewModel = viewModel,
+                    actions = actions,
                 )
             }
-        }
+        },
     ) {
         Scaffold(
             containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onBackground
+            contentColor = MaterialTheme.colorScheme.onBackground,
         ) { innerPadding ->
-            var forceWebViewRefresh by remember { mutableStateOf(false) }
             NavigableListDetailPaneScaffold(
                 modifier = modifier
                     .padding(innerPadding)
@@ -181,230 +133,123 @@ fun DeviceListDetail(
                 listPane = {
                     AnimatedPane {
                         DeviceList(
-                            selectedDevice.value,
+                            selectedDevice = selectedDevice,
                             isWLEDCaptivePortal = isWLEDCaptivePortal,
-                            onItemClick = navigateToDeviceDetail,
-                            onAddDevice = addDevice,
-                            onShowHiddenDevices = {
-                                viewModel.toggleShowHiddenDevices()
-                            },
-                            onRefresh = {
-                                viewModel.refreshDevices(silent = false)
-                                viewModel.startDiscoveryServiceTimed()
-                            },
-                            onItemEdit = {
-                                navigateToDeviceDetail(it)
-                                navigateToDeviceEdit(it)
-                            },
-                            onOpenDrawer = {
-                                coroutineScope.launch {
-                                    drawerState.open()
-                                }
-                            }
+                            isLocalNetworkDenied = localNetworkPermission.isDenied,
+                            actions = DeviceListActions(
+                                onItemClick = navigateToDetail,
+                                onAddDevice = { viewModel.showAddDeviceDialog() },
+                                onShowHiddenDevices = { viewModel.toggleShowHiddenDevices() },
+                                onRequestLocalNetworkAccess = localNetworkPermission.requestLocalNetworkAccess,
+                                onRefresh = { viewModel.startDiscoveryServiceTimed() },
+                                onItemEdit = {
+                                    navigateToDetail(it)
+                                    navigateToEdit(it)
+                                },
+                                onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
+                            ),
                         )
                     }
-                }, detailPane = {
+                },
+                detailPane = {
                     AnimatedPane {
-                        selectedDevice.value?.let { device ->
+                        selectedDevice?.let { device ->
+                            val deviceMac = device.device.macAddress
+                            LaunchedEffect(deviceMac) {
+                                if (pendingWebViewReloadMac != null && pendingWebViewReloadMac != deviceMac) {
+                                    pendingWebViewReloadMac = null
+                                }
+                            }
                             DeviceDetail(
                                 device = device,
-                                forceRefresh = forceWebViewRefresh,
                                 canNavigateBack = navigator.canNavigateBack(),
-                                onItemEdit = {
-                                    navigateToDeviceEdit(device)
-                                },
-                                navigateUp = {
-                                    coroutineScope.launch {
-                                        navigator.navigateBack()
-                                    }
-                                },
-                                onWebViewRefreshed = {
-                                    forceWebViewRefresh = false
-                                }
+                                shouldReloadWebView = pendingWebViewReloadMac == deviceMac,
+                                actions = DeviceDetailActions(
+                                    onItemEdit = { navigateToEdit(device) },
+                                    navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                    onWebViewReloadConsumed = {
+                                        if (pendingWebViewReloadMac == deviceMac) {
+                                            pendingWebViewReloadMac = null
+                                        }
+                                    },
+                                ),
                             )
                         } ?: SelectDeviceView()
                     }
-                }, extraPane = {
+                },
+                extraPane = {
                     AnimatedPane {
-                        selectedDevice.value?.let { device ->
+                        selectedDevice?.let { device ->
+                            val deviceMac = device.device.macAddress
                             DeviceEdit(
                                 device = device,
                                 canNavigateBack = navigator.canNavigateBack(),
-                                navigateUp = {
+                                navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                reloadWebView = {
                                     coroutineScope.launch {
-                                        navigator.navigateBack()
+                                        delay(POST_OTA_WEBVIEW_RELOAD_DELAY_MS)
+                                        pendingWebViewReloadMac = deviceMac
                                     }
                                 },
-                                reloadWebView = {
-                                    forceWebViewRefresh = true
-                                }
                             )
                         }
                     }
-                }
+                },
             )
+        }
 
+        BackHandler(enabled = drawerState.isOpen) {
+            coroutineScope.launch { drawerState.close() }
         }
     }
 
-
-    if (isAddDeviceBottomSheetVisible) {
-        AddDeviceBottomSheet(sheetState, onDismissRequest = {
-            viewModel.hideAddDeviceBottomSheet()
-        })
+    if (isAddDeviceDialogVisible) {
+        DeviceAdd(onDismissRequest = { viewModel.hideAddDeviceDialog() })
     }
 }
 
 @Composable
-private fun DrawerContent(
-    showHiddenDevices: Boolean,
-    addDevice: () -> Unit,
-    toggleShowHiddenDevices: () -> Unit,
-    openSettings: () -> Unit,
-) {
-    val uriHandler = LocalUriHandler.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.illumidel_logo),
-            contentDescription = stringResource(R.string.app_logo)
-        )
-    }
-    NavigationDrawerItem(
-        label = { Text(text = stringResource(R.string.add_a_device)) },
-        icon = {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = stringResource(R.string.add_a_device)
-            )
-        },
-        selected = false,
-        onClick = addDevice,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    ToggleHiddenDeviceButton(showHiddenDevices, toggleShowHiddenDevices)
-    NavigationDrawerItem(
-        label = { Text(text = stringResource(R.string.settings)) },
-        icon = {
-            Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = stringResource(R.string.settings)
-            )
-        },
-        selected = false,
-        onClick = openSettings,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    HorizontalDivider(modifier = Modifier.padding(12.dp))
-
-    NavigationDrawerItem(
-        label = { Text(text = stringResource(R.string.visit_website)) },
-        icon = {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_baseline_launch_24),
-                contentDescription = stringResource(R.string.visit_website),
-            )
-        },
-        selected = false,
-        onClick = {
-            uriHandler.openUri("https://illumidel.com/")
-        },
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    NavigationDrawerItem(
-        label = { Text(text = stringResource(R.string.help)) },
-        icon = {
-            Icon(
-                painter = painterResource(id = R.drawable.baseline_help_24),
-                contentDescription = stringResource(R.string.help)
-            )
-        },
-        selected = false,
-        onClick = {
-            uriHandler.openUri("https://illumidel.com/videos")
-        },
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-}
-
-@Composable
-private fun ToggleHiddenDeviceButton(
-    showHiddenDevices: Boolean,
-    toggleShowHiddenDevices: () -> Unit
-) {
-    val hiddenDeviceText = stringResource(
-        if (showHiddenDevices) R.string.hide_hidden_devices
-        else R.string.show_hidden_devices
-    )
-    val hiddenDeviceIcon = painterResource(
-        if (showHiddenDevices) R.drawable.ic_baseline_visibility_off_24
-        else R.drawable.baseline_visibility_24
-    )
-    NavigationDrawerItem(
-        label = { Text(text = hiddenDeviceText) },
-        icon = {
-            Icon(
-                painter = hiddenDeviceIcon,
-                contentDescription = stringResource(R.string.show_hidden_devices)
-            )
-        },
-        selected = false,
-        onClick = toggleShowHiddenDevices,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-}
-
-@Composable
-fun SelectDeviceView() {
-    Card(
-        modifier = Modifier.padding(top = TopAppBarDefaults.MediumAppBarCollapsedHeight),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 44.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.illumidel_logo),
-                contentDescription = stringResource(R.string.app_logo)
-            )
-            Text(
-                stringResource(R.string.select_a_device_from_the_list)
-            )
+private fun rememberSelectedDevice(
+    devices: List<DeviceWithState>,
+    selectedDeviceMacAddress: String?,
+): DeviceWithState? {
+    return remember(devices, selectedDeviceMacAddress) {
+        if (selectedDeviceMacAddress == AP_MODE_MAC_ADDRESS) {
+            return@remember getApModeDeviceWithState()
         }
+        devices.firstOrNull { it.device.macAddress == selectedDeviceMacAddress }
     }
 }
 
 @Composable
-private fun AddDeviceBottomSheet(
-    sheetState: SheetState,
-    onDismissRequest: () -> Unit,
+private fun DrawerSheetContent(
+    coroutineScope: CoroutineScope,
+    drawerState: DrawerState,
+    showHiddenDevices: Boolean,
+    viewModel: DeviceListDetailViewModel,
+    actions: DeviceListDetailActions,
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    ModalBottomSheet(
-        modifier = Modifier.fillMaxHeight(),
-        sheetState = sheetState,
-        onDismissRequest = onDismissRequest,
-    ) {
-        DeviceAdd(
-            sheetState = sheetState,
-            deviceAdded = {
-                coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
-                    if (!sheetState.isVisible) {
-                        onDismissRequest()
-                    }
-                }
-            },
-        )
-    }
+    DrawerContent(
+        showHiddenDevices = showHiddenDevices,
+        addDevice = {
+            coroutineScope.launch {
+                viewModel.showAddDeviceDialog()
+                drawerState.close()
+            }
+        },
+        toggleShowHiddenDevices = {
+            coroutineScope.launch {
+                viewModel.toggleShowHiddenDevices()
+                drawerState.close()
+            }
+        },
+        openSettings = {
+            coroutineScope.launch {
+                actions.openSettings()
+                drawerState.close()
+            }
+        },
+    )
 }
+
+data class DeviceListDetailActions(val openSettings: () -> Unit)

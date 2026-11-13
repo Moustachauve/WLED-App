@@ -1,43 +1,49 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
 import android.util.Log
+import androidx.core.text.HtmlCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
+import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
+import ca.cgagnier.wlednativeandroid.service.api.ApiResponse
+import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.DownloadState
-import ca.cgagnier.wlednativeandroid.service.device.StateFactory
-import ca.cgagnier.wlednativeandroid.service.device.api.request.RefreshRequest
-import ca.cgagnier.wlednativeandroid.service.device.api.request.SoftwareUpdateRequest
+import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.update.DeviceUpdateService
-import ca.cgagnier.wlednativeandroid.service.update.IllumidelUpdateService
-import dagger.hilt.android.lifecycle.HiltViewModel
+import ca.cgagnier.wlednativeandroid.service.update.invoke
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import okhttp3.ResponseBody
-import org.jsoup.Jsoup
-import retrofit2.Response
 import java.io.File
-import javax.inject.Inject
+import java.util.regex.Pattern
 
 private const val TAG = "UpdateInstallingViewModel"
 
-@HiltViewModel
-class UpdateInstallingViewModel @Inject constructor(
+class UpdateInstallingViewModel(
     private val deviceRepository: DeviceRepository,
-    private val stateFactory: StateFactory,
-): ViewModel() {
+    private val repositoryDao: RepositoryDao,
+    private val deviceApiFactory: DeviceApiFactory,
+    private val githubApi: GithubApi,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel() {
     private var updateStarted = false
+    private var updateJob: Job? = null
 
     private var _state = MutableStateFlow(UpdateInstallingState())
     val state = _state.asStateFlow()
 
-    private var _device: MutableStateFlow<Device?> = MutableStateFlow(null)
+    private var _device: MutableStateFlow<DeviceWithState?> = MutableStateFlow(null)
     val device = _device.asStateFlow()
 
     private var _version: MutableStateFlow<VersionWithAssets?> = MutableStateFlow(null)
@@ -52,65 +58,68 @@ class UpdateInstallingViewModel @Inject constructor(
             previousState.copy(
                 step = UpdateInstallingStep.Error(
                     step.error,
-                    !step.showError
-                )
+                    !step.showError,
+                ),
             )
         }
     }
 
     fun resetState() {
-        // Reset on dismiss so we can try again next time
+        // Cancel any in-flight download/install job and reset state on dismiss
+        updateJob?.cancel()
+        updateJob = null
         updateStarted = false
+        _state.value = UpdateInstallingState()
     }
 
-    fun startUpdate(
-        device: Device,
-        version: VersionWithAssets,
-        cacheDir: File,
-    ) {
+    fun startUpdate(device: DeviceWithState, version: VersionWithAssets, cacheDir: File) {
         if (updateStarted) {
-            Log.w(TAG, "Update already started, ignoring startUpdate for ${device.name}")
+            Log.w(
+                TAG,
+                "Update already started, ignoring startUpdate for ${device.device.originalName}",
+            )
             return
         }
         updateStarted = true
-        Log.i(TAG, "startUpdate for device ${device.name}")
+        Log.i(TAG, "startUpdate for device ${device.device.originalName}")
         _device.update { device }
         _version.update { version }
         _state.update { previousState ->
             previousState.copy(
                 canDismiss = true,
-                step = UpdateInstallingStep.Starting
+                step = UpdateInstallingStep.Starting,
             )
         }
 
-        val updateService = IllumidelUpdateService(device, version, cacheDir)
-        updateService.determineAsset()
+        val updateService =
+            DeviceUpdateService(device, version, cacheDir, deviceApiFactory, githubApi)
         if (!updateService.couldDetermineAsset()) {
-            Log.w(TAG, "Could not find compatible asset for ${device.name}")
             _state.update { previousState ->
                 previousState.copy(
                     canDismiss = true,
                     step = UpdateInstallingStep.NoCompatibleVersion,
-                    assetName = updateService.assetName
+                    assetName = updateService.getAssetName(),
                 )
             }
             return
         }
 
-        downloadAsset(updateService)
+        updateJob?.cancel()
+        updateJob = downloadAsset(updateService)
     }
 
-    private fun downloadAsset(
-        updateService: DeviceUpdateService
-    ) = viewModelScope.launch(Dispatchers.IO) {
+    private fun downloadAsset(updateService: DeviceUpdateService) = viewModelScope.launch(ioDispatcher) {
+        ensureActive()
         if (updateService.isAssetFileCached()) {
-            Log.d(TAG, "asset '${updateService.assetName}' is already downloaded, reusing")
+            Log.d(TAG, "asset '${updateService.getAssetName()}' is already downloaded, reusing")
             installUpdate(updateService)
             return@launch
         }
 
-        Log.d(TAG, "Downloading asset '${updateService.assetName}'")
-        updateService.downloadBinary().collect { downloadState ->
+        Log.d(TAG, "Downloading asset '${updateService.getAssetName()}'")
+
+        updateService.downloadBinary(repositoryDao).collect { downloadState ->
+            ensureActive()
             when (downloadState) {
                 is DownloadState.Downloading -> {
                     Log.d(TAG, "File download Progress=${downloadState.progress}")
@@ -118,7 +127,7 @@ class UpdateInstallingViewModel @Inject constructor(
                         previousState.copy(
                             canDismiss = true,
                             step = UpdateInstallingStep.Downloading(downloadState.progress),
-                            assetName = updateService.assetName
+                            assetName = updateService.getAssetName(),
                         )
                     }
                 }
@@ -129,9 +138,9 @@ class UpdateInstallingViewModel @Inject constructor(
                         previousState.copy(
                             canDismiss = true,
                             step = UpdateInstallingStep.Error(
-                                downloadState.error.toString()
+                                downloadState.error.toString(),
                             ),
-                            assetName = updateService.assetName
+                            assetName = updateService.getAssetName(),
                         )
                     }
                     this.coroutineContext.job.cancel()
@@ -146,45 +155,46 @@ class UpdateInstallingViewModel @Inject constructor(
         }
     }
 
-    private fun installUpdate(updateService: DeviceUpdateService) {
-        Log.d(TAG, "Uploading binary '${updateService.assetName}' to device")
+    private suspend fun installUpdate(updateService: DeviceUpdateService) {
+        currentCoroutineContext().ensureActive()
+        Log.d(TAG, "Uploading binary '${updateService.getAssetName()}' to device")
         _state.update { previousState ->
             previousState.copy(
                 canDismiss = false,
                 step = UpdateInstallingStep.Installing,
-                assetName = updateService.assetName
+                assetName = updateService.getAssetName(),
             )
         }
-        stateFactory.getState(updateService.device).requestsManager.addRequest(
-            SoftwareUpdateRequest(
-                updateService.device,
-                updateService.getPathForAsset(),
-                callback = { onSoftwareUpdateResponse(it) },
-                errorCallback = { onSoftwareUpdateError(it) },
-            )
-        )
+        try {
+            onSoftwareUpdateResponse(updateService.installUpdate())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Catch transport and I/O failures so they can be surfaced in the UI
+            onSoftwareUpdateError(e)
+        }
     }
 
-    private fun onSoftwareUpdateResponse(response: Response<ResponseBody>) {
-        if (response.code() in 200..299) {
+    private fun onSoftwareUpdateResponse(response: ApiResponse<String>) {
+        if (response.isSuccessful) {
             _state.update { previousState ->
                 previousState.copy(
                     canDismiss = true,
-                    step = UpdateInstallingStep.Done
+                    step = UpdateInstallingStep.Done,
                 )
             }
+            updateDeviceUpdated()
         } else {
-            Log.d(TAG, "OTA Failed, code ${response.code()}")
-            val errorString = "${response.code()}: ${getHtmlErrorMessage(response)}"
+            Log.d(TAG, "OTA Failed, code ${response.code}")
+            val errorString = "${response.code}: ${getHtmlErrorMessage(response)}"
             Log.d(TAG, "OTA Failed onResponse, error $errorString")
             _state.update { previousState ->
                 previousState.copy(
                     canDismiss = true,
-                    step = UpdateInstallingStep.Error(errorString)
+                    step = UpdateInstallingStep.Error(errorString),
                 )
             }
         }
-        updateDeviceUpdated()
     }
 
     private fun onSoftwareUpdateError(e: Exception) {
@@ -195,30 +205,40 @@ class UpdateInstallingViewModel @Inject constructor(
         _state.update { previousState ->
             previousState.copy(
                 canDismiss = true,
-                step = UpdateInstallingStep.Error(errorString)
+                step = UpdateInstallingStep.Error(errorString),
             )
         }
     }
 
-    private fun updateDeviceUpdated() = viewModelScope.launch(Dispatchers.IO) {
+    /**
+     * Updates the properties of a device after a software update was done.
+     */
+    private fun updateDeviceUpdated() = viewModelScope.launch(ioDispatcher) {
         val device = device.value ?: return@launch
-        val version = version.value ?: return@launch
-        Log.d(TAG, "Saving deviceUpdated")
-        val updatedDevice = device.copy(
-            version = version.version.tagName.drop(1),
-            newUpdateVersionTagAvailable = ""
-        )
-        deviceRepository.update(updatedDevice)
-        stateFactory.getState(device).requestsManager.addRequest(RefreshRequest(device))
+        Log.d(TAG, "Resetting skipUpdateTag")
+        deviceRepository.updateSkipUpdateTag(device.device.macAddress, "")
     }
 
-    private fun getHtmlErrorMessage(response: Response<ResponseBody>): String {
-        val bodyHtml = Jsoup.parseBodyFragment(
-            response.body()?.string() ?: response.errorBody()?.string() ?: ""
+    private fun getHtmlErrorMessage(response: ApiResponse<String>): String {
+        val html = response.body ?: response.errorBody ?: ""
+        // Extract the body content to ignore <head> (title, scripts, styles)
+        val bodyMatcher = HTML_BODY_MATCHER.matcher(html)
+        var bodyContent = if (bodyMatcher.find()) bodyMatcher.group(1) else html
+        // Remove <button>, <script>, and <style> blocks entirely so their text (e.g. "Back") doesn't appear
+        bodyContent = JUNK_TAG_PATTERN.matcher(bodyContent).replaceAll("")
+        // Use Android's Html class to strip remaining tags (<h2>, <br>) and decode entities
+        val plainText =
+            HtmlCompat.fromHtml(bodyContent, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
+        // Normalize whitespace (remove newlines from <br>/<h2> and extra spaces)
+        return plainText.trim().replace(Regex("\\s+"), " ")
+    }
+
+    companion object {
+        private val HTML_BODY_MATCHER =
+            Pattern.compile("<body[^>]*>(.*?)</body>", Pattern.CASE_INSENSITIVE or Pattern.DOTALL)
+        private val JUNK_TAG_PATTERN = Pattern.compile(
+            "<(button|script|style)[^>]*>.*?</\\1>",
+            Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
         )
-        bodyHtml.select("title").remove()
-        bodyHtml.select("button").remove()
-        bodyHtml.select("h1").remove()
-        return bodyHtml.text()
     }
 }

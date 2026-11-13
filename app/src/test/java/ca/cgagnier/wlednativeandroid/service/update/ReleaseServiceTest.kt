@@ -1,174 +1,279 @@
 package ca.cgagnier.wlednativeandroid.service.update
 
-import ca.cgagnier.wlednativeandroid.model.Asset
-import ca.cgagnier.wlednativeandroid.model.Branch
+import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
-import ca.cgagnier.wlednativeandroid.model.githubapi.Author
 import ca.cgagnier.wlednativeandroid.model.githubapi.Release
 import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
-import ca.cgagnier.wlednativeandroid.repository.AssetDao
-import ca.cgagnier.wlednativeandroid.repository.VersionDao
+import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
+import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
-import kotlinx.coroutines.flow.Flow
+import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ReleaseServiceTest {
 
-    private class FakeVersionDao(
-        private val stableVersion: VersionWithAssets? = null,
-        private val betaVersion: VersionWithAssets? = null,
-    ) : VersionDao {
-        override suspend fun insert(version: Version) = Unit
-        override suspend fun insertMany(version: List<Version>) = Unit
-        override suspend fun update(version: Version) = Unit
-        override suspend fun delete(version: Version) = Unit
-        override suspend fun deleteAll() = Unit
-        override suspend fun getLatestStableVersionWithAssets(): VersionWithAssets? = stableVersion
-        override fun getLatestBetaVersionWithAssetsFlow(): Flow<VersionWithAssets?> = flowOf(betaVersion)
-        override suspend fun getVersionByTagName(tagName: String): VersionWithAssets? = null
-        override fun getVersionsWithAsset(): Flow<List<VersionWithAssets>> = flowOf(emptyList())
-        override fun removeAll() = Unit
-    }
+    private val versionWithAssetsRepository: VersionWithAssetsRepository = mockk()
+    private val repositoryDao: RepositoryDao = mockk()
+    private val githubApi: GithubApi = mockk()
+    private lateinit var releaseService: ReleaseService
 
-    private class FakeAssetDao : AssetDao {
-        override suspend fun insert(asset: Asset) = Unit
-        override suspend fun insertMany(asset: List<Asset>) = Unit
-        override suspend fun update(asset: Asset) = Unit
-        override suspend fun delete(asset: Asset) = Unit
-        override suspend fun deleteAll() = Unit
-    }
+    private val defaultRepo = Repository(
+        id = 1L,
+        name = "Illumidel",
+        ownerAndRepo = "Illumidel/App-Releases",
+        description = "Official Illumidel Firmware",
+        htmlUrl = "https://github.com/Illumidel/App-Releases",
+    )
 
-    private fun createRelease(
-        tagName: String = "v1.5.2",
-        name: String = tagName,
-        prerelease: Boolean = false,
-        body: String = "# Français\n1. Intégration lumières COB.",
-    ): Release {
-        return Release(
-            url = "",
-            assetsUrl = "",
-            uploadUrl = "",
-            htmlUrl = "https://github.com/Illumidel/App-Releases/releases/tag/$tagName",
-            id = 1,
-            author = Author(
-                login = "test",
-                id = 1,
-                nodeId = "",
-                avatarUrl = "",
-                gravatarId = "",
-                url = "",
-                htmlUrl = "",
-                followersUrl = "",
-                followingUrl = "",
-                gistsUrl = "",
-                starredUrl = "",
-                subscriptionsUrl = "",
-                organizationsUrl = "",
-                reposUrl = "",
-                eventsUrl = "",
-                receivedEventsUrl = "",
-                type = "User",
-                siteAdmin = false,
-            ),
-            nodeId = "",
-            tagName = tagName,
-            targetCommitish = "main",
-            name = name,
-            draft = false,
-            prerelease = prerelease,
-            createdAt = "2026-11-01T00:00:00Z",
-            publishedAt = "2026-11-01T00:00:00Z",
-            assets = emptyList(),
-            tarballUrl = "",
-            zipballUrl = "",
-            body = body,
-            reactions = null,
-            mentionsCount = null,
+    @BeforeEach
+    fun setUp() {
+        releaseService = ReleaseService(
+            versionWithAssetsRepository,
+            repositoryDao,
+            UnconfinedTestDispatcher(),
         )
-    }
-
-    private fun createDeviceInfo(
-        version: String = "1.5.2",
-        brand: String = "ILLUMIDEL",
-        options: Int = 1,
-    ): Info {
-        return Info(
-            leds = Leds(),
-            wifi = Wifi(),
-            version = version,
-            name = "Illumidel Controller",
-            options = options,
-            brand = brand,
-        )
+        coEvery { repositoryDao.getRepositoryByOwnerAndRepo("Illumidel/App-Releases") } returns defaultRepo
     }
 
     @Test
-    fun createVersion_usesGithubPrereleaseFlagOnly() {
-        val service = ReleaseService(VersionWithAssetsRepository(FakeVersionDao(), FakeAssetDao()))
+    fun `getNewerReleaseTag offers newer stable release and ignores upstream repo field`() = runTest {
+        val deviceInfo = createInfo(version = "1.5.2", repository = "wled/WLED")
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(1L)
+        } returns createVersionWithAssets("1.5.3")
 
-        val stableRelease = createRelease(
-            tagName = "v1.5.2",
-            prerelease = false,
-            body = "Regular release notes mentioning beta"
-        )
-        assertFalse(service.createVersion(stableRelease).isPrerelease)
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
 
-        val prereleaseFlagged = createRelease(
-            tagName = "v2.2.1",
-            prerelease = true,
-            body = "Release notes"
-        )
-        assertTrue(service.createVersion(prereleaseFlagged).isPrerelease)
+        assertEquals("1.5.3", result)
+        coVerify(exactly = 0) { versionWithAssetsRepository.getLatestBetaVersionWithAssets(any()) }
     }
 
     @Test
-    fun getNewerReleaseTag_onlyOffersNewerStableVersionForBothLanguages() = runBlocking {
-        val stable152 = VersionWithAssets(
-            version = Version(
-                tagName = "v1.5.2",
-                name = "v1.5.2",
-                description = "Stable",
-                isPrerelease = false,
-                publishedDate = "2025-05-14T18:21:41Z",
-                htmlUrl = "",
-            ),
-            assets = emptyList(),
+    fun `getNewerReleaseTag returns null for non-ILLUMIDEL brand`() = runTest {
+        val deviceInfo = createInfo(version = "0.15.2", brand = "WLED")
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when device is already up to date`() = runTest {
+        val deviceInfo = createInfo(version = "1.5.3")
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(1L)
+        } returns createVersionWithAssets("1.5.3")
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when newer release matches ignored version`() = runTest {
+        val deviceInfo = createInfo(version = "1.5.2")
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(1L)
+        } returns createVersionWithAssets("1.5.3")
+
+        assertNull(releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "1.5.3"))
+        assertNull(releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "v1.5.3"))
+        assertNull(releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "V1.5.3"))
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when OTA is disabled`() = runTest {
+        val deviceInfo = createInfo(version = "1.5.2", options = 0x00)
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(1L)
+        } returns createVersionWithAssets("1.5.3")
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when device has a newer version than repo`() = runTest {
+        val deviceInfo = createInfo(version = "2.2.1")
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(1L)
+        } returns createVersionWithAssets("1.5.3")
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when deviceInfo version is null`() = runTest {
+        val deviceInfo = createInfo(version = null)
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `isBetaUpdateAvailable requires ILLUMIDEL brand, OTA enabled, and newer SemVer`() {
+        assertTrue(ReleaseService.isBetaUpdateAvailable(createInfo(version = "1.5.2"), "v2.0.0-beta.1"))
+        assertFalse(ReleaseService.isBetaUpdateAvailable(null, "v2.0.0-beta.1"))
+        assertFalse(
+            ReleaseService.isBetaUpdateAvailable(createInfo(version = "1.5.2", brand = "WLED"), "v2.0.0-beta.1"),
         )
-        val beta221 = VersionWithAssets(
-            version = Version(
-                tagName = "v2.2.1",
-                name = "v2.2.1",
-                description = "IllumiDEL 2.0 · Beta",
-                isPrerelease = true,
-                publishedDate = "2026-11-01T20:28:45Z",
-                htmlUrl = "",
-            ),
-            assets = emptyList(),
+        assertFalse(
+            ReleaseService.isBetaUpdateAvailable(createInfo(version = "1.5.2", options = 0x00), "v2.0.0-beta.1"),
         )
-        val service = ReleaseService(
-            VersionWithAssetsRepository(
-                FakeVersionDao(stableVersion = stable152, betaVersion = beta221),
-                FakeAssetDao()
+        assertFalse(ReleaseService.isBetaUpdateAvailable(createInfo(version = "2.0.0"), "v2.0.0-beta.1"))
+    }
+
+    @Test
+    fun `isVersionNewer compares SemVer tags stripping leading v`() {
+        assertTrue(ReleaseService.isVersionNewer("v2.2.1", "1.5.2"))
+        assertTrue(ReleaseService.isVersionNewer("V2.2.1", "V1.5.2"))
+        assertTrue(ReleaseService.isVersionNewer("2.2.1", "v1.5.2"))
+        assertFalse(ReleaseService.isVersionNewer("v2.2.1", "2.2.1"))
+        assertFalse(ReleaseService.isVersionNewer("1.5.2", "2.2.1"))
+    }
+
+    @Test
+    fun `syncBuiltInRepositories inserts missing built-in repositories`() = runTest {
+        coEvery { repositoryDao.getRepositoryByOwnerAndRepo(any()) } returns null
+        coEvery { repositoryDao.insert(any()) } returns 1L
+        every { repositoryDao.getAllRepositories() } returns flowOf(emptyList())
+
+        releaseService.syncBuiltInRepositories()
+
+        Repository.BUILT_IN_REPOSITORIES.forEach { builtin ->
+            coVerify { repositoryDao.insert(builtin) }
+        }
+    }
+
+    @Test
+    fun `syncBuiltInRepositories clears default flag on non-built-in repositories`() = runTest {
+        val staleCustomRepo = Repository(
+            id = 99L,
+            name = "OldDefault",
+            ownerAndRepo = "wled/WLED",
+            description = "Legacy default",
+            htmlUrl = "https://github.com/wled/WLED",
+            isDefault = true,
+        )
+        coEvery { repositoryDao.getRepositoryByOwnerAndRepo(any()) } returns defaultRepo
+        coEvery { repositoryDao.update(any()) } returns Unit
+        every { repositoryDao.getAllRepositories() } returns flowOf(listOf(staleCustomRepo))
+
+        releaseService.syncBuiltInRepositories()
+
+        coVerify { repositoryDao.update(staleCustomRepo.copy(isDefault = false)) }
+    }
+
+    @Test
+    fun `refreshVersions returns false when a repository fails and still updates successful ones`() = runTest {
+        val release = mockk<Release>(relaxed = true) {
+            every { tagName } returns "v1.5.2"
+            every { name } returns "1.5.2"
+            every { body } returns "Notes"
+            every { prerelease } returns false
+            every { publishedAt } returns "2025-01-01T00:00:00Z"
+            every { htmlUrl } returns "https://github.com/Illumidel/App-Releases/releases/tag/v1.5.2"
+            every { assets } returns emptyList()
+        }
+        coEvery { githubApi.getAllReleases("Illumidel", "App-Releases") } returns Result.success(listOf(release))
+        coEvery { githubApi.getAllReleases("broken", "fork") } returns Result.failure(Exception("Network error"))
+        coEvery { versionWithAssetsRepository.updateRepository(any(), any()) } returns Unit
+
+        val succeeded = releaseService.refreshVersions(githubApi, setOf("Illumidel/App-Releases", "broken/fork"))
+
+        assertFalse(succeeded)
+        coVerify(exactly = 1) {
+            versionWithAssetsRepository.updateRepository(
+                match { it.ownerAndRepo == "Illumidel/App-Releases" },
+                any(),
             )
-        )
-
-        // Device already on 1.5.2 should NOT be offered 2.2.1 beta, regardless of language (STABLE=fr, BETA=en)
-        assertEquals("", service.getNewerReleaseTag(createDeviceInfo("1.5.2"), Branch.STABLE, ""))
-        assertEquals("", service.getNewerReleaseTag(createDeviceInfo("1.5.2"), Branch.BETA, ""))
-
-        // Device on 1.5.1 SHOULD be offered 1.5.2 stable for both languages
-        assertEquals("v1.5.2", service.getNewerReleaseTag(createDeviceInfo("1.5.1"), Branch.STABLE, ""))
-        assertEquals("v1.5.2", service.getNewerReleaseTag(createDeviceInfo("1.5.1"), Branch.BETA, ""))
-
-        // Ignored version is respected
-        assertEquals("", service.getNewerReleaseTag(createDeviceInfo("1.5.1"), Branch.STABLE, "v1.5.2"))
+        }
     }
+
+    @Test
+    fun `refreshVersionsForUsedRepositories only refreshes enabled and used repositories`() = runTest {
+        val deviceRepository: DeviceRepository = mockk()
+        val usedEnabledRepo = defaultRepo.copy(id = 1L, isEnabled = true, isUpdateEnabled = true)
+        val unusedRepo = defaultRepo.copy(id = 2L, ownerAndRepo = "unused/Repo", isEnabled = true)
+        val disabledRepo = defaultRepo.copy(id = 3L, ownerAndRepo = "disabled/Repo", isEnabled = false)
+
+        coEvery { deviceRepository.getUsedRepositoryIds() } returns listOf(1L, 3L)
+        every { repositoryDao.getAllRepositories() } returns flowOf(
+            listOf(usedEnabledRepo, unusedRepo, disabledRepo),
+        )
+        coEvery { githubApi.getAllReleases("Illumidel", "App-Releases") } returns Result.success(emptyList())
+
+        val succeeded = releaseService.refreshVersionsForUsedRepositories(githubApi, deviceRepository)
+
+        assertTrue(succeeded)
+        coVerify(exactly = 1) { githubApi.getAllReleases("Illumidel", "App-Releases") }
+        coVerify(exactly = 0) { githubApi.getAllReleases("unused", "Repo") }
+        coVerify(exactly = 0) { githubApi.getAllReleases("disabled", "Repo") }
+    }
+
+    @Test
+    fun `getIneligibilityReason distinguishes non-Illumidel, OTA-disabled, and eligible devices`() {
+        assertEquals(
+            UpdateIneligibilityReason.NOT_ILLUMIDEL,
+            ReleaseService.getIneligibilityReason(createInfo(version = "0.14.4", brand = "WLED", options = 0x01)),
+        )
+        assertEquals(
+            UpdateIneligibilityReason.OTA_DISABLED,
+            ReleaseService.getIneligibilityReason(createInfo(version = "1.5.2", brand = "ILLUMIDEL", options = 0x00)),
+        )
+        assertNull(
+            ReleaseService.getIneligibilityReason(createInfo(version = "1.5.2", brand = "ILLUMIDEL", options = 0x01)),
+        )
+    }
+
+    private fun createInfo(
+        version: String?,
+        options: Int = 0x01,
+        brand: String = "ILLUMIDEL",
+        repository: String? = null,
+    ): Info = Info(
+        leds = Leds(count = 30, fps = 30, maxPower = 0, maxSegment = 1),
+        wifi = Wifi(bssid = "mac", rssi = -50, signal = 100, channel = 1),
+        name = "Test Device",
+        version = version,
+        options = options,
+        brand = brand,
+        repository = repository,
+    )
+
+    private fun createVersionWithAssets(tagName: String, isPrerelease: Boolean = false): VersionWithAssets =
+        VersionWithAssets(
+            version = Version(
+                id = 10L,
+                repositoryId = 1L,
+                tagName = tagName,
+                name = "Release $tagName",
+                description = "Notes",
+                isPrerelease = isPrerelease,
+                publishedDate = "2026-01-15T00:00:00Z",
+                htmlUrl = "https://github.com/Illumidel/App-Releases/releases/tag/$tagName",
+            ),
+            assets = emptyList(),
+        )
 }

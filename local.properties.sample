@@ -4,7 +4,7 @@
 # Location of the SDK. This is only used by Gradle.
 # For customization when using a Version Control System, please read the
 # header note.
-#Sun Jun 11 15:29:26 EDT 2023
-sdk.dir=/path/here
+sdk.dir=/Users/username/Library/Android/sdk
 
-GITHUB_ILLUMIDEL_KEY="github token"
+# Optional GitHub Personal Access Token for Illumidel/App-Releases API access
+GITHUB_ILLUMIDEL_KEY=your_github_token

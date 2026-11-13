@@ -1,0 +1,4 @@
+- Architecture modernisée pour une découverte plus rapide des appareils et des mises à jour en temps réel.
+- Mises à jour du micrologiciel et changement de langue (Français / English) améliorés.
+- Prise en charge de la version bêta 2.0 dans les paramètres de l'appareil.
+- Fiabilité accrue des connexions et corrections de bogues.

@@ -1,0 +1,148 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:DeviceInfoTwoRows.kt$@Composable fun DeviceInfoTwoRows( modifier: Modifier = Modifier, device: DeviceWithState, // Used to update the lastSeen message frequently, leave 0 for no updates currentTime: Long = 0, nameMaxLines: Int = 2, )</ID>
+    <ID>LongMethod:DeviceInfoTwoRows.kt$@Composable fun WebsocketStatusShape(websocketState: WebsocketStatus)</ID>
+    <ID>LongMethod:DeviceListItem.kt$@Composable private fun SwipeBox( modifier: Modifier = Modifier, device: DeviceWithState, swipeToDismissBoxState: SwipeToDismissBoxState, onDismiss: (SwipeToDismissBoxValue) -&gt; Unit = {}, content: @Composable () -&gt; Unit, )</ID>
+    <ID>LongMethod:DeviceWebview.kt$@SuppressLint("SetJavaScriptEnabled") @Composable fun DeviceWebView( device: Device, webViewViewModel: WebViewViewModel = viewModel( factory = WebViewViewModel.Factory( context = LocalContext.current, ), ), state: WebViewState, navigator: WebViewNavigator = rememberWebViewNavigator(), client: CustomWebViewClient = remember { CustomWebViewClient() }, context: Context = LocalContext.current, chromeClient: CustomWebChromeClient = remember { CustomWebChromeClient() }, )</ID>
+    <ID>LongParameterList:DeviceList.kt$( selectedDevice: DeviceWithState?, isWLEDCaptivePortal: Boolean = false, onItemClick: (DeviceWithState) -&gt; Unit, onItemEdit: (DeviceWithState) -&gt; Unit, onAddDevice: () -&gt; Unit, onShowHiddenDevices: () -&gt; Unit, onRefresh: () -&gt; Unit, onOpenDrawer: () -&gt; Unit, viewModel: DeviceWebsocketListViewModel = koinViewModel(), )</ID>
+    <ID>LongParameterList:DeviceListItem.kt$( modifier: Modifier = Modifier, device: DeviceWithState, isSelected: Boolean = false, // Used to update the lastSeen message frequently, leave 0 for no updates currentTime: Long = 0, onClick: () -&gt; Unit = {}, swipeToDismissBoxState: SwipeToDismissBoxState, onDismiss: (SwipeToDismissBoxValue) -&gt; Unit, onPowerSwitchToggle: (isOn: Boolean) -&gt; Unit = {}, onBrightnessChanged: (brightness: Int) -&gt; Unit = {}, )</ID>
+    <ID>LongParameterList:DeviceWebview.kt$( context: Context, url: String, contentDisposition: String, mimetype: String, device: Device, onSuccess: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:DeviceWebview.kt$( device: Device, url: String, contentDisposition: String, mimetype: String, context: Context, onDownloadSuccess: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:DeviceWebview.kt$( device: Device, webViewViewModel: WebViewViewModel = viewModel( factory = WebViewViewModel.Factory( context = LocalContext.current, ), ), state: WebViewState, navigator: WebViewNavigator = rememberWebViewNavigator(), client: CustomWebViewClient = remember { CustomWebViewClient() }, context: Context = LocalContext.current, chromeClient: CustomWebChromeClient = remember { CustomWebChromeClient() }, )</ID>
+    <ID>LongParameterList:Settings.kt$( showHiddenDevices: Boolean, isAutoDiscoveryEnabled: Boolean, showOfflineDevicesLast: Boolean, setShowHiddenDevices: (Boolean) -&gt; Unit, setAutoDiscover: (Boolean) -&gt; Unit, setShowOfflineDevicesLast: (Boolean) -&gt; Unit, )</ID>
+    <ID>MagicNumber:Color.kt$0xFF000000</ID>
+    <ID>MagicNumber:Color.kt$0xFF00182A</ID>
+    <ID>MagicNumber:Color.kt$0xFF001A1B</ID>
+    <ID>MagicNumber:Color.kt$0xFF001D32</ID>
+    <ID>MagicNumber:Color.kt$0xFF002020</ID>
+    <ID>MagicNumber:Color.kt$0xFF00243C</ID>
+    <ID>MagicNumber:Color.kt$0xFF002728</ID>
+    <ID>MagicNumber:Color.kt$0xFF002C49</ID>
+    <ID>MagicNumber:Color.kt$0xFF003352</ID>
+    <ID>MagicNumber:Color.kt$0xFF003738</ID>
+    <ID>MagicNumber:Color.kt$0xFF004B4C</ID>
+    <ID>MagicNumber:Color.kt$0xFF004F51</ID>
+    <ID>MagicNumber:Color.kt$0xFF00696B</ID>
+    <ID>MagicNumber:Color.kt$0xFF03466E</ID>
+    <ID>MagicNumber:Color.kt$0xFF0B0F12</ID>
+    <ID>MagicNumber:Color.kt$0xFF0C4A72</ID>
+    <ID>MagicNumber:Color.kt$0xFF0E4B74</ID>
+    <ID>MagicNumber:Color.kt$0xFF101418</ID>
+    <ID>MagicNumber:Color.kt$0xFF181C20</ID>
+    <ID>MagicNumber:Color.kt$0xFF1C2024</ID>
+    <ID>MagicNumber:Color.kt$0xFF1F242A</ID>
+    <ID>MagicNumber:Color.kt$0xFF238183</ID>
+    <ID>MagicNumber:Color.kt$0xFF271000</ID>
+    <ID>MagicNumber:Color.kt$0xFF272A2F</ID>
+    <ID>MagicNumber:Color.kt$0xFF2D3135</ID>
+    <ID>MagicNumber:Color.kt$0xFF2E628C</ID>
+    <ID>MagicNumber:Color.kt$0xFF2F1500</ID>
+    <ID>MagicNumber:Color.kt$0xFF323539</ID>
+    <ID>MagicNumber:Color.kt$0xFF330403</ID>
+    <ID>MagicNumber:Color.kt$0xFF36393E</ID>
+    <ID>MagicNumber:Color.kt$0xFF381A00</ID>
+    <ID>MagicNumber:Color.kt$0xFF3B0907</ID>
+    <ID>MagicNumber:Color.kt$0xFF3E434A</ID>
+    <ID>MagicNumber:Color.kt$0xFF42474E</ID>
+    <ID>MagicNumber:Color.kt$0xFF44100C</ID>
+    <ID>MagicNumber:Color.kt$0xFF4779A3</ID>
+    <ID>MagicNumber:Color.kt$0xFF479D9F</ID>
+    <ID>MagicNumber:Color.kt$0xFF4D2600</ID>
+    <ID>MagicNumber:Color.kt$0xFF561E19</ID>
+    <ID>MagicNumber:Color.kt$0xFF5A6066</ID>
+    <ID>MagicNumber:Color.kt$0xFF6495C1</ID>
+    <ID>MagicNumber:Color.kt$0xFF673603</ID>
+    <ID>MagicNumber:Color.kt$0xFF6C3A07</ID>
+    <ID>MagicNumber:Color.kt$0xFF6E302A</ID>
+    <ID>MagicNumber:Color.kt$0xFF72777F</ID>
+    <ID>MagicNumber:Color.kt$0xFF73342D</ID>
+    <ID>MagicNumber:Color.kt$0xFF767B82</ID>
+    <ID>MagicNumber:Color.kt$0xFF7E848B</ID>
+    <ID>MagicNumber:Color.kt$0xFF80D4D6</ID>
+    <ID>MagicNumber:Color.kt$0xFF84D9DA</ID>
+    <ID>MagicNumber:Color.kt$0xFF88511E</ID>
+    <ID>MagicNumber:Color.kt$0xFF8C9198</ID>
+    <ID>MagicNumber:Color.kt$0xFF904A43</ID>
+    <ID>MagicNumber:Color.kt$0xFF9ACBFA</ID>
+    <ID>MagicNumber:Color.kt$0xFF9CF1F2</ID>
+    <ID>MagicNumber:Color.kt$0xFF9EA3AB</ID>
+    <ID>MagicNumber:Color.kt$0xFF9FD0FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFA36732</ID>
+    <ID>MagicNumber:Color.kt$0xFFAA6057</ID>
+    <ID>MagicNumber:Color.kt$0xFFC2C7CF</ID>
+    <ID>MagicNumber:Color.kt$0xFFC3824B</ID>
+    <ID>MagicNumber:Color.kt$0xFFC6CBD3</ID>
+    <ID>MagicNumber:Color.kt$0xFFCC7B72</ID>
+    <ID>MagicNumber:Color.kt$0xFFCDE5FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFD8DAE0</ID>
+    <ID>MagicNumber:Color.kt$0xFFDEE3EB</ID>
+    <ID>MagicNumber:Color.kt$0xFFDFEEFF</ID>
+    <ID>MagicNumber:Color.kt$0xFFE0E2E8</ID>
+    <ID>MagicNumber:Color.kt$0xFFE6E8EE</ID>
+    <ID>MagicNumber:Color.kt$0xFFE9FFFF</ID>
+    <ID>MagicNumber:Color.kt$0xFFECEEF3</ID>
+    <ID>MagicNumber:Color.kt$0xFFEEF1F6</ID>
+    <ID>MagicNumber:Color.kt$0xFFF1F3F9</ID>
+    <ID>MagicNumber:Color.kt$0xFFF7F9FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFFAFAFF</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFB4AB</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFB77D</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFBAB1</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFBD89</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFDAD5</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFDCC3</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFF9F9</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFFAF8</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFFFFF</ID>
+    <ID>MagicNumber:DeviceAdd.kt$0xFF00b300</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$10</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$20</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$40</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$60</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$70</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$80</ID>
+    <ID>MagicNumber:DeviceBatteryPercentageImage.kt$90</ID>
+    <ID>MagicNumber:DeviceEdit.kt$4</ID>
+    <ID>MagicNumber:DeviceEdit.kt$800</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$0.1f</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$0.25f</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$1500</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$24</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$4</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$60</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$60_000</ID>
+    <ID>MagicNumber:DeviceInfoTwoRows.kt$8</ID>
+    <ID>MagicNumber:DeviceList.kt$1800</ID>
+    <ID>MagicNumber:DeviceList.kt$3</ID>
+    <ID>MagicNumber:DeviceList.kt$500</ID>
+    <ID>MagicNumber:DeviceList.kt$5000</ID>
+    <ID>MagicNumber:DeviceListItem.kt$0.4f</ID>
+    <ID>MagicNumber:DeviceListItem.kt$0.6f</ID>
+    <ID>MagicNumber:DeviceNetworkStrenghtImage.kt$100</ID>
+    <ID>MagicNumber:DeviceNetworkStrenghtImage.kt$101</ID>
+    <ID>MagicNumber:DeviceNetworkStrenghtImage.kt$50</ID>
+    <ID>MagicNumber:DeviceNetworkStrenghtImage.kt$70</ID>
+    <ID>MagicNumber:DeviceNetworkStrenghtImage.kt$80</ID>
+    <ID>MagicNumber:DevicePreviewParameterProvider.kt$DevicePreviewParameterProvider$45</ID>
+    <ID>MagicNumber:DevicePreviewParameterProvider.kt$DevicePreviewParameterProvider$75.0</ID>
+    <ID>MagicNumber:DeviceWebview.kt$8000</ID>
+    <ID>MagicNumber:DeviceWebview.kt$CustomWebChromeClient$100.0f</ID>
+    <ID>MagicNumber:DeviceWebview.kt$WebViewNavigator$5</ID>
+    <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$5000</ID>
+    <ID>MagicNumber:Theme.kt$3</ID>
+    <ID>MagicNumber:Theme.kt$4</ID>
+    <ID>MagicNumber:UpdateInstalling.kt$0xFF00b300</ID>
+    <ID>MagicNumber:WebViewViewModel.kt$WebViewViewModel$5</ID>
+    <ID>NestedBlockDepth:DeviceWebview.kt$@RequiresApi(Build.VERSION_CODES.Q) private fun handleHttpDownload( context: Context, url: String, contentDisposition: String, mimetype: String, device: Device, onSuccess: () -&gt; Unit, )</ID>
+    <ID>SwallowedException:DeviceWebview.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DeviceAddViewModel.kt$DeviceAddViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DeviceWebview.kt$e: Exception</ID>
+    <ID>UnusedPrivateProperty:Theme.kt$private val highContrastDarkColorScheme = darkColorScheme( primary = primaryDarkHighContrast, onPrimary = onPrimaryDarkHighContrast, primaryContainer = primaryContainerDarkHighContrast, onPrimaryContainer = onPrimaryContainerDarkHighContrast, secondary = secondaryDarkHighContrast, onSecondary = onSecondaryDarkHighContrast, secondaryContainer = secondaryContainerDarkHighContrast, onSecondaryContainer = onSecondaryContainerDarkHighContrast, tertiary = tertiaryDarkHighContrast, onTertiary = onTertiaryDarkHighContrast, tertiaryContainer = tertiaryContainerDarkHighContrast, onTertiaryContainer = onTertiaryContainerDarkHighContrast, error = errorDarkHighContrast, onError = onErrorDarkHighContrast, errorContainer = errorContainerDarkHighContrast, onErrorContainer = onErrorContainerDarkHighContrast, background = backgroundDarkHighContrast, onBackground = onBackgroundDarkHighContrast, surface = surfaceDarkHighContrast, onSurface = onSurfaceDarkHighContrast, surfaceVariant = surfaceVariantDarkHighContrast, onSurfaceVariant = onSurfaceVariantDarkHighContrast, outline = outlineDarkHighContrast, outlineVariant = outlineVariantDarkHighContrast, scrim = scrimDarkHighContrast, inverseSurface = inverseSurfaceDarkHighContrast, inverseOnSurface = inverseOnSurfaceDarkHighContrast, inversePrimary = inversePrimaryDarkHighContrast, surfaceDim = surfaceDimDarkHighContrast, surfaceBright = surfaceBrightDarkHighContrast, surfaceContainerLowest = surfaceContainerLowestDarkHighContrast, surfaceContainerLow = surfaceContainerLowDarkHighContrast, surfaceContainer = surfaceContainerDarkHighContrast, surfaceContainerHigh = surfaceContainerHighDarkHighContrast, surfaceContainerHighest = surfaceContainerHighestDarkHighContrast, )</ID>
+    <ID>UnusedPrivateProperty:Theme.kt$private val highContrastLightColorScheme = lightColorScheme( primary = primaryLightHighContrast, onPrimary = onPrimaryLightHighContrast, primaryContainer = primaryContainerLightHighContrast, onPrimaryContainer = onPrimaryContainerLightHighContrast, secondary = secondaryLightHighContrast, onSecondary = onSecondaryLightHighContrast, secondaryContainer = secondaryContainerLightHighContrast, onSecondaryContainer = onSecondaryContainerLightHighContrast, tertiary = tertiaryLightHighContrast, onTertiary = onTertiaryLightHighContrast, tertiaryContainer = tertiaryContainerLightHighContrast, onTertiaryContainer = onTertiaryContainerLightHighContrast, error = errorLightHighContrast, onError = onErrorLightHighContrast, errorContainer = errorContainerLightHighContrast, onErrorContainer = onErrorContainerLightHighContrast, background = backgroundLightHighContrast, onBackground = onBackgroundLightHighContrast, surface = surfaceLightHighContrast, onSurface = onSurfaceLightHighContrast, surfaceVariant = surfaceVariantLightHighContrast, onSurfaceVariant = onSurfaceVariantLightHighContrast, outline = outlineLightHighContrast, outlineVariant = outlineVariantLightHighContrast, scrim = scrimLightHighContrast, inverseSurface = inverseSurfaceLightHighContrast, inverseOnSurface = inverseOnSurfaceLightHighContrast, inversePrimary = inversePrimaryLightHighContrast, surfaceDim = surfaceDimLightHighContrast, surfaceBright = surfaceBrightLightHighContrast, surfaceContainerLowest = surfaceContainerLowestLightHighContrast, surfaceContainerLow = surfaceContainerLowLightHighContrast, surfaceContainer = surfaceContainerLightHighContrast, surfaceContainerHigh = surfaceContainerHighLightHighContrast, surfaceContainerHighest = surfaceContainerHighestLightHighContrast, )</ID>
+    <ID>UnusedPrivateProperty:Theme.kt$private val mediumContrastDarkColorScheme = darkColorScheme( primary = primaryDarkMediumContrast, onPrimary = onPrimaryDarkMediumContrast, primaryContainer = primaryContainerDarkMediumContrast, onPrimaryContainer = onPrimaryContainerDarkMediumContrast, secondary = secondaryDarkMediumContrast, onSecondary = onSecondaryDarkMediumContrast, secondaryContainer = secondaryContainerDarkMediumContrast, onSecondaryContainer = onSecondaryContainerDarkMediumContrast, tertiary = tertiaryDarkMediumContrast, onTertiary = onTertiaryDarkMediumContrast, tertiaryContainer = tertiaryContainerDarkMediumContrast, onTertiaryContainer = onTertiaryContainerDarkMediumContrast, error = errorDarkMediumContrast, onError = onErrorDarkMediumContrast, errorContainer = errorContainerDarkMediumContrast, onErrorContainer = onErrorContainerDarkMediumContrast, background = backgroundDarkMediumContrast, onBackground = onBackgroundDarkMediumContrast, surface = surfaceDarkMediumContrast, onSurface = onSurfaceDarkMediumContrast, surfaceVariant = surfaceVariantDarkMediumContrast, onSurfaceVariant = onSurfaceVariantDarkMediumContrast, outline = outlineDarkMediumContrast, outlineVariant = outlineVariantDarkMediumContrast, scrim = scrimDarkMediumContrast, inverseSurface = inverseSurfaceDarkMediumContrast, inverseOnSurface = inverseOnSurfaceDarkMediumContrast, inversePrimary = inversePrimaryDarkMediumContrast, surfaceDim = surfaceDimDarkMediumContrast, surfaceBright = surfaceBrightDarkMediumContrast, surfaceContainerLowest = surfaceContainerLowestDarkMediumContrast, surfaceContainerLow = surfaceContainerLowDarkMediumContrast, surfaceContainer = surfaceContainerDarkMediumContrast, surfaceContainerHigh = surfaceContainerHighDarkMediumContrast, surfaceContainerHighest = surfaceContainerHighestDarkMediumContrast, )</ID>
+    <ID>UnusedPrivateProperty:Theme.kt$private val mediumContrastLightColorScheme = lightColorScheme( primary = primaryLightMediumContrast, onPrimary = onPrimaryLightMediumContrast, primaryContainer = primaryContainerLightMediumContrast, onPrimaryContainer = onPrimaryContainerLightMediumContrast, secondary = secondaryLightMediumContrast, onSecondary = onSecondaryLightMediumContrast, secondaryContainer = secondaryContainerLightMediumContrast, onSecondaryContainer = onSecondaryContainerLightMediumContrast, tertiary = tertiaryLightMediumContrast, onTertiary = onTertiaryLightMediumContrast, tertiaryContainer = tertiaryContainerLightMediumContrast, onTertiaryContainer = onTertiaryContainerLightMediumContrast, error = errorLightMediumContrast, onError = onErrorLightMediumContrast, errorContainer = errorContainerLightMediumContrast, onErrorContainer = onErrorContainerLightMediumContrast, background = backgroundLightMediumContrast, onBackground = onBackgroundLightMediumContrast, surface = surfaceLightMediumContrast, onSurface = onSurfaceLightMediumContrast, surfaceVariant = surfaceVariantLightMediumContrast, onSurfaceVariant = onSurfaceVariantLightMediumContrast, outline = outlineLightMediumContrast, outlineVariant = outlineVariantLightMediumContrast, scrim = scrimLightMediumContrast, inverseSurface = inverseSurfaceLightMediumContrast, inverseOnSurface = inverseOnSurfaceLightMediumContrast, inversePrimary = inversePrimaryLightMediumContrast, surfaceDim = surfaceDimLightMediumContrast, surfaceBright = surfaceBrightLightMediumContrast, surfaceContainerLowest = surfaceContainerLowestLightMediumContrast, surfaceContainerLow = surfaceContainerLowLightMediumContrast, surfaceContainer = surfaceContainerLightMediumContrast, surfaceContainerHigh = surfaceContainerHighLightMediumContrast, surfaceContainerHighest = surfaceContainerHighestLightMediumContrast, )</ID>
+    <ID>UnusedPrivateProperty:WebViewHolder.kt$private const val TAG = "WebViewHolder"</ID>
+  </CurrentIssues>
+</SmellBaseline>

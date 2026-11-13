@@ -1,0 +1,7 @@
+# Android configuration
+package_name("ca.cgagnier.illumidel")
+
+# iOS configuration
+app_identifier("ca.cgagnier.illumidel")
+team_id("49VYFAQHCG")
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"]) if ENV["APP_STORE_CONNECT_TEAM_ID"]

@@ -5,19 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val preferencesRepository: UserPreferencesRepository
-) : ViewModel() {
+class SettingsViewModel(private val preferencesRepository: UserPreferencesRepository) : ViewModel() {
 
     private val theme = preferencesRepository.themeMode
     private val autoDiscovery = preferencesRepository.autoDiscovery
@@ -52,11 +46,10 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-
 @Stable
 data class SettingsState(
-    val isAutoDiscoveryEnabled : Boolean = true,
-    val showOfflineLast : Boolean = true,
-    val showHiddenDevices : Boolean = false,
-    val theme: ThemeSettings = ThemeSettings.UNRECOGNIZED,
+    val isAutoDiscoveryEnabled: Boolean = true,
+    val showOfflineLast: Boolean = true,
+    val showHiddenDevices: Boolean = false,
+    val theme: ThemeSettings = ThemeSettings.Auto,
 )

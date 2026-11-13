@@ -1,0 +1,4 @@
+- Rebuilt on a modern multiplatform engine for faster device discovery and real-time status updates.
+- Seamless controller firmware updates and French / English controller interface language switching.
+- Added support for previewing Beta 2.0 controller firmware from Device Settings.
+- Improved connection reliability, WebSocket recovery, and overall stability.

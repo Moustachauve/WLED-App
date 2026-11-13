@@ -9,17 +9,18 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ca.cgagnier.wlednativeandroid.model.Device
-import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
+import ca.cgagnier.wlednativeandroid.model.getColorFromState
+import ca.cgagnier.wlednativeandroid.model.wledapi.State
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import com.materialkolor.DynamicMaterialTheme
 import com.materialkolor.PaletteStyle
 
@@ -252,46 +253,20 @@ private val highContrastDarkColorScheme = darkColorScheme(
 )
 
 @Immutable
-data class ColorFamily(
-    val color: Color,
-    val onColor: Color,
-    val colorContainer: Color,
-    val onColorContainer: Color
-)
+data class ColorFamily(val color: Color, val onColor: Color, val colorContainer: Color, val onColorContainer: Color)
 
 val unspecified_scheme = ColorFamily(
-    Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified
+    Color.Unspecified,
+    Color.Unspecified,
+    Color.Unspecified,
+    Color.Unspecified,
 )
 
-@Composable
-fun WLEDNativeTheme(
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    themeViewModel: ThemeViewModel = hiltViewModel(),
-    content: @Composable () -> Unit
-) {
-    // Forced dark theme in Illumidel due to image loading issue #darkPainterIllumidel
-    val darkTheme = true
-//    val theme by themeViewModel.theme.collectAsStateWithLifecycle()
-//    val darkTheme = when (theme) {
-//        ThemeSettings.Auto -> isSystemInDarkTheme()
-//        ThemeSettings.Dark -> true
-//        else -> false
-//    }
-    WLEDNativeTheme(
-        darkTheme = darkTheme,
-        dynamicColor = dynamicColor,
-        content = content
-    )
-}
+private val LocalDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
+// Illumidel uses a forced dark blue palette across all screens by default.
 @Composable
-fun WLEDNativeTheme(
-    darkTheme: Boolean,
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
+fun WLEDNativeTheme(darkTheme: Boolean = true, dynamicColor: Boolean = false, content: @Composable () -> Unit) {
     val view = LocalView.current
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -300,43 +275,48 @@ fun WLEDNativeTheme(
         }
 
         darkTheme -> darkScheme
+
         else -> lightScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AppTypography,
-        content = content
-    )
+    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = appTypography,
+            content = content,
+        )
+    }
 
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme // negate darkTheme
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 }
 
+fun getColorFromDeviceState(state: State?): Int = getColorFromState(state) ?: android.graphics.Color.WHITE
 
 @Composable
-fun DeviceTheme(
-    device: Device,
-    themeViewModel: ThemeViewModel = hiltViewModel(),
-    content: @Composable () -> Unit
-) {
-    // Forced dark theme in Illumidel due to image loading issue #darkPainterIllumidel
-    val darkTheme = true
-    // val theme by themeViewModel.theme.collectAsStateWithLifecycle()
-    // val darkTheme = when (theme) {
-    //     ThemeSettings.Auto -> isSystemInDarkTheme()
-    //     ThemeSettings.Dark -> true
-    //     else -> false
-    // }
+fun DeviceTheme(device: DeviceWithState, content: @Composable () -> Unit) {
+    DeviceTheme(
+        device = device,
+        darkTheme = LocalDarkTheme.current ?: isSystemInDarkTheme(),
+        content = content,
+    )
+}
+
+@Composable
+fun DeviceTheme(device: DeviceWithState, darkTheme: Boolean, content: @Composable () -> Unit) {
+    val stateInfo = device.stateInfo
+
     DynamicMaterialTheme(
-        seedColor = Color(device.color),
+        seedColor = Color(getColorFromDeviceState(stateInfo?.state)),
         isDark = darkTheme,
         style = if (device.isOnline) PaletteStyle.Vibrant else PaletteStyle.Neutral,
-        animate = true
+        animate = true,
     ) {
         content()
     }

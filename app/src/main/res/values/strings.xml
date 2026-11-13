@@ -3,6 +3,9 @@
     <string name="app_logo">Illumidel\'s Logo</string>
     <string name="add_a_device">Add a New Device</string>
     <string name="add">Add</string>
+    <string name="add_adding_device">Adding <xliff:g example="192.168.1.1" id="strength">%1$s</xliff:g></string>
+    <string name="add_device_added"><xliff:g example="Device123" id="strength">%1$s</xliff:g> was added</string>
+    <string name="add_device_error">Could not connect to the device. Verify the address.</string>
     <string name="deleting_device">Delete Device?</string>
     <string name="delete">Delete</string>
     <string name="ip_address_or_url">IP Address or URL</string>
@@ -12,40 +15,52 @@
     <string name="please_enter_valid_value">Please enter a valid value</string>
     <string name="cancel">Cancel</string>
     <string name="default_device_name">(New Device)</string>
-    <string name="is_offline">(Offline)</string>
+    <string name="is_offline">Offline</string>
+    <string name="offline_less_than_minute">Offline, less than a minute ago</string>
+    <plurals name="offline_minutes">
+        <item quantity="one">Offline, %d minute ago</item>
+        <item quantity="other">Offline, %d minutes ago</item>
+    </plurals>
+    <plurals name="offline_hours">
+        <item quantity="one">Offline, %d hour ago</item>
+        <item quantity="other">Offline, %d hours ago</item>
+    </plurals>
+    <plurals name="offline_days">
+        <item quantity="one">Offline, %d day ago</item>
+        <item quantity="other">Offline, %d days ago</item>
+    </plurals>
     <string name="update_available">Update Available</string>
     <string name="network_status">Network Status</string>
     <string name="signal_strength">Signal strength: <xliff:g example="-62" id="strength">%1$s</xliff:g></string>
     <string name="battery_percentage">Battery:</string>
     <string name="refresh_page">Refresh Page</string>
     <string name="edit_device">Edit Device</string>
-    <string name="edit_device_with_name">Edit Device - <xliff:g example="WLED" id="device_name">%1$s</xliff:g></string>
+    <string name="edit_device_with_name">Edit Device - <xliff:g example="Illumidel" id="device_name">%1$s</xliff:g></string>
     <string name="device_is_visible">Device is visible</string>
     <string name="device_is_hidden">Device is Hidden</string>
     <string name="hidden_status">(Hidden)</string>
     <string name="you_dont_have_any_visible_devices">You don\'t have any visible devices</string>
-    <string name="awkward_akemi_character">Illumidel\'s Logo</string>
     <string name="settings">Settings</string>
     <string name="theme">Theme</string>
     <string name="light">Light</string>
     <string name="dark">Dark</string>
     <string name="system_default">System default</string>
     <string name="listing_options">Listing Options</string>
-    <string name="discovering_devices">Discovering Devices</string>
     <string name="automatically_discover_new_devices">Automatically Discover New Devices</string>
+    <string name="automatically_discover_new_devices_description">When disabled, pull down on the device list to scan manually.</string>
     <string name="show_hidden_devices">Show Hidden Devices</string>
     <string name="hide_hidden_devices">Hide Hidden Devices</string>
     <string name="show_offline_devices_last">Show Offline Devices Last</string>
     <string name="description_menu_button">Open Menu</string>
     <string name="description_back_button">Go Back</string>
-    <string name="device_ap_mode_detected">WLED AP Mode Detected</string>
+    <string name="device_ap_mode_detected">Illumidel AP Mode Detected</string>
     <string name="device_ap_mode_detected_click">Click here to open Device</string>
     <string name="install">Install</string>
     <string name="later">Later</string>
     <string name="skip_this_version">Skip</string>
     <string name="check_for_update">Check for Update</string>
     <string name="from_version_to_version">
-        From <xliff:g example="v0.13.0" id="old_version">%1$s</xliff:g> To <xliff:g example="v0.14.0" id="new_version">%2$s</xliff:g>
+        From <xliff:g example="v1.5.1" id="old_version">%1$s</xliff:g> To <xliff:g example="v1.5.2" id="new_version">%2$s</xliff:g>
     </string>
     <string name="see_update_details">See Update</string>
     <string name="checking_progress_update">Checking…</string>
@@ -58,31 +73,50 @@
     <string name="done">Done</string>
     <string name="update_completed">Update Completed!</string>
     <string name="are_you_sure">Are you sure?</string>
-    <string name="device_update_disclaimer_part1">You are about to install a new version of WLED on your device. If you had a custom version installed previously, you might lose some functionalities (for example, if you had some usermods enabled, they might not work anymore).</string>
-    <string name="device_update_disclaimer_part2">If someone installed this device for you, you should maybe ask them if it is alright to update the device to a new version.</string>
-    <string name="device_update_disclaimer_part3">WLED and WLED Native are not responsible if something goes wrong due to an update.</string>
     <string name="install_update">Install Update</string>
-    <string name="ota_install_failed_device_locked">Your device might be PIN protected or locked with a passphrase.</string>
     <string name="no_compatible_version_found">No Compatible Version Found</string>
     <string name="no_compatible_version_found_details">No version that is compatible with your device could be found. Please contact Illumidel for help.</string>
     <string name="show_error">Show Error</string>
     <string name="hide_error">Hide Error</string>
-    <string name="unknown_error">Unknown Error</string>
+    <string name="success">Success!</string>
     <string name="visit_website">Visit Illumidel.com</string>
     <string name="help">Help</string>
-    <string name="update_channel">Update Channel</string>
-    <string name="stable">Stable</string>
-    <string name="beta">Beta</string>
-    <string name="your_device_is_up_to_date">Your device is up to date</string>
-    <string name="version_v_num">Version <xliff:g example="v0.14.0" id="version_name">%1$s</xliff:g></string>
-    <string name="select_a_device_from_the_list">Select a device from the list</string>
+    <string name="help_url">https://illumidel.com/videos/</string>
     <string name="french">Français</string>
     <string name="english">English</string>
     <string name="device_language">Device Language</string>
-    <string name="device_language_change_details">You will need to install an update on the device after changing the language here</string>
-    <string name="save_after_branch_change">Save the device after changing the channel to check for updates</string>
-    <string name="downloading_file">Downloading File</string>
-    <string name="support_me">Support Moustachauve</string>
+    <string name="language_unavailable_offline">The device must be online to change its language.</string>
+    <string name="language_unavailable_not_illumidel">The language can only be changed on Illumidel controllers.</string>
+    <string name="language_unavailable_ota_disabled">OTA updates are disabled on this device, so its language can\'t be changed.</string>
+    <string name="update_unavailable_not_illumidel">Firmware updates are only available for Illumidel controllers.</string>
+    <string name="update_unavailable_ota_disabled">OTA updates are disabled on this device, so its firmware can\'t be updated from the app.</string>
+    <string name="your_device_is_up_to_date">Your device is up to date</string>
+    <string name="version_v_num">Version <xliff:g example="v1.5.2" id="version_name">%1$s</xliff:g></string>
+    <string name="device_offline_update_title">Unable to check for updates</string>
+    <string name="device_offline_update_message">The device must be online to verify its current version and check for available updates.</string>
+    <string name="select_a_device_from_the_list">Select a device from the list</string>
+    <string name="offline_devices">Offline Devices</string>
+    <string name="websocket_connected">Connected</string>
+    <string name="websocket_connecting">Connecting…</string>
+    <string name="websocket_disconnected">Disconnected</string>
+    <string name="mac_address_present">MAC address: %1$s</string>
+    <string name="device_error_title">The selected device could not be reached</string>
+    <string name="device_error_message">Make sure it is plugged in and connected to the network</string>
+    <string name="retry_connection">Retry Connection</string>
+    <string name="downloading_file">Downloading %1$s…</string>
+    <string name="download_completed">Download complete</string>
+    <string name="download_scheme_not_supported">Download not supported for scheme: %1$s</string>
+    <string name="download_failed">Download failed: %1$s</string>
+    <string name="download_not_supported_old_android">This download feature requires Android 10 or newer</string>
+    <string name="file_creation_failed">Failed to create file</string>
+    <string name="error_saving_file">Error saving file</string>
+    <string name="invalid_data_uri">Invalid data URI format</string>
+    <string name="non_base64_not_supported">Non-base64 data URIs are not currently supported</string>
+    <string name="open">Open</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="some_devices_hidden">Some of your devices are hidden</string>
+
+    <!-- Beta 2.0 Migration -->
     <string name="try_new_beta_version">Try the new beta version</string>
     <string name="beta_version_available">Beta Version (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)</string>
     <string name="learn_more_beta_app">Learn more about the beta and the new app</string>
@@ -90,4 +124,22 @@
     <string name="beta_migration_card_warning">Warning: Updating to the beta version moves your controller to the new Illumidel app. This action cannot be undone and this app will no longer work with this controller.</string>
     <string name="beta_update_disclaimer_title">Migrate to Beta (<xliff:g example="v2.2.1" id="version_name">%1$s</xliff:g>)?</string>
     <string name="beta_update_disclaimer_warning">This update moves your controller to the new Illumidel app. It cannot be undone and this app will no longer work with this controller.</string>
+
+    <!-- Deep linking -->
+    <string name="deep_link_loading">Connecting to device…</string>
+    <string name="deep_link_error_title">Device Not Found</string>
+    <string name="deep_link_error_mac_not_found">Device with MAC address %1$s not found in your device list</string>
+    <string name="deep_link_error_unreachable">Could not reach device at %1$s. Make sure it is powered on and connected to the network.</string>
+
+    <!-- Device Controls (Quick Settings) -->
+    <string name="control_on">On</string>
+    <string name="control_off">Off</string>
+    <string name="no_release_notes_provided">No release notes provided</string>
+
+    <!-- Local network permission -->
+    <string name="local_network_warning_title">Local Network Access Required</string>
+    <string name="local_network_warning_body">Illumidel needs Local Network access to discover and control your devices.</string>
+    <string name="local_network_instructions">Go to Settings → Apps → Illumidel → Permissions → Nearby devices</string>
+    <string name="local_network_allow_access">Allow Access</string>
+
 </resources>

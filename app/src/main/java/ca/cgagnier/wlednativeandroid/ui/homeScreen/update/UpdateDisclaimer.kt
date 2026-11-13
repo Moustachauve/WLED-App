@@ -1,6 +1,5 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,21 +24,21 @@ import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
+import ca.cgagnier.wlednativeandroid.ui.components.WledMarkdown
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
-import com.mikepenz.markdown.m3.Markdown
-import com.mikepenz.markdown.m3.markdownTypography
+import ca.cgagnier.wlednativeandroid.util.stripVersionPrefix
 
 @Composable
 fun UpdateDisclaimerDialog(
     version: VersionWithAssets,
+    installEnabled: Boolean = true,
     onDismiss: () -> Unit = {},
     onAccept: () -> Unit = {},
 ) {
+    val displayTag = "v${version.version.tagName.stripVersionPrefix()}"
     AlertDialog(
         title = {
-            Text(
-                stringResource(R.string.beta_update_disclaimer_title, version.version.tagName)
-            )
+            Text(stringResource(R.string.beta_update_disclaimer_title, displayTag))
         },
         text = {
             UpdateDisclaimerDialogContent(version = version)
@@ -48,10 +47,15 @@ fun UpdateDisclaimerDialog(
         confirmButton = {
             TextButton(
                 onClick = onAccept,
+                enabled = installEnabled,
             ) {
                 Text(
                     stringResource(R.string.install_update),
-                    color = MaterialTheme.colorScheme.error,
+                    color = if (installEnabled) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    },
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -76,14 +80,14 @@ fun UpdateDisclaimerDialog(
 @Composable
 private fun UpdateDisclaimerDialogContent(version: VersionWithAssets) {
     Column(
-        modifier = Modifier.verticalScroll(rememberScrollState())
+        modifier = Modifier.verticalScroll(rememberScrollState()),
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer,
                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            )
+            ),
         ) {
             Text(
                 text = stringResource(R.string.beta_update_disclaimer_warning),
@@ -94,13 +98,8 @@ private fun UpdateDisclaimerDialogContent(version: VersionWithAssets) {
         val description = version.version.description.trimIndent()
         if (description.isNotEmpty()) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-            Markdown(
+            WledMarkdown(
                 content = description,
-                typography = markdownTypography(
-                    h1 = MaterialTheme.typography.titleLarge,
-                    h2 = MaterialTheme.typography.titleMedium,
-                    h3 = MaterialTheme.typography.titleSmall,
-                )
             )
         }
     }
@@ -109,12 +108,12 @@ private fun UpdateDisclaimerDialogContent(version: VersionWithAssets) {
 @Preview(showBackground = true)
 @Composable
 fun UpdateDisclaimerDialogPreview() {
-    WLEDNativeTheme(darkTheme = isSystemInDarkTheme()) {
+    WLEDNativeTheme(darkTheme = true) {
         UpdateDisclaimerDialog(
             version = VersionWithAssets(
                 version = Version.getPreviewVersion(),
                 assets = emptyList(),
-            )
+            ),
         )
     }
 }
