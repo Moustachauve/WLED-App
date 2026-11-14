@@ -6,10 +6,24 @@
 	objectVersion = 70;
 	objects = {
 
+/* Begin PBXAggregateTarget section */
+		C90000000000000000000006 /* CompileSharedKMP */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = C90000000000000000000009 /* Build configuration list for PBXAggregateTarget "CompileSharedKMP" */;
+			buildPhases = (
+				C9LOCAL000000000000000004 /* Compile Shared KMP Framework */,
+			);
+			dependencies = (
+			);
+			name = CompileSharedKMP;
+			productName = CompileSharedKMP;
+		};
+/* End PBXAggregateTarget section */
+
 /* Begin PBXBuildFile section */
 		884FA9392F027B6100097D56 /* wled_native_data.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 884FA9082F027B6100097D56 /* wled_native_data.xcdatamodeld */; };
 		C948F4982B3D2B330092C4B1 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = C948F4972B3D2B330092C4B1 /* MarkdownUI */; };
-		C9LOCAL000000000000000003 /* Shared in Frameworks */ = {isa = PBXBuildFile; productRef = C9LOCAL000000000000000002 /* Shared */; };
+		C9LOCAL000000000000000003 /* Shared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9LOCAL000000000000000002 /* Shared.xcframework */; };
 		C9SNAP000000000000000003 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = C9SNAP000000000000000002 /* SnapshotTesting */; };
 /* End PBXBuildFile section */
 
@@ -21,6 +35,13 @@
 			remoteGlobalIDString = C9A9E5BC2918D1C3005B5C22;
 			remoteInfo = WLED;
 		};
+		C90000000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C9A9E5B52918D1C3005B5C22 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C90000000000000000000006;
+			remoteInfo = CompileSharedKMP;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +50,7 @@
 		884FA90B2F027B6100097D56 /* wled_native_data.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = wled_native_data.xcdatamodel; sourceTree = "<group>"; };
 		C9A9E5BD2918D1C3005B5C22 /* Illumidel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Illumidel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9C4B47E2AC0050500791D20 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = SOURCE_ROOT; };
+		C9LOCAL000000000000000002 /* Shared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Shared.xcframework; path = ../shared/build/XCFrameworks/Shared.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,7 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C9LOCAL000000000000000003 /* Shared in Frameworks */,
+				C9LOCAL000000000000000003 /* Shared.xcframework in Frameworks */,
 				C948F4982B3D2B330092C4B1 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -82,6 +104,7 @@
 				C9C4B47E2AC0050500791D20 /* README.md */,
 				8813CE002EE9178D00B0A987 /* wled */,
 				882CC9142F05CFE00080567C /* wledTests */,
+				C9LOCAL000000000000000005 /* Frameworks */,
 				C9A9E5BE2918D1C3005B5C22 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +116,14 @@
 				882CC9132F05CFE00080567C /* WLEDTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C9LOCAL000000000000000005 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C9LOCAL000000000000000002 /* Shared.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -126,7 +157,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C9A9E5D12918D1C4005B5C22 /* Build configuration list for PBXNativeTarget "WLED" */;
 			buildPhases = (
-				C9LOCAL000000000000000004 /* Compile Shared KMP Framework */,
 				C9A9E5B92918D1C3005B5C22 /* Sources */,
 				C9A9E5BA2918D1C3005B5C22 /* Frameworks */,
 				C9A9E5BB2918D1C3005B5C22 /* Resources */,
@@ -134,6 +164,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				C90000000000000000000008 /* PBXTargetDependency */,
 				8849FA232F710B1B008ACEC3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -141,7 +172,6 @@
 			);
 			name = WLED;
 			packageProductDependencies = (
-				C9LOCAL000000000000000002 /* Shared */,
 				C948F4972B3D2B330092C4B1 /* MarkdownUI */,
 			);
 			productName = wled;
@@ -162,6 +192,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = C9A9E5BC2918D1C3005B5C22;
 					};
+					C90000000000000000000006 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					C9A9E5BC2918D1C3005B5C22 = {
 						CreatedOnToolsVersion = 14.1;
 					};
@@ -178,7 +211,6 @@
 			);
 			mainGroup = C9A9E5B42918D1C3005B5C22;
 			packageReferences = (
-				C9LOCAL000000000000000001 /* XCLocalSwiftPackageReference "SharedPackage" */,
 				C948F4962B3D2B320092C4B1 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				8849F9052F710909008ACEC3 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
 				C9SNAP000000000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
@@ -187,6 +219,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				C90000000000000000000006 /* CompileSharedKMP */,
 				C9A9E5BC2918D1C3005B5C22 /* WLED */,
 				882CC9122F05CFE00080567C /* WLEDTests */,
 			);
@@ -225,6 +258,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(SRCROOT)/../shared/build/XCFrameworks/Shared.xcframework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -259,6 +293,11 @@
 		8849FA232F710B1B008ACEC3 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			productRef = 8849FA222F710B1B008ACEC3 /* SwiftLintBuildToolPlugin */;
+		};
+		C90000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C90000000000000000000006 /* CompileSharedKMP */;
+			targetProxy = C90000000000000000000007 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -522,6 +561,20 @@
 			};
 			name = Release;
 		};
+		C9000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		C9000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -543,6 +596,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C90000000000000000000009 /* Build configuration list for PBXAggregateTarget "CompileSharedKMP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C9000000000000000000000A /* Debug */,
+				C9000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C9A9E5D12918D1C4005B5C22 /* Build configuration list for PBXNativeTarget "WLED" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -553,13 +615,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		C9LOCAL000000000000000001 /* XCLocalSwiftPackageReference "SharedPackage" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = SharedPackage;
-		};
-/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		8849F9052F710909008ACEC3 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */ = {
@@ -598,11 +653,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C948F4962B3D2B320092C4B1 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
-		};
-		C9LOCAL000000000000000002 /* Shared */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C9LOCAL000000000000000001 /* XCLocalSwiftPackageReference "SharedPackage" */;
-			productName = Shared;
 		};
 		C9SNAP000000000000000002 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;

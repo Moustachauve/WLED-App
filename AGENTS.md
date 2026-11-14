@@ -8,7 +8,7 @@ WLED-App is the monorepo for the official native **WLED** application on Android
 ## 2. Tech Stack & Architecture
 *   **Languages:** Kotlin (Multiplatform & Android), Swift 6 (iOS)
 *   **UI:** Jetpack Compose + Material 3 + Jetpack Glance Widgets (Android, Min SDK 24 / Target SDK 37); SwiftUI (iOS 18.0+)
-*   **Architecture:** Clean Architecture / MVVM with shared business logic in `:shared` (`commonMain`, `androidMain`, `iosMain`) consumed by `:app` and `iosApp/` (`SharedPackage` XCFramework + SKIE)
+*   **Architecture:** Clean Architecture / MVVM with shared business logic in `:shared` (`commonMain`, `androidMain`, `iosMain`) consumed by `:app` and `iosApp/` (`Shared.xcframework` + SKIE)
 *   **Dependency Injection:** Koin (`SharedModule.kt`, `AppModule.kt`, `KoinIos.kt`). Whenever modifying DI bindings, update and run `KoinModuleTest`.
 *   **Asynchronous & Concurrency:** Kotlin Coroutines & Flow (`StateFlow`, `SharedFlow`), bridged to Swift `AsyncSequence` via SKIE.
     *   *Dispatcher Injection:* Inject `CoroutineDispatcher` and `CoroutineScope` into services/managers rather than hardcoding `Dispatchers.IO` or `Dispatchers.Default` so unit tests run deterministically with `runTest`.
@@ -85,7 +85,6 @@ SKIP_KMP_BUILD=1 xcodebuild test \
 *   `iosApp/` - Native iOS app ([iosApp/README.md](iosApp/README.md)):
     *   `iosApp/wled/` - SwiftUI views (`View/`), view models (`ViewModel/`), services (`Service/`), and CoreData-to-Room migration (`Migration/`).
     *   `iosApp/wledTests/` - iOS unit tests (note lowercase `wledTests`).
-    *   `iosApp/SharedPackage/` - Local Swift Package wrapping `Shared.xcframework`.
     *   `iosApp/scripts/compile_kmp.sh` - Xcode build phase script that builds `:shared` XCFramework.
 *   `.agents/skills/` & `.agent/skills/` - Official Android (`android/skills`) and Swift (`twostraws`) agent skills managed via `skills-lock.json`.
 

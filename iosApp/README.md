@@ -5,7 +5,7 @@ Native iOS application for discovering and controlling [Illumidel](https://illum
 ## Architecture
 
 - **UI:** SwiftUI (Targeting iOS 18+)
-- **Shared Logic:** Consumes the Kotlin Multiplatform shared module (`:shared`) via `SharedPackage` (XCFramework with SKIE)
+- **Shared Logic:** Consumes the Kotlin Multiplatform shared module (`:shared`) via `Shared.xcframework` (with SKIE)
 - **Discovery & Networking:** Bonjour / mDNS network discovery and WebSocket communication
 
 ## Building & Testing
