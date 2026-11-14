@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -209,6 +210,41 @@ class KtorDeviceApiTest {
         assertEquals(500, response.code)
         assertNull(response.body)
         assertEquals("Update Failed: Not enough space", response.errorBody)
+    }
+
+    @Test
+    fun updateDeviceUsesByteArrayContentWithExactContentLength() = runTest {
+        val engine = respondingWith("OK", contentType = ContentType.Text.Html)
+
+        engine.api().updateDevice(firmware, "wled.bin")
+
+        val body = assertIs<OutgoingContent.ByteArrayContent>(engine.lastRequest.body)
+        assertEquals(body.bytes().size.toLong(), body.contentLength)
+    }
+
+    @Test
+    fun updateDeviceFormatsMultipartPartHeadersAndBinaryPayload() = runTest {
+        val engine = respondingWith("OK", contentType = ContentType.Text.Html)
+
+        engine.api().updateDevice(firmware, "wled.bin")
+
+        val body = assertIs<OutgoingContent.ByteArrayContent>(engine.lastRequest.body)
+        val boundary = body.contentType?.parameter("boundary")
+        val payload = body.text()
+        assertTrue(!boundary.isNullOrBlank())
+        assertTrue(payload.startsWith("--$boundary\r\n"))
+        assertTrue(payload.contains("Content-Disposition: form-data; name=\"file\"; filename=\"wled.bin\"\r\n"))
+        assertTrue(payload.contains("Content-Type: application/octet-stream\r\n\r\n"))
+        assertTrue(payload.endsWith("\r\n--$boundary--\r\n"))
+        val expectedHeaderBytes = (
+            "--$boundary\r\n" +
+                "Content-Disposition: form-data; name=\"file\"; filename=\"wled.bin\"\r\n" +
+                "Content-Type: application/octet-stream\r\n\r\n"
+            ).encodeToByteArray()
+        assertEquals(
+            firmware.toList(),
+            body.bytes().slice(expectedHeaderBytes.size until expectedHeaderBytes.size + firmware.size),
+        )
     }
 
     @Test

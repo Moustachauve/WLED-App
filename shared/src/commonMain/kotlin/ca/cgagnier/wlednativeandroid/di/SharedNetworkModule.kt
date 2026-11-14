@@ -18,6 +18,6 @@ internal val sharedNetworkModule: Module
         singleOf(::DeviceApiFactory)
         single { WebsocketClientFactory(get(), get(), get(IO_DISPATCHER)) }
         single<DeviceConnectionFactory> { get<WebsocketClientFactory>() }
-        single<GithubApiEndpoints> { KtorGithubApiEndpoints(get()) }
+        single<GithubApiEndpoints> { KtorGithubApiEndpoints(get(), ioDispatcher = get(IO_DISPATCHER)) }
         singleOf(::GithubApi)
     }

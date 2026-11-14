@@ -262,4 +262,34 @@ struct DeviceListNavigationTests {
 
         #expect(navigation.detailPath.isEmpty)
     }
+
+    @Test func pushingUpdateDetailsFromEditAdvancesDetailStack() async throws {
+        let harness = try await makeHarness()
+        defer { harness.tearDown() }
+
+        harness.navigation.openEdit(harness.deviceA)
+        try await waitForDetailState(
+            device: harness.deviceA,
+            path: [.edit(deviceId: harness.deviceA.id)],
+            depth: 2,
+            in: harness.window,
+            navigation: harness.navigation
+        )
+
+        let expectedPath: [DeviceDetailRoute] = [
+            .edit(deviceId: harness.deviceA.id),
+            .updateDetails(deviceId: harness.deviceA.id)
+        ]
+        harness.navigation.detailPathBinding.wrappedValue = expectedPath
+        try await waitForDetailState(
+            device: harness.deviceA,
+            path: expectedPath,
+            depth: 3,
+            in: harness.window,
+            navigation: harness.navigation
+        )
+
+        #expect(harness.navigation.detailPath == expectedPath)
+        #expect(detailStackDepth(harness.window) == 3)
+    }
 }

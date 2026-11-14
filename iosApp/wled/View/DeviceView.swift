@@ -7,6 +7,7 @@ private typealias State = SwiftUI.State
 /// Routes carry the device id so that switching devices replaces the pushed screen.
 enum DeviceDetailRoute: Hashable {
     case edit(deviceId: String)
+    case updateDetails(deviceId: String)
 }
 
 struct DeviceView: View {
@@ -69,6 +70,9 @@ struct DeviceView: View {
             switch route {
             case .edit:
                 DeviceEditView(device: device)
+                    .id(device.id)
+            case .updateDetails:
+                DeviceUpdateDetails(device: device)
                     .id(device.id)
             }
         }

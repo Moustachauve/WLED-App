@@ -1,0 +1,2 @@
+- Correction des téléchargements et des installations de micrologiciel OTA qui échouaient.
+- Correction de la boîte de dialogue de progression de la mise à jour qui se fermait de manière inattendue lorsqu'un appareil se déconnectait pendant le redémarrage.

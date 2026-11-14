@@ -7,15 +7,13 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.request.forms.formData
-import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.plugins.contentnegotiation.exclude
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineDispatcher
@@ -23,8 +21,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import okio.Buffer
 import okio.FileSystem
 import okio.Path
+import kotlin.random.Random
 import ca.cgagnier.wlednativeandroid.shared.fileSystem as defaultFileSystem
 
 /**
@@ -91,25 +91,51 @@ class KtorDeviceApi(private val baseUrl: String, private val httpClient: HttpCli
 
     @Throws(Exception::class)
     override suspend fun updateDevice(fileData: ByteArray, fileName: String): ApiResponse<String> {
-        val response = httpClient.submitFormWithBinaryData(
-            url = normalizeUrl("update"),
-            formData = formData {
-                append(
-                    key = "file",
-                    value = fileData,
-                    headers = Headers.build {
-                        append(HttpHeaders.ContentType, "application/octet-stream")
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                    },
-                )
-            },
-        )
+        val boundary = generateMultipartBoundary()
+        val bodyBytes = buildMultipartFirmwareBody(boundary, fileName, fileData)
+        // Use ByteArrayContent instead of streaming WriteChannelContent so Darwin sends an NSData
+        // body with an explicit Content-Length rather than chunked Transfer-Encoding (unsupported by ESP32).
+        val response = httpClient.post(normalizeUrl("update")) {
+            exclude(ContentType.Application.Json)
+            setBody(
+                ByteArrayContent(
+                    bytes = bodyBytes,
+                    contentType = ContentType.MultiPart.FormData.withParameter("boundary", boundary),
+                ),
+            )
+        }
         val text = response.bodyAsText()
         return if (response.status.isSuccess()) {
             ApiResponse(code = response.status.value, body = text)
         } else {
             ApiResponse(code = response.status.value, errorBody = text)
         }
+    }
+
+    private fun generateMultipartBoundary(): String = buildString {
+        append("----WledFormBoundary")
+        append(Random.nextLong().toULong().toString(HEX_RADIX))
+        append(Random.nextLong().toULong().toString(HEX_RADIX))
+    }
+
+    private fun buildMultipartFirmwareBody(boundary: String, fileName: String, fileData: ByteArray): ByteArray {
+        val safeFileName = fileName
+            .replace("\r", "")
+            .replace("\n", "")
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        return Buffer().apply {
+            writeUtf8("--$boundary\r\n")
+            writeUtf8("Content-Disposition: form-data; name=\"file\"; filename=\"$safeFileName\"\r\n")
+            writeUtf8("Content-Type: application/octet-stream\r\n")
+            writeUtf8("\r\n")
+            write(fileData)
+            writeUtf8("\r\n--$boundary--\r\n")
+        }.readByteArray()
+    }
+
+    private companion object {
+        const val HEX_RADIX = 16
     }
 }
 
