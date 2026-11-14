@@ -1,0 +1,2 @@
+- Fixed over-the-air (OTA) firmware downloads and installations failing to complete.
+- Fixed the firmware update progress dialog closing unexpectedly when a device disconnects during reboot.

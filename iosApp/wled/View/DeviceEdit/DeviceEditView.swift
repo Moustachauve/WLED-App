@@ -6,7 +6,6 @@ private typealias State = SwiftUI.State
 struct DeviceEditView: View {
     @State private var viewModel: DeviceEditViewModel
     private var device: DeviceWithState
-    private let database: AppDatabase
 
     init(
         device: DeviceWithState,
@@ -18,7 +17,6 @@ struct DeviceEditView: View {
         ))
 
         self.device = device
-        self.database = database
     }
 
     // MARK: - body
@@ -68,7 +66,7 @@ struct DeviceEditView: View {
                             await viewModel.checkForUpdate()
                         }
                     } else {
-                        DeviceUpdateAvailable(device: device, database: database)
+                        DeviceUpdateAvailable(device: device)
                     }
 
                     if let repository = viewModel.repository {
@@ -161,7 +159,6 @@ struct DeviceNoUpdateAvailable: View {
 struct DeviceUpdateAvailable: View {
 
     var device: DeviceWithState
-    var database: AppDatabase = .shared
 
     private let unknownVersion = String(localized: "unknown_version")
 
@@ -177,9 +174,7 @@ struct DeviceUpdateAvailable: View {
             VStack(alignment: .leading) {
                 Text("Update Available")
                 Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
-                NavigationLink {
-                    DeviceUpdateDetails(device: device, database: database)
-                } label: {
+                NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
                     Text("See Update")
                 }
             }
