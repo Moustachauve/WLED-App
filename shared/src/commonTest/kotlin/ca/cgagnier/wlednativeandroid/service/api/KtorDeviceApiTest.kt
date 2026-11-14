@@ -9,8 +9,11 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.serialization.JsonConvertException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -177,15 +180,6 @@ class KtorDeviceApiTest {
     }
 
     @Test
-    fun updateDeviceSendsFileNameInContentDisposition() = runTest {
-        val engine = respondingWith("OK", contentType = ContentType.Text.Html)
-
-        engine.api().updateDevice(firmware, "wled.bin")
-
-        assertTrue(engine.lastRequest.body.text().contains("filename=\"wled.bin\""))
-    }
-
-    @Test
     fun updateDeviceReturnsTextBodyOnSuccess() = runTest {
         val engine = respondingWith("Update Success! Rebooting...", contentType = ContentType.Text.Html)
 
@@ -209,6 +203,37 @@ class KtorDeviceApiTest {
         assertEquals(500, response.code)
         assertNull(response.body)
         assertEquals("Update Failed: Not enough space", response.errorBody)
+    }
+
+    @Test
+    fun updateDeviceFormatsMultipartPartHeadersAndBinaryPayload() = runTest {
+        val engine = respondingWith("OK", contentType = ContentType.Text.Html)
+
+        engine.api().updateDevice(firmware, "wled.bin")
+
+        val body = assertIs<OutgoingContent.ByteArrayContent>(engine.lastRequest.body)
+        val boundary = assertNotNull(body.contentType?.parameter("boundary"))
+        assertTrue(boundary.isNotBlank())
+        val expected = (
+            "--$boundary\r\n" +
+                "Content-Disposition: form-data; name=\"file\"; filename=\"wled.bin\"\r\n" +
+                "Content-Type: application/octet-stream\r\n\r\n"
+            ).encodeToByteArray() + firmware + "\r\n--$boundary--\r\n".encodeToByteArray()
+        assertContentEquals(expected, body.bytes())
+    }
+
+    @Test
+    fun updateDeviceSanitizesQuotesAndNewlinesInFileName() = runTest {
+        listOf(
+            "a\"b.bin" to "ab.bin",
+            "a\r\nb.bin" to "ab.bin",
+        ).forEach { (rawName, expectedName) ->
+            val engine = respondingWith("OK", contentType = ContentType.Text.Html)
+
+            engine.api().updateDevice(firmware, rawName)
+
+            assertTrue(engine.lastRequest.body.text().contains("filename=\"$expectedName\""))
+        }
     }
 
     @Test

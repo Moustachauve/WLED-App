@@ -2,14 +2,21 @@ package ca.cgagnier.wlednativeandroid.service.api.github
 
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.service.api.DownloadState
+import ca.cgagnier.wlednativeandroid.service.api.installDeviceHttpClientDefaults
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.close
+import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -17,7 +24,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
+import java.io.IOException
 
 class GithubApiTest {
 
@@ -108,9 +118,26 @@ class GithubApiTest {
         ]
     """.trimIndent()
 
+    private fun makeGithubApi(
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ): GithubApi {
+        val httpClient = HttpClient(MockEngine { request -> handler(request) }) {
+            installDeviceHttpClientDefaults(testJson)
+        }
+        return GithubApi(KtorGithubApiEndpoints(httpClient))
+    }
+
+    private fun makeTestAsset() = Asset(
+        versionId = 1L,
+        name = "WLED_16.0.1_ESP32.bin",
+        size = 1729440L,
+        downloadUrl = "https://github.com/wled/WLED/releases/download/v16.0.1/WLED_16.0.1_ESP32.bin",
+        assetId = 462495760,
+    )
+
     @Test
     fun `getAllReleases returns successful release list`() = runTest {
-        val mockEngine = MockEngine { request ->
+        val githubApi = makeGithubApi { request ->
             assertEquals("/repos/wled/WLED/releases", request.url.encodedPath)
             respond(
                 content = sampleReleasesJson,
@@ -118,14 +145,6 @@ class GithubApiTest {
                 headers = headersOf(HttpHeaders.ContentType, "application/json"),
             )
         }
-        val httpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(testJson)
-            }
-        }
-
-        val endpoints = KtorGithubApiEndpoints(httpClient)
-        val githubApi = GithubApi(endpoints)
 
         val result = githubApi.getAllReleases("wled", "WLED")
 
@@ -137,30 +156,56 @@ class GithubApiTest {
 
     @Test
     fun `getAllReleases handles network error gracefully`() = runTest {
-        val mockEngine = MockEngine { _ ->
+        val githubApi = makeGithubApi { _ ->
             respond(
                 content = "Rate limited",
                 status = HttpStatusCode.Forbidden,
             )
         }
-        val httpClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(testJson)
-            }
-        }
-
-        val endpoints = KtorGithubApiEndpoints(httpClient)
-        val githubApi = GithubApi(endpoints)
 
         val result = githubApi.getAllReleases("wled", "WLED")
 
         assertTrue(result.isFailure)
     }
 
+    private fun assertDownloadCleanedUp(targetFile: File) {
+        assertFalse(targetFile.exists())
+        assertFalse(File("${targetFile.absolutePath}.part").exists())
+    }
+
+    @Test
+    fun `downloadReleaseBinary requests octet-stream without JSON Accept`() = runTest {
+        var acceptHeaders: List<String>? = null
+        val githubApi = makeGithubApi { request ->
+            acceptHeaders = request.headers.getAll(HttpHeaders.Accept)
+            respond(
+                content = ByteArray(1024),
+                status = HttpStatusCode.OK,
+                headers = headersOf(
+                    HttpHeaders.ContentType to listOf("application/octet-stream"),
+                    HttpHeaders.ContentLength to listOf("1024"),
+                ),
+            )
+        }
+
+        val targetFile = File.createTempFile("github_test_accept_header", ".bin").apply {
+            deleteOnExit()
+        }
+
+        githubApi.downloadReleaseBinary(
+            asset = makeTestAsset(),
+            repoOwner = "wled",
+            repoName = "WLED",
+            targetFile = targetFile,
+        ).toList()
+
+        assertEquals(listOf(ContentType.Application.OctetStream.toString()), acceptHeaders)
+    }
+
     @Test
     fun `downloadReleaseBinary streams bytes and reports progress`() = runTest {
         val binaryData = ByteArray(1024) { (it % 256).toByte() }
-        val mockEngine = MockEngine { request ->
+        val githubApi = makeGithubApi { request ->
             assertEquals("/repos/wled/WLED/releases/assets/462495760", request.url.encodedPath)
             respond(
                 content = binaryData,
@@ -171,24 +216,13 @@ class GithubApiTest {
                 ),
             )
         }
-        val httpClient = HttpClient(mockEngine)
-        val endpoints = KtorGithubApiEndpoints(httpClient)
-        val githubApi = GithubApi(endpoints)
 
         val targetFile = File.createTempFile("github_test_download", ".bin").apply {
             deleteOnExit()
         }
 
-        val asset = Asset(
-            versionId = 1L,
-            name = "WLED_16.0.1_ESP32.bin",
-            size = 1729440L,
-            downloadUrl = "https://github.com/wled/WLED/releases/download/v16.0.1/WLED_16.0.1_ESP32.bin",
-            assetId = 462495760,
-        )
-
         val states = githubApi.downloadReleaseBinary(
-            asset = asset,
+            asset = makeTestAsset(),
             repoOwner = "wled",
             repoName = "WLED",
             targetFile = targetFile,
@@ -197,46 +231,34 @@ class GithubApiTest {
         assertTrue(states.any { it is DownloadState.Downloading })
         assertTrue(states.last() is DownloadState.Finished)
         assertEquals(1024L, targetFile.length())
+        assertFalse(File("${targetFile.absolutePath}.part").exists())
     }
 
-    @Test
-    fun `downloadReleaseBinary fails and cleans up file on HTTP error`() = runTest {
-        val mockEngine = MockEngine { _ ->
-            respond(
-                content = "404 Not Found",
-                status = HttpStatusCode.NotFound,
-                headers = headersOf(HttpHeaders.ContentType, "text/plain"),
-            )
-        }
-        val httpClient = HttpClient(mockEngine)
-        val endpoints = KtorGithubApiEndpoints(httpClient)
-        val githubApi = GithubApi(endpoints)
-
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("failedDownloadCases")
+    fun `downloadReleaseBinary fails and cleans up files on invalid response`(case: FailedDownloadCase) = runTest {
+        val githubApi = makeGithubApi { request -> case.respondWith(this, request) }
         val targetFile = File.createTempFile("github_test_download_fail", ".bin")
 
-        val asset = Asset(
-            versionId = 1L,
-            name = "WLED_16.0.1_ESP32.bin",
-            size = 1729440L,
-            downloadUrl = "https://github.com/wled/WLED/releases/download/v16.0.1/WLED_16.0.1_ESP32.bin",
-            assetId = 462495760,
-        )
-
         val states = githubApi.downloadReleaseBinary(
-            asset = asset,
+            asset = makeTestAsset(),
             repoOwner = "wled",
             repoName = "WLED",
             targetFile = targetFile,
         ).toList()
 
-        assertTrue(states.last() is DownloadState.Failed)
-        assertFalse(targetFile.exists())
+        val lastState = states.last()
+        assertTrue(lastState is DownloadState.Failed)
+        if (case.expectedErrorMessage != null) {
+            assertEquals(case.expectedErrorMessage, (lastState as DownloadState.Failed).error?.message)
+        }
+        assertDownloadCleanedUp(targetFile)
     }
 
     @Test
     fun `downloadReleaseBinary cleans up file and rethrows CancellationException on cancellation`() = runTest {
         val binaryData = ByteArray(1024) { (it % 256).toByte() }
-        val mockEngine = MockEngine {
+        val githubApi = makeGithubApi {
             respond(
                 content = binaryData,
                 status = HttpStatusCode.OK,
@@ -246,23 +268,12 @@ class GithubApiTest {
                 ),
             )
         }
-        val httpClient = HttpClient(mockEngine)
-        val endpoints = KtorGithubApiEndpoints(httpClient)
-        val githubApi = GithubApi(endpoints)
 
         val targetFile = File.createTempFile("github_test_download_cancel", ".bin")
 
-        val asset = Asset(
-            versionId = 1L,
-            name = "WLED_16.0.1_ESP32.bin",
-            size = 1729440L,
-            downloadUrl = "https://github.com/wled/WLED/releases/download/v16.0.1/WLED_16.0.1_ESP32.bin",
-            assetId = 462495760,
-        )
-
         org.junit.jupiter.api.assertThrows<kotlinx.coroutines.CancellationException> {
             githubApi.downloadReleaseBinary(
-                asset = asset,
+                asset = makeTestAsset(),
                 repoOwner = "wled",
                 repoName = "WLED",
                 targetFile = targetFile,
@@ -271,6 +282,104 @@ class GithubApiTest {
             }
         }
 
-        assertFalse(targetFile.exists())
+        assertDownloadCleanedUp(targetFile)
+    }
+
+    @Test
+    fun `downloadReleaseBinary preserves file when collector cancels after Finished`() = runTest {
+        val binaryData = ByteArray(1024) { (it % 256).toByte() }
+        val githubApi = makeGithubApi {
+            respond(
+                content = binaryData,
+                status = HttpStatusCode.OK,
+                headers = headersOf(
+                    HttpHeaders.ContentType to listOf("application/octet-stream"),
+                    HttpHeaders.ContentLength to listOf("1024"),
+                ),
+            )
+        }
+
+        val targetFile = File.createTempFile("github_test_download_first_finished", ".bin").apply {
+            deleteOnExit()
+        }
+
+        githubApi.downloadReleaseBinary(
+            asset = makeTestAsset(),
+            repoOwner = "wled",
+            repoName = "WLED",
+            targetFile = targetFile,
+        ).first { it is DownloadState.Finished }
+
+        assertTrue(targetFile.exists())
+        assertEquals(1024L, targetFile.length())
+        assertFalse(File("${targetFile.absolutePath}.part").exists())
+    }
+
+    data class FailedDownloadCase(
+        val label: String,
+        val expectedErrorMessage: String? = null,
+        val respondWith: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ) {
+        override fun toString(): String = label
+    }
+
+    companion object {
+        @JvmStatic
+        fun failedDownloadCases(): List<FailedDownloadCase> {
+            val jsonMetadata = """{"url":"https://api.github.com/repos/wled/WLED/releases/assets/462495760"}"""
+                .padEnd(1538, ' ')
+            return listOf(
+                FailedDownloadCase("HTTP error") {
+                    respond(
+                        content = "404 Not Found",
+                        status = HttpStatusCode.NotFound,
+                        headers = headersOf(HttpHeaders.ContentType, "text/plain"),
+                    )
+                },
+                FailedDownloadCase("JSON metadata response") {
+                    respond(
+                        content = jsonMetadata,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(
+                            HttpHeaders.ContentType to listOf("application/json"),
+                            HttpHeaders.ContentLength to listOf(jsonMetadata.length.toString()),
+                        ),
+                    )
+                },
+                FailedDownloadCase("truncated before Content-Length") {
+                    respond(
+                        content = ByteArray(1024) { (it % 256).toByte() },
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(
+                            HttpHeaders.ContentType to listOf("application/octet-stream"),
+                            HttpHeaders.ContentLength to listOf("2048"),
+                        ),
+                    )
+                },
+                FailedDownloadCase(
+                    label = "chunked stream closed with error",
+                    expectedErrorMessage = "Stream reset mid-transfer",
+                ) {
+                    val channel = ByteChannel(autoFlush = true)
+                    channel.writeFully(ByteArray(512))
+                    channel.close(IOException("Stream reset mid-transfer"))
+                    respond(
+                        content = channel,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/octet-stream"),
+                    )
+                },
+                FailedDownloadCase("empty response body") {
+                    respond(
+                        content = ByteArray(0),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(
+                            HttpHeaders.ContentType to listOf("application/octet-stream"),
+                            HttpHeaders.ContentLength to listOf("0"),
+                        ),
+                    )
+                },
+            )
+        }
     }
 }

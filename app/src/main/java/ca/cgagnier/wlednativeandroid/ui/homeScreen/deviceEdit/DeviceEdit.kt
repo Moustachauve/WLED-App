@@ -84,11 +84,11 @@ fun DeviceEdit(
     device: DeviceWithState,
     canNavigateBack: Boolean,
     navigateUp: () -> Unit,
-    viewModel: DeviceEditViewModel = koinViewModel(),
+    viewModel: DeviceEditViewModel = koinViewModel(key = "DeviceEdit:${device.device.macAddress}"),
 ) {
     val vmState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(device.device.repositoryId) {
+    LaunchedEffect(device.device.macAddress, device.device.repositoryId) {
         viewModel.loadRepository(device.device.repositoryId)
     }
 
@@ -408,7 +408,7 @@ private fun DeviceOfflineStatus() {
 @Composable
 private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit) {
     val deviceName = device.customName
-    var inputText by remember { mutableStateOf(TextFieldValue(deviceName)) }
+    var inputText by remember(device.macAddress) { mutableStateOf(TextFieldValue(deviceName)) }
     OutlinedTextField(
         value = inputText,
         onValueChange = { inputText = it },
@@ -422,7 +422,7 @@ private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit)
             .fillMaxWidth()
             .padding(top = 4.dp),
     )
-    LaunchedEffect(key1 = inputText.text) {
+    LaunchedEffect(device.macAddress, inputText.text) {
         if (deviceName == inputText.text) return@LaunchedEffect
         delay(800)
         onValueChange(inputText.text)
