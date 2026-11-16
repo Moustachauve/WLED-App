@@ -3,8 +3,11 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -22,11 +25,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.WledMarkdown
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
+
+private const val DIALOG_WIDTH_FRACTION = 0.92f
+private const val DIALOG_HEIGHT_FRACTION = 0.88f
+private val DIALOG_MAX_WIDTH = 640.dp
 
 @Composable
 fun UpdateDetailsDialog(
@@ -38,13 +46,20 @@ fun UpdateDetailsDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Card(
+            modifier = Modifier
+                .fillMaxWidth(DIALOG_WIDTH_FRACTION)
+                .wrapContentWidth()
+                .widthIn(max = DIALOG_MAX_WIDTH)
+                .fillMaxWidth()
+                .fillMaxHeight(DIALOG_HEIGHT_FRACTION),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         ) {
-            Column {
+            Column(modifier = Modifier.fillMaxHeight()) {
                 TopHeader(device)
                 ReleaseNotes(
                     modifier = Modifier.weight(1f),
@@ -67,7 +82,7 @@ private fun TopHeader(device: DeviceWithState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {

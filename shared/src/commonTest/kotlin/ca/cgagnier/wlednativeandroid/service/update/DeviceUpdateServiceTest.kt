@@ -173,10 +173,37 @@ class DeviceUpdateServiceTest {
         assertEquals("WLED_0.15.0_ESP32_Ethernet.bin", service.getAssetName())
     }
 
-    @Test
-    fun isAssetFileCachedDoesNotCreateCacheDirectory() {
+    private fun withTempCacheDir(block: (Path) -> Unit) {
         val cacheDir = newTempCacheDir()
         try {
+            block(cacheDir)
+        } finally {
+            FileSystem.SYSTEM.deleteRecursively(cacheDir)
+        }
+    }
+
+    private fun assertAssetCachedForSize(writtenBytes: Int, expectedCached: Boolean) {
+        withTempCacheDir { cacheDir ->
+            val asset = makeAsset(1L, "WLED_0.15.0_ESP32.bin")
+            val service = makeDeviceUpdateService(
+                targetVersionTag = "0.15.0",
+                release = "ESP32",
+                availableAssets = listOf(asset),
+                cacheDir = cacheDir,
+            )
+            val assetPath = service.getPathForAsset()
+            FileSystem.SYSTEM.createDirectories(assetPath.parent!!)
+            FileSystem.SYSTEM.write(assetPath) {
+                write(ByteArray(writtenBytes))
+            }
+
+            assertEquals(expectedCached, service.isAssetFileCached())
+        }
+    }
+
+    @Test
+    fun isAssetFileCachedDoesNotCreateCacheDirectory() {
+        withTempCacheDir { cacheDir ->
             val service = makeDeviceUpdateService(
                 targetVersionTag = "0.15.0",
                 release = "ESP32",
@@ -186,9 +213,18 @@ class DeviceUpdateServiceTest {
 
             assertFalse(service.isAssetFileCached())
             assertFalse(FileSystem.SYSTEM.exists(cacheDir))
-        } finally {
-            FileSystem.SYSTEM.deleteRecursively(cacheDir)
         }
+    }
+
+    @Test
+    fun isAssetFileCachedReturnsTrueWhenFileSizeMatchesAssetMetadata() {
+        assertAssetCachedForSize(writtenBytes = 1024, expectedCached = true)
+    }
+
+    @Test
+    fun isAssetFileCachedReturnsFalseWhenFileSizeMismatchesAssetMetadata() {
+        // Simulate a stale 1,538-byte GitHub JSON metadata file cached instead of the 1,024-byte binary.
+        assertAssetCachedForSize(writtenBytes = 1538, expectedCached = false)
     }
 
     @Test
