@@ -1,0 +1,2 @@
+- Fehler behoben, durch den OTA-Firmware-Downloads und -Installationen nicht abgeschlossen wurden.
+- Vorzeitiges Schließen des Update-Fortschrittsdialogs behoben, wenn ein Gerät während des Neustarts die Verbindung verliert.

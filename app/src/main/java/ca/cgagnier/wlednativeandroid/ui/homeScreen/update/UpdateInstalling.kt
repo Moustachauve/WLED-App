@@ -44,12 +44,14 @@ fun UpdateInstallingDialog(
     device: DeviceWithState,
     version: VersionWithAssets,
     onDismiss: (wasSuccessful: Boolean) -> Unit,
-    viewModel: UpdateInstallingViewModel = koinViewModel(),
+    viewModel: UpdateInstallingViewModel = koinViewModel(
+        key = "UpdateInstalling:${device.device.macAddress}",
+    ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(device.device.address) {
+    LaunchedEffect(device.device.macAddress, version.version.tagName) {
         viewModel.startUpdate(device, version, context.cacheDir)
     }
 
