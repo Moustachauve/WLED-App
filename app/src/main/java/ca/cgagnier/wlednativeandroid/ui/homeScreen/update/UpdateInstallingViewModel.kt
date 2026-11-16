@@ -125,13 +125,15 @@ class UpdateInstallingViewModel(
     private suspend fun updateActiveState(
         attemptId: Long,
         transform: (UpdateInstallingState) -> UpdateInstallingState,
-    ) {
+    ): Boolean {
         // Abort cancelled coroutines before subsequent steps such as installUpdate()
         currentCoroutineContext().ensureActive()
-        synchronized(stateLock) {
-            if (attemptId == activeAttemptId) {
+        return synchronized(stateLock) {
+            val isActiveAttempt = attemptId == activeAttemptId
+            if (isActiveAttempt) {
                 _state.update(transform)
             }
+            isActiveAttempt
         }
     }
 
@@ -209,14 +211,13 @@ class UpdateInstallingViewModel(
 
     private suspend fun onSoftwareUpdateResponse(response: ApiResponse<String>, attemptId: Long, macAddress: String) {
         if (response.isSuccessful) {
-            updateActiveState(attemptId) { previousState ->
+            val updated = updateActiveState(attemptId) { previousState ->
                 previousState.copy(
                     canDismiss = true,
                     step = UpdateInstallingStep.Done,
                 )
             }
-            val isCurrentAttempt = synchronized(stateLock) { attemptId == activeAttemptId }
-            if (isCurrentAttempt) {
+            if (updated) {
                 Log.d(TAG, "Resetting skipUpdateTag")
                 deviceRepository.updateSkipUpdateTag(macAddress, "")
             }

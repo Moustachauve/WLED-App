@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -49,8 +50,10 @@ fun UpdateDetailsDialog(
     ) {
         Card(
             modifier = Modifier
-                .widthIn(max = DIALOG_MAX_WIDTH)
                 .fillMaxWidth(DIALOG_WIDTH_FRACTION)
+                .wrapContentWidth()
+                .widthIn(max = DIALOG_MAX_WIDTH)
+                .fillMaxWidth()
                 .fillMaxHeight(DIALOG_HEIGHT_FRACTION),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,

@@ -10,12 +10,14 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import java.io.File
@@ -168,6 +171,17 @@ class GithubApiTest {
         assertTrue(result.isFailure)
     }
 
+    private val sampleBinary = ByteArray(1024) { (it % 256).toByte() }
+
+    private fun MockRequestHandleScope.respondBinary(bytes: ByteArray = sampleBinary): HttpResponseData = respond(
+        content = bytes,
+        status = HttpStatusCode.OK,
+        headers = headersOf(
+            HttpHeaders.ContentType to listOf("application/octet-stream"),
+            HttpHeaders.ContentLength to listOf(bytes.size.toString()),
+        ),
+    )
+
     private fun assertDownloadCleanedUp(targetFile: File) {
         assertFalse(targetFile.exists())
         assertFalse(File("${targetFile.absolutePath}.part").exists())
@@ -178,14 +192,7 @@ class GithubApiTest {
         var acceptHeaders: List<String>? = null
         val githubApi = makeGithubApi { request ->
             acceptHeaders = request.headers.getAll(HttpHeaders.Accept)
-            respond(
-                content = ByteArray(1024),
-                status = HttpStatusCode.OK,
-                headers = headersOf(
-                    HttpHeaders.ContentType to listOf("application/octet-stream"),
-                    HttpHeaders.ContentLength to listOf("1024"),
-                ),
-            )
+            respondBinary()
         }
 
         val targetFile = File.createTempFile("github_test_accept_header", ".bin").apply {
@@ -204,17 +211,9 @@ class GithubApiTest {
 
     @Test
     fun `downloadReleaseBinary streams bytes and reports progress`() = runTest {
-        val binaryData = ByteArray(1024) { (it % 256).toByte() }
         val githubApi = makeGithubApi { request ->
             assertEquals("/repos/wled/WLED/releases/assets/462495760", request.url.encodedPath)
-            respond(
-                content = binaryData,
-                status = HttpStatusCode.OK,
-                headers = headersOf(
-                    HttpHeaders.ContentType to listOf("application/octet-stream"),
-                    HttpHeaders.ContentLength to listOf("1024"),
-                ),
-            )
+            respondBinary()
         }
 
         val targetFile = File.createTempFile("github_test_download", ".bin").apply {
@@ -249,36 +248,24 @@ class GithubApiTest {
 
         val lastState = states.last()
         assertTrue(lastState is DownloadState.Failed)
-        if (case.expectedErrorMessage != null) {
-            assertEquals(case.expectedErrorMessage, (lastState as DownloadState.Failed).error?.message)
-        }
+        assertEquals(case.expectedErrorMessage, (lastState as DownloadState.Failed).error?.message)
         assertDownloadCleanedUp(targetFile)
     }
 
     @Test
     fun `downloadReleaseBinary cleans up file and rethrows CancellationException on cancellation`() = runTest {
-        val binaryData = ByteArray(1024) { (it % 256).toByte() }
-        val githubApi = makeGithubApi {
-            respond(
-                content = binaryData,
-                status = HttpStatusCode.OK,
-                headers = headersOf(
-                    HttpHeaders.ContentType to listOf("application/octet-stream"),
-                    HttpHeaders.ContentLength to listOf("1024"),
-                ),
-            )
-        }
+        val githubApi = makeGithubApi { respondBinary() }
 
         val targetFile = File.createTempFile("github_test_download_cancel", ".bin")
 
-        org.junit.jupiter.api.assertThrows<kotlinx.coroutines.CancellationException> {
+        assertThrows<CancellationException> {
             githubApi.downloadReleaseBinary(
                 asset = makeTestAsset(),
                 repoOwner = "wled",
                 repoName = "WLED",
                 targetFile = targetFile,
             ).collect {
-                throw kotlinx.coroutines.CancellationException("User cancelled download")
+                throw CancellationException("User cancelled download")
             }
         }
 
@@ -287,17 +274,7 @@ class GithubApiTest {
 
     @Test
     fun `downloadReleaseBinary preserves file when collector cancels after Finished`() = runTest {
-        val binaryData = ByteArray(1024) { (it % 256).toByte() }
-        val githubApi = makeGithubApi {
-            respond(
-                content = binaryData,
-                status = HttpStatusCode.OK,
-                headers = headersOf(
-                    HttpHeaders.ContentType to listOf("application/octet-stream"),
-                    HttpHeaders.ContentLength to listOf("1024"),
-                ),
-            )
-        }
+        val githubApi = makeGithubApi { respondBinary() }
 
         val targetFile = File.createTempFile("github_test_download_first_finished", ".bin").apply {
             deleteOnExit()
@@ -317,45 +294,59 @@ class GithubApiTest {
 
     data class FailedDownloadCase(
         val label: String,
-        val expectedErrorMessage: String? = null,
+        val expectedErrorMessage: String,
         val respondWith: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ) {
         override fun toString(): String = label
     }
 
     companion object {
+        private const val SAMPLE_ASSET_URL =
+            "https://api.github.com/repos/wled/WLED/releases/assets/462495760"
+
+        private fun staticFailureCase(
+            label: String,
+            expectedErrorMessage: String,
+            content: ByteArray,
+            status: HttpStatusCode = HttpStatusCode.OK,
+            headers: Headers = headersOf(
+                HttpHeaders.ContentType to listOf("application/octet-stream"),
+                HttpHeaders.ContentLength to listOf(content.size.toString()),
+            ),
+        ) = FailedDownloadCase(label = label, expectedErrorMessage = expectedErrorMessage) {
+            respond(content = content, status = status, headers = headers)
+        }
+
         @JvmStatic
         fun failedDownloadCases(): List<FailedDownloadCase> {
-            val jsonMetadata = """{"url":"https://api.github.com/repos/wled/WLED/releases/assets/462495760"}"""
-                .padEnd(1538, ' ')
+            val jsonMetadata = """{"url":"$SAMPLE_ASSET_URL"}""".padEnd(1538, ' ')
             return listOf(
-                FailedDownloadCase("HTTP error") {
-                    respond(
-                        content = "404 Not Found",
-                        status = HttpStatusCode.NotFound,
-                        headers = headersOf(HttpHeaders.ContentType, "text/plain"),
-                    )
-                },
-                FailedDownloadCase("JSON metadata response") {
-                    respond(
-                        content = jsonMetadata,
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(
-                            HttpHeaders.ContentType to listOf("application/json"),
-                            HttpHeaders.ContentLength to listOf(jsonMetadata.length.toString()),
-                        ),
-                    )
-                },
-                FailedDownloadCase("truncated before Content-Length") {
-                    respond(
-                        content = ByteArray(1024) { (it % 256).toByte() },
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(
-                            HttpHeaders.ContentType to listOf("application/octet-stream"),
-                            HttpHeaders.ContentLength to listOf("2048"),
-                        ),
-                    )
-                },
+                staticFailureCase(
+                    label = "HTTP error",
+                    expectedErrorMessage = "Download failed: HTTP 404 Not Found",
+                    content = "404 Not Found".encodeToByteArray(),
+                    status = HttpStatusCode.NotFound,
+                    headers = headersOf(HttpHeaders.ContentType, "text/plain"),
+                ),
+                staticFailureCase(
+                    label = "JSON metadata response",
+                    expectedErrorMessage = "Unexpected JSON response when downloading release binary from " +
+                        SAMPLE_ASSET_URL,
+                    content = jsonMetadata.encodeToByteArray(),
+                    headers = headersOf(
+                        HttpHeaders.ContentType to listOf("application/json"),
+                        HttpHeaders.ContentLength to listOf(jsonMetadata.length.toString()),
+                    ),
+                ),
+                staticFailureCase(
+                    label = "truncated before Content-Length",
+                    expectedErrorMessage = "Incomplete download: expected 2048 bytes, got 1024 bytes",
+                    content = ByteArray(1024) { (it % 256).toByte() },
+                    headers = headersOf(
+                        HttpHeaders.ContentType to listOf("application/octet-stream"),
+                        HttpHeaders.ContentLength to listOf("2048"),
+                    ),
+                ),
                 FailedDownloadCase(
                     label = "chunked stream closed with error",
                     expectedErrorMessage = "Stream reset mid-transfer",
@@ -369,16 +360,11 @@ class GithubApiTest {
                         headers = headersOf(HttpHeaders.ContentType, "application/octet-stream"),
                     )
                 },
-                FailedDownloadCase("empty response body") {
-                    respond(
-                        content = ByteArray(0),
-                        status = HttpStatusCode.OK,
-                        headers = headersOf(
-                            HttpHeaders.ContentType to listOf("application/octet-stream"),
-                            HttpHeaders.ContentLength to listOf("0"),
-                        ),
-                    )
-                },
+                staticFailureCase(
+                    label = "empty response body",
+                    expectedErrorMessage = "Download returned empty response body",
+                    content = ByteArray(0),
+                ),
             )
         }
     }
