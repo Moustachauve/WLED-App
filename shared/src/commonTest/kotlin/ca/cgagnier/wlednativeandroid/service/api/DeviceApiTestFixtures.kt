@@ -4,14 +4,12 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
 
 /** Real device json/info from WLED 16.0.1 (anonymized IP/MAC/BSSID). */
 internal val SAMPLE_INFO_JSON = """
@@ -76,7 +74,7 @@ internal class RecordingEngine(
     val lastRequest: HttpRequestData get() = requests.last()
 
     fun client(): HttpClient = HttpClient(engine) {
-        install(ContentNegotiation) { json(defaultJson) }
+        installDeviceHttpClientDefaults()
     }
 }
 

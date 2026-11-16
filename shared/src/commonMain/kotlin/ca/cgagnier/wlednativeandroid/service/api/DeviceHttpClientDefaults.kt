@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.service.api
 
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.contentnegotiation.ContentTypeMergeStrategy
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.pingInterval
 import io.ktor.serialization.kotlinx.json.json
@@ -14,6 +15,9 @@ import kotlin.time.Duration.Companion.seconds
  */
 fun HttpClientConfig<*>.installDeviceHttpClientDefaults(json: Json = defaultJson) {
     install(ContentNegotiation) {
+        // Avoid appending Accept: application/json when a request explicitly sets Accept
+        // (e.g. GitHub binary downloads).
+        acceptHeaderMergeStrategy = ContentTypeMergeStrategy.SkipIfPresent
         json(json)
     }
     install(WebSockets) {

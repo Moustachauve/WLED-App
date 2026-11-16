@@ -26,7 +26,7 @@ import ca.cgagnier.wlednativeandroid.shared.fileSystem as defaultFileSystem
 
 private const val TAG = "DeviceUpdateService"
 private val logger = Logger.withTag(TAG)
-private const val UPDATE_TIMEOUT_SECONDS = 120L
+private const val UPDATE_TIMEOUT_SECONDS = 180L
 
 /**
  * The minimum target version from which [RELEASE_NAME_OVERRIDES] are applied.
@@ -137,7 +137,14 @@ class DeviceUpdateService(
 
     fun couldDetermineAsset(): Boolean = couldDetermineAsset
 
-    fun isAssetFileCached(): Boolean = couldDetermineAsset && fs.exists(getPathForAsset())
+    fun isAssetFileCached(): Boolean {
+        if (!couldDetermineAsset) return false
+        val metadata = fs.metadataOrNull(getPathForAsset()) ?: return false
+        val cachedSize = metadata.size
+        return metadata.isRegularFile &&
+            cachedSize != null &&
+            if (asset.size > 0L) cachedSize == asset.size else cachedSize > 0L
+    }
 
     fun downloadBinary(repoOwner: String, repoName: String): Flow<DownloadState> = flow {
         val targetPath = getPathForAsset()
