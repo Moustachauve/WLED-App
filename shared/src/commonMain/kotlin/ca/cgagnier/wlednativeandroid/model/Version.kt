@@ -9,6 +9,8 @@ import kotlin.experimental.ExperimentalObjCName
 import kotlin.native.ObjCName
 import io.github.z4kn4fein.semver.Version as SemVersion
 
+private const val ISO_DATE_PREFIX_LENGTH = 10
+
 @Entity(
     indices = [Index(value = ["repositoryId", "tagName"], unique = true)],
     foreignKeys = [
@@ -59,18 +61,17 @@ data class Version(
         }
 
     /**
-     * Returns `true` when this release matches the [installedVersion] currently running on a
-     * device associated with [deviceRepositoryId].
+     * Formatted release subtitle combining [distinctReleaseName] and the ISO date prefix of
+     * [publishedDate], separated by `" • "`.
      */
-    fun matchesInstalledVersion(installedVersion: String?, deviceRepositoryId: Long): Boolean {
-        if (repositoryId != deviceRepositoryId || installedVersion.isNullOrBlank()) {
-            return false
+    val displaySubtitle: String
+        get() {
+            val datePrefix = publishedDate.take(ISO_DATE_PREFIX_LENGTH)
+            return listOfNotNull(
+                distinctReleaseName,
+                datePrefix.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
         }
-        return normalizeTagOrVersion(tagName).equals(
-            normalizeTagOrVersion(installedVersion),
-            ignoreCase = true,
-        )
-    }
 
     companion object {
         fun normalizeTagOrVersion(value: String): String = value.removePrefix("v").removePrefix("V")
@@ -86,8 +87,11 @@ data class Version(
          * Parses [tagName] as a relaxed SemVer, normalizing dot-separated pre-release suffixes
          * such as `v0.14.0.b27` into `v0.14.0-b27` when standard parsing fails.
          */
-        fun parseSemVer(tagName: String): SemVersion? = tagName.toVersionOrNull(strict = false)
-            ?: DOT_PRERELEASE_REGEX.replace(tagName, "$1-$2").toVersionOrNull(strict = false)
+        fun parseSemVer(tagName: String): SemVersion? {
+            val normalized = normalizeTagOrVersion(tagName)
+            return normalized.toVersionOrNull(strict = false)
+                ?: DOT_PRERELEASE_REGEX.replace(normalized, "$1-$2").toVersionOrNull(strict = false)
+        }
 
         /**
          * Returns `true` when [tagOrVersion] carries a SemVer or fork pre-release suffix

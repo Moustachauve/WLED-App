@@ -13,24 +13,30 @@ data class FirmwareBrowserUiState(
     val selectedRepositoryId: Long? = null,
     val selectedBranch: Branch = Branch.STABLE,
     val versions: List<VersionWithAssets> = emptyList(),
-    val isLoadingVersions: Boolean = false,
+    val installedTags: Set<String> = emptySet(),
+    val isLoadingVersions: Boolean = true,
     val loadError: Boolean = false,
-    val versionDetails: FirmwareVersionDetailsState? = null,
-    val disclaimerTarget: FirmwareInstallTarget? = null,
-    val installingTarget: FirmwareInstallTarget? = null,
+    val dialog: FirmwareBrowserDialog? = null,
 ) {
     val selectedRepository: Repository?
         get() = repositories.firstOrNull { it.id == selectedRepositoryId }
 }
 
-data class FirmwareVersionDetailsState(
-    val versionWithAssets: VersionWithAssets,
-    val installableAssets: List<Asset>,
-    val selectedAsset: Asset?,
-)
+sealed interface FirmwareBrowserDialog {
+    data class VersionDetails(
+        val versionWithAssets: VersionWithAssets,
+        val installableAssets: List<Asset>,
+        val selectedAsset: Asset?,
+    ) : FirmwareBrowserDialog
 
-@Immutable
-data class FirmwareInstallTarget(val versionWithAssets: VersionWithAssets, val selectedAsset: Asset)
+    data class Disclaimer(
+        val versionWithAssets: VersionWithAssets,
+        val selectedAsset: Asset,
+        val switchingToSourceName: String?,
+    ) : FirmwareBrowserDialog
+
+    data class Installing(val versionWithAssets: VersionWithAssets, val selectedAsset: Asset) : FirmwareBrowserDialog
+}
 
 @Immutable
 data class FirmwareBrowserActions(

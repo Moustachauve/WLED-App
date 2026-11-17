@@ -11,7 +11,6 @@ struct DeviceUpdateInstalling: View {
     var device: DeviceWithState
     let version: VersionWithAssets
     var selectedAsset: Asset?
-    var repositoryOwnerAndRepo: String?
     var database: AppDatabase = .shared
     var onInstallCompleted: () -> Void = {}
 
@@ -64,7 +63,6 @@ struct DeviceUpdateInstalling: View {
                     device: device,
                     version: version,
                     selectedAsset: selectedAsset,
-                    repositoryOwnerAndRepo: repositoryOwnerAndRepo,
                     skipValidation: retryWithoutValidation,
                     database: database
                 )
@@ -93,7 +91,6 @@ struct DeviceUpdateInstalling: View {
                 dismiss()
             } label: {
                 Text(dismissButtonText)
-                    .buttonStyle(.plain)
             }
             .disabled(!canDismiss)
         }

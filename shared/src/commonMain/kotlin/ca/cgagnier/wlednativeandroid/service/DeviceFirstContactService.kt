@@ -6,6 +6,7 @@ import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.repository.getOrCreateRepositoryId
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
+import ca.cgagnier.wlednativeandroid.service.update.explicitRepository
 import ca.cgagnier.wlednativeandroid.service.update.getRepositoryFromInfo
 import ca.cgagnier.wlednativeandroid.util.isIpAddress
 import ca.cgagnier.wlednativeandroid.util.sanitizeAddress
@@ -148,8 +149,8 @@ class DeviceFirstContactService(
 
     private suspend fun updateExistingDevice(existingDevice: Device, newAddress: String, info: Info): Device {
         val effectiveAddress = resolveEffectiveAddress(existingDevice.address, newAddress)
-        val deviceRepositoryStr = getRepositoryFromInfo(info)
-        val repoId = repositoryDao.getOrCreateRepositoryId(deviceRepositoryStr)
+        val repoId = info.explicitRepository()?.let { repositoryDao.getOrCreateRepositoryId(it) }
+            ?: existingDevice.repositoryId
 
         val addressChanged = existingDevice.address != effectiveAddress
         val nameChanged = existingDevice.originalName != info.name

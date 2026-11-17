@@ -202,7 +202,6 @@
     <string name="loading_versions">Versionen werden geladen…</string>
     <string name="failed_to_load_versions">Versionen konnten nicht von GitHub geladen werden</string>
     <string name="retry">Erneut versuchen</string>
-    <string name="refresh_versions">Versionen aktualisieren</string>
     <string name="ota_disabled_notice">OTA-Updates sind auf diesem Gerät deaktiviert</string>
     <string name="device_offline_install_notice">Verbinde dich mit diesem Gerät, um Firmware zu installieren</string>
     <string name="no_installable_binaries">Keine installierbaren Firmware-Dateien in dieser Version</string>

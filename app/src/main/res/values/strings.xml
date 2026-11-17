@@ -203,7 +203,6 @@
     <string name="loading_versions">Loading versions…</string>
     <string name="failed_to_load_versions">Could not load versions from GitHub</string>
     <string name="retry">Retry</string>
-    <string name="refresh_versions">Refresh versions</string>
     <string name="ota_disabled_notice">OTA updates are disabled on this device</string>
     <string name="device_offline_install_notice">Connect to this device to install firmware</string>
     <string name="no_installable_binaries">No installable firmware binaries in this release</string>

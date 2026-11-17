@@ -29,7 +29,7 @@ class DeviceRepository(private val deviceDao: DeviceDao) : DeviceStore {
 
     suspend fun updateIsHidden(macAddress: String, isHidden: Boolean) = deviceDao.updateIsHidden(macAddress, isHidden)
 
-    suspend fun updateSkipUpdateTag(macAddress: String, skipUpdateTag: String) =
+    override suspend fun updateSkipUpdateTag(macAddress: String, skipUpdateTag: String) =
         deviceDao.updateSkipUpdateTag(macAddress, skipUpdateTag)
 
     /** Updates the branch and clears the skipped version, since it belongs to the previous branch. */

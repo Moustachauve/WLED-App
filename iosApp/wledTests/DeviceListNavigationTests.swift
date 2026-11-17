@@ -300,58 +300,21 @@ struct DeviceListNavigationTests {
         try await assertAdvancingDetailStackFromEdit { .firmwareBrowser(deviceId: $0) }
     }
 
-    @Test func popToEditFromFirmwareVersionDetailsReturnsToEditScreen() async throws {
-        let harness = try await makeHarness()
-        defer { harness.tearDown() }
-
-        harness.navigation.openEdit(harness.deviceA)
-        try await waitForDetailState(
-            device: harness.deviceA,
-            path: [.edit(deviceId: harness.deviceA.id)],
-            depth: 2,
-            in: harness.window,
-            navigation: harness.navigation
-        )
-
-        let version = VersionWithAssets(
-            version: Version(
-                id: 1,
-                repositoryId: 1,
-                tagName: "v0.15.0",
-                name: "0.15.0",
-                description: "",
-                isPrerelease: false,
-                publishedDate: "2025-05-01T00:00:00Z",
-                htmlUrl: "https://github.com/wled/WLED/releases/tag/v0.15.0"
-            ),
-            assets: []
-        )
-        let browserPath: [DeviceDetailRoute] = [
-            .edit(deviceId: harness.deviceA.id),
-            .firmwareBrowser(deviceId: harness.deviceA.id),
-            .firmwareVersionDetails(
-                deviceId: harness.deviceA.id,
-                version: version,
-                repositoryName: "WLED",
-                repositoryOwnerAndRepo: "wled/WLED"
-            )
+    @Test func popToEditTruncatesDetailPathToEditRoute() {
+        let deviceA = WLED.DeviceWithState(initialDevice: Device(
+            macAddress: "AA:BB:CC:DD:EE:01",
+            address: "192.168.1.101",
+            originalName: "Device A"
+        ))
+        let navigation = DeviceListNavigation(selection: deviceA)
+        navigation.detailPathBinding.wrappedValue = [
+            .edit(deviceId: deviceA.id),
+            .firmwareBrowser(deviceId: deviceA.id),
+            .firmwareVersionDetails(deviceId: deviceA.id, repositoryId: 1, tagName: "0.15.0")
         ]
-        harness.navigation.detailPathBinding.wrappedValue = browserPath
-        try await waitForDetailState(
-            device: harness.deviceA,
-            path: browserPath,
-            depth: 4,
-            in: harness.window,
-            navigation: harness.navigation
-        )
 
-        harness.navigation.popToEdit()
-        try await waitForDetailState(
-            device: harness.deviceA,
-            path: [.edit(deviceId: harness.deviceA.id)],
-            depth: 2,
-            in: harness.window,
-            navigation: harness.navigation
-        )
+        navigation.popToEdit()
+
+        #expect(navigation.detailPath == [.edit(deviceId: deviceA.id)])
     }
 }

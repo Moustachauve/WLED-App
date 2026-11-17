@@ -156,7 +156,6 @@ val appModule: Module = module {
     viewModelOf(::ThemeViewModel)
     viewModel {
         UpdateInstallingViewModel(
-            deviceRepository = get(),
             repositoryDao = get(),
             deviceApiFactory = get(),
             githubApi = get(),
@@ -180,11 +179,9 @@ val appModule: Module = module {
     viewModel { (macAddress: String) ->
         FirmwareBrowserViewModel(
             macAddress = macAddress,
-            versionWithAssetsRepository = get(),
             githubApi = get(),
             releaseService = get(),
             deviceConnectionManager = get(),
-            ioDispatcher = get(IO_DISPATCHER),
         )
     }
     viewModel {

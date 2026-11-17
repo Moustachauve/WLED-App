@@ -58,16 +58,27 @@ struct DeviceEditView: View {
                 Card {
                     if !device.isOnline && device.stateInfo == nil {
                         DeviceOfflineUpdateStatus()
-                    } else if (device.availableUpdateVersion ?? "").isEmpty {
-                        DeviceNoUpdateAvailable(
-                            device: device,
-                            isCheckingForUpdates: viewModel.isCheckingForUpdates,
-                            onCheckForUpdate: {
-                                await viewModel.checkForUpdate()
-                            }
-                        )
                     } else {
-                        DeviceUpdateAvailable(device: device)
+                        if (device.availableUpdateVersion ?? "").isEmpty {
+                            DeviceNoUpdateAvailable(
+                                device: device,
+                                isCheckingForUpdates: viewModel.isCheckingForUpdates,
+                                onCheckForUpdate: {
+                                    await viewModel.checkForUpdate()
+                                }
+                            )
+                        } else {
+                            DeviceUpdateAvailable(device: device)
+                        }
+
+                        NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: device.id)) {
+                            Text("Other Versions & Sources")
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
                     }
 
                     if let repository = viewModel.repository {
@@ -130,34 +141,27 @@ struct DeviceNoUpdateAvailable: View {
     let onCheckForUpdate: () async -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Your device is up to date")
-            Text(
-                "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
-            )
-            VStack(spacing: 8) {
-                Button {
-                    Task {
-                        await onCheckForUpdate()
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isCheckingForUpdates {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                        Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isCheckingForUpdates)
-
-                OtherVersionsLink(deviceId: device.id)
+        Text("Your device is up to date")
+        Text(
+            "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
+        )
+        Button {
+            Task {
+                await onCheckForUpdate()
             }
-            .padding(.top, 2)
+        } label: {
+            HStack(spacing: 8) {
+                if isCheckingForUpdates {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.bordered)
+        .disabled(isCheckingForUpdates)
     }
 }
 
@@ -170,50 +174,29 @@ struct DeviceUpdateAvailable: View {
     private let unknownVersion = String(localized: "unknown_version")
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: getUpdateIconName())
-                    .resizable()
-                    // TODO: Migrate legacy aspectRatio to scaledToFill in a dedicated follow-up PR
-                    // swiftlint:disable:next all
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 30.0, height: 30.0)
-                    .padding(.trailing)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Update Available")
-                    Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
-                }
-            }
-            VStack(spacing: 8) {
-                NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
-                    Text("See Update")
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                OtherVersionsLink(deviceId: device.id)
+        HStack {
+            Image(systemName: getUpdateIconName())
+                .resizable()
+                // TODO: Migrate legacy aspectRatio to scaledToFill in a dedicated follow-up PR
+                // swiftlint:disable:next all
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 30.0, height: 30.0)
+                .padding(.trailing)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Update Available")
+                Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
             }
         }
+        NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
+            Text("See Update")
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
     }
 
     private func getUpdateIconName() -> String {
         "arrow.down.circle.dotted"
-    }
-}
-
-private struct OtherVersionsLink: View {
-    let deviceId: String
-
-    var body: some View {
-        NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: deviceId)) {
-            Text("Other Versions & Sources")
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
     }
 }
 

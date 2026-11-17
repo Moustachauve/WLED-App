@@ -32,11 +32,7 @@ class VersionWithAssetsRepository(
                 // (display name, description, and flags) when refreshing a known repository.
                 val existingRepo = repositoryDao.getRepositoryByOwnerAndRepo(repository.ownerAndRepo)
                 val repoId = existingRepo?.id ?: run {
-                    val isDefaultRepo = repository.ownerAndRepo.equals(
-                        Repository.DEFAULT_OWNER_REPO,
-                        ignoreCase = true,
-                    )
-                    val repoToInsert = if (isDefaultRepo) {
+                    val repoToInsert = if (repository.isOfficial) {
                         repository.copy(id = Repository.DEFAULT_ID)
                     } else {
                         repository
@@ -109,10 +105,6 @@ class VersionWithAssetsRepository(
     suspend fun getVersionByTag(repositoryId: Long, tagName: String): VersionWithAssets? =
         versionDao.getVersionByTagName(repositoryId, tagName)
 
-    fun observeAllRepositories(): Flow<List<Repository>> = repositoryDao.getAllRepositories()
-
-    suspend fun getRepositoryById(id: Long): Repository? = repositoryDao.getRepositoryById(id)
-
     /**
      * Streams all supported releases (with their binary assets) cached for [repositoryId].
      */
@@ -150,16 +142,16 @@ class VersionWithAssetsRepository(
          * (excluding unsupported `"nightly"` builds) and sorts them descending with the
          * most recent / highest version number first.
          */
-        fun filterAndSortVersions(versions: List<VersionWithAssets>, branch: Branch): List<VersionWithAssets> = versions
-            .filter { item ->
-                !item.version.tagName.equals(IGNORED_TAG, ignoreCase = true) &&
-                    when (branch) {
-                        Branch.BETA -> item.version.isBetaRelease
-                        Branch.STABLE, Branch.UNKNOWN -> !item.version.isBetaRelease
-                    }
-            }
-            .map { item -> item to (item.version to Version.parseSemVer(item.version.tagName)) }
-            .sortedWith { a, b -> semVerComparator.compare(b.second, a.second) }
-            .map { it.first }
+        fun filterAndSortVersions(versions: List<VersionWithAssets>, branch: Branch): List<VersionWithAssets> {
+            val wantBeta = branch == Branch.BETA
+            return versions
+                .filter { item ->
+                    !item.version.tagName.equals(IGNORED_TAG, ignoreCase = true) &&
+                        item.version.isBetaRelease == wantBeta
+                }
+                .map { item -> item to (item.version to Version.parseSemVer(item.version.tagName)) }
+                .sortedWith { a, b -> semVerComparator.compare(b.second, a.second) }
+                .map { it.first }
+        }
     }
 }

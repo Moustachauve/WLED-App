@@ -1,7 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -116,9 +115,7 @@ fun DeviceEdit(
             viewModel.hideUpdateDisclaimer()
             viewModel.startUpdateInstall(version)
         },
-        onInstallFinished = { wasSuccessful ->
-            viewModel.stopUpdateInstall(device = device, wasSuccessful = wasSuccessful)
-        },
+        onInstallFinished = { viewModel.stopUpdateInstall() },
     )
 
     DeviceEditContent(
@@ -232,7 +229,7 @@ fun DeviceEditContent(
         UpdateInstallingDialog(
             device = device,
             version = version,
-            onDismiss = actions.onInstallFinished,
+            onDismiss = { actions.onInstallFinished() },
         )
     }
 }
@@ -337,14 +334,23 @@ private fun UpdateStatusCard(
                         device = device,
                         updateTag = currentUpdateTag,
                         seeUpdateDetails = { onSeeUpdateDetails(currentUpdateTag) },
-                        browseVersions = onBrowseVersions,
                     )
                 } else {
                     NoUpdateAvailable(
                         device = device,
                         isCheckingUpdates = uiState.isCheckingUpdates,
                         checkForUpdate = onCheckForUpdates,
-                        browseVersions = onBrowseVersions,
+                    )
+                }
+                TextButton(
+                    onClick = onBrowseVersions,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.browse_versions),
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -438,14 +444,9 @@ private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit)
     }
 }
 
-/** Shows the current version and buttons to check for updates or browse versions. */
+/** Shows the current version and a button to check for updates. */
 @Composable
-private fun NoUpdateAvailable(
-    device: DeviceWithState,
-    isCheckingUpdates: Boolean,
-    checkForUpdate: () -> Unit,
-    browseVersions: () -> Unit,
-) {
+private fun NoUpdateAvailable(device: DeviceWithState, isCheckingUpdates: Boolean, checkForUpdate: () -> Unit) {
     Text(
         stringResource(R.string.your_device_is_up_to_date),
         style = MaterialTheme.typography.titleMedium,
@@ -457,100 +458,68 @@ private fun NoUpdateAvailable(
         ),
         style = MaterialTheme.typography.bodyMedium,
     )
-    Column(
+    OutlinedButton(
+        onClick = checkForUpdate,
+        enabled = !isCheckingUpdates,
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        OutlinedButton(
-            onClick = checkForUpdate,
-            enabled = !isCheckingUpdates,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isCheckingUpdates) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(16.dp),
-                    strokeWidth = 2.dp,
-                )
-            }
-            Text(
-                text = stringResource(
-                    if (isCheckingUpdates) {
-                        R.string.checking_progress_update
-                    } else {
-                        R.string.check_for_update
-                    },
-                ),
-                textAlign = TextAlign.Center,
-            )
-        }
-        OtherVersionsButton(onClick = browseVersions)
-    }
-}
-
-/** Shows the available version and buttons to view release details or browse all versions. */
-@Composable
-private fun UpdateAvailable(
-    device: DeviceWithState,
-    updateTag: String,
-    seeUpdateDetails: () -> Unit,
-    browseVersions: () -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
+        if (isCheckingUpdates) {
+            CircularProgressIndicator(
                 modifier = Modifier
-                    .padding(8.dp)
-                    .padding(end = 10.dp),
-                painter = painterResource(R.drawable.baseline_download_24),
-                contentDescription = stringResource(R.string.update_available),
+                    .padding(end = 8.dp)
+                    .size(16.dp),
+                strokeWidth = 2.dp,
             )
-            Column {
-                Text(
-                    stringResource(R.string.update_available),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    stringResource(
-                        R.string.from_version_to_version,
-                        device.stateInfo?.info?.version ?: "<?>",
-                        updateTag,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
         }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Button(
-                onClick = seeUpdateDetails,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.see_update_details),
-                    textAlign = TextAlign.Center,
-                )
-            }
-            OtherVersionsButton(onClick = browseVersions)
-        }
+        Text(
+            text = stringResource(
+                if (isCheckingUpdates) {
+                    R.string.checking_progress_update
+                } else {
+                    R.string.check_for_update
+                },
+            ),
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
+/** Shows the available version and a button to view release details. */
 @Composable
-private fun OtherVersionsButton(onClick: () -> Unit) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+private fun UpdateAvailable(device: DeviceWithState, updateTag: String, seeUpdateDetails: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            modifier = Modifier
+                .padding(8.dp)
+                .padding(end = 10.dp),
+            painter = painterResource(R.drawable.baseline_download_24),
+            contentDescription = stringResource(R.string.update_available),
+        )
+        Column {
+            Text(
+                stringResource(R.string.update_available),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                stringResource(
+                    R.string.from_version_to_version,
+                    device.stateInfo?.info?.version ?: "<?>",
+                    updateTag,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+    Button(
+        onClick = seeUpdateDetails,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
     ) {
         Text(
-            text = stringResource(R.string.browse_versions),
+            text = stringResource(R.string.see_update_details),
             textAlign = TextAlign.Center,
         )
     }

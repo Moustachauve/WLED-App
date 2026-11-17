@@ -200,7 +200,6 @@
     <string name="loading_versions">正在加载版本…</string>
     <string name="failed_to_load_versions">无法从 GitHub 加载版本</string>
     <string name="retry">重试</string>
-    <string name="refresh_versions">刷新版本</string>
     <string name="ota_disabled_notice">此设备已禁用 OTA 更新</string>
     <string name="device_offline_install_notice">连接此设备以安装固件</string>
     <string name="no_installable_binaries">此版本中没有可安装的固件文件</string>

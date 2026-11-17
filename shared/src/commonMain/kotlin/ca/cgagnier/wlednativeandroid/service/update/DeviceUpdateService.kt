@@ -66,35 +66,22 @@ class DeviceUpdateService(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     selectedAsset: Asset? = null,
 ) {
-    private var assetName: String = ""
-    private var couldDetermineAsset: Boolean = false
-    private lateinit var asset: Asset
-
-    init {
-        if (selectedAsset != null) {
-            asset = selectedAsset
-            assetName = selectedAsset.name
-            couldDetermineAsset = true
-        } else {
-            val resolution = resolveDefaultAsset(device.stateInfo?.info, versionWithAssets)
-            assetName = resolution.expectedAssetName
-            if (resolution.matchedAsset != null) {
-                asset = resolution.matchedAsset
-                assetName = resolution.matchedAsset.name
-                couldDetermineAsset = true
-            }
-        }
+    private val assetResolution: AssetResolution = if (selectedAsset != null) {
+        AssetResolution(matchedAsset = selectedAsset, expectedAssetName = selectedAsset.name)
+    } else {
+        resolveDefaultAsset(device.stateInfo?.info, versionWithAssets)
     }
+    private val resolvedAsset: Asset? = assetResolution.matchedAsset
 
     /**
      * Get the name of the asset to download.
      */
-    fun getAssetName(): String = assetName
+    fun getAssetName(): String = resolvedAsset?.name ?: assetResolution.expectedAssetName
 
-    fun couldDetermineAsset(): Boolean = couldDetermineAsset
+    fun couldDetermineAsset(): Boolean = resolvedAsset != null
 
     fun isAssetFileCached(): Boolean {
-        if (!couldDetermineAsset) return false
+        val asset = resolvedAsset ?: return false
         val metadata = fs.metadataOrNull(getPathForAsset()) ?: return false
         val cachedSize = metadata.size
         return metadata.isRegularFile &&
@@ -102,16 +89,10 @@ class DeviceUpdateService(
             if (asset.size > 0L) cachedSize == asset.size else cachedSize > 0L
     }
 
-    fun downloadBinary(repoOwner: String, repoName: String): Flow<DownloadState> = flow {
-        val targetPath = getPathForAsset()
-        targetPath.parent?.let(fs::createDirectories)
-        emitAll(githubApi.downloadReleaseBinary(asset, repoOwner, repoName, targetPath))
-    }.catch { error ->
-        if (error is CancellationException) throw error
-        emit(DownloadState.Failed(error))
-    }
-
     fun downloadBinary(repositoryDao: RepositoryDao): Flow<DownloadState> = flow {
+        val asset = checkNotNull(resolvedAsset) {
+            "Asset could not be determined for ${device.device.macAddress}."
+        }
         val targetRepoId = versionWithAssets.version.repositoryId
         val repo = repositoryDao.getRepositoryById(targetRepoId)
         val repoStr = repo?.ownerAndRepo
@@ -121,14 +102,16 @@ class DeviceUpdateService(
                 error("Repository $targetRepoId not found for ${versionWithAssets.version.tagName}")
             }
         val (repoOwner, repoName) = splitRepository(repoStr)
-        emitAll(downloadBinary(repoOwner, repoName))
+        val targetPath = getPathForAsset()
+        targetPath.parent?.let(fs::createDirectories)
+        emitAll(githubApi.downloadReleaseBinary(asset, repoOwner, repoName, targetPath))
     }.catch { error ->
         if (error is CancellationException) throw error
         emit(DownloadState.Failed(error))
     }
 
     fun getPathForAsset(): Path {
-        check(::asset.isInitialized) {
+        val asset = checkNotNull(resolvedAsset) {
             "Asset could not be determined for ${device.device.macAddress}."
         }
         return cacheDir /
@@ -226,9 +209,6 @@ class DeviceUpdateService(
          */
         fun determineDefaultAsset(info: Info?, versionWithAssets: VersionWithAssets): Asset? =
             resolveDefaultAsset(info, versionWithAssets).matchedAsset
-
-        fun determineDefaultAsset(device: DeviceWithState, versionWithAssets: VersionWithAssets): Asset? =
-            determineDefaultAsset(device.stateInfo?.info, versionWithAssets)
 
         private fun resolveDefaultAsset(info: Info?, versionWithAssets: VersionWithAssets): AssetResolution {
             val rawRelease = info?.release

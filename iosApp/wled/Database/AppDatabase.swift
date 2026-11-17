@@ -157,6 +157,11 @@ final class AppDatabase: Sendable {
             Self.logger.error("Failed to refresh releases for device: \(error.localizedDescription)")
         }
     }
+
+    func makeFirmwareBrowserStateHolder(device: Device) async -> FirmwareBrowserStateHolder {
+        await waitUntilReady()
+        return koinContainer.createFirmwareBrowserStateHolder(initialDevice: device)
+    }
     #endif
 }
 
@@ -177,5 +182,7 @@ extension Repository: @retroactive @unchecked Sendable {}
 extension DevicesDatabase: @retroactive @unchecked Sendable {}
 extension DeviceConnectionManager: @retroactive @unchecked Sendable {}
 extension DeviceUpdateService: @retroactive @unchecked Sendable {}
+extension FirmwareBrowserStateHolder: @retroactive @unchecked Sendable {}
+extension FirmwareBrowserState: @retroactive @unchecked Sendable {}
 extension DeviceFirstContactService: @retroactive @unchecked Sendable {}
 extension AddressValidator: @retroactive @unchecked Sendable {}

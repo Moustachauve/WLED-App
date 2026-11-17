@@ -58,19 +58,16 @@ struct DeviceFirmwareBrowserView: View {
                     ProgressView()
                 } else {
                     Button(
-                        "Refresh versions",
+                        "Refresh",
                         systemImage: "arrow.clockwise",
                         action: viewModel.refreshSelectedRepository
                     )
-                    .disabled(viewModel.isLoadingVersions || !viewModel.hasLoadedCachedVersions)
+                    .disabled(viewModel.isLoadingVersions)
                 }
             }
         }
-        .task(id: device.device.repositoryId) {
-            await viewModel.observeRepositories()
-        }
-        .task(id: viewModel.selectedRepositoryId) {
-            await viewModel.observeVersions(for: viewModel.selectedRepositoryId)
+        .task {
+            await viewModel.observe()
         }
     }
 
@@ -105,6 +102,7 @@ struct DeviceFirmwareBrowserView: View {
                         if let selected = viewModel.selectedRepository {
                             Text(verbatim: selected.name)
                                 .lineLimit(1)
+                                .layoutPriority(1)
                             if selected.isOfficial {
                                 OfficialSourceBadge()
                             }
@@ -115,6 +113,7 @@ struct DeviceFirmwareBrowserView: View {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
             }
@@ -135,8 +134,7 @@ struct DeviceFirmwareBrowserView: View {
 
     @ViewBuilder
     private var versionsContent: some View {
-        if (viewModel.isLoadingVersions || !viewModel.hasLoadedCachedVersions)
-            && viewModel.filteredVersions.isEmpty {
+        if viewModel.isLoadingVersions && viewModel.filteredVersions.isEmpty {
             HStack {
                 Spacer()
                 ProgressView("Loading versions…")
@@ -158,14 +156,13 @@ struct DeviceFirmwareBrowserView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 16)
         } else {
-            ForEach(viewModel.filteredVersions, id: \.version.tagName) { item in
-                let installed = viewModel.isInstalled(item)
+            ForEach(viewModel.filteredVersions, id: \.browserRowId) { item in
+                let installed = device.hasInstalled(item)
                 NavigationLink(
                     value: DeviceDetailRoute.firmwareVersionDetails(
                         deviceId: device.id,
-                        version: item,
-                        repositoryName: viewModel.selectedRepository?.name,
-                        repositoryOwnerAndRepo: viewModel.selectedRepository?.ownerAndRepo
+                        repositoryId: item.version.repositoryId,
+                        tagName: item.version.tagName
                     )
                 ) {
                     FirmwareVersionRow(
@@ -174,7 +171,6 @@ struct DeviceFirmwareBrowserView: View {
                     )
                 }
             }
-            .id(viewModel.selectedRepositoryId)
         }
     }
 }
@@ -188,7 +184,7 @@ private struct FirmwareVersionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: version.tagName)
                     .font(isInstalled ? .body.weight(.semibold) : .body)
-                let subtitle = buildSubtitle()
+                let subtitle = version.displaySubtitle
                 if !subtitle.isEmpty {
                     Text(verbatim: subtitle)
                         .font(.caption)
@@ -205,23 +201,13 @@ private struct FirmwareVersionRow: View {
         }
         .padding(.vertical, 2)
     }
-
-    private func buildSubtitle() -> String {
-        var parts: [String] = []
-        if let releaseName = version.distinctReleaseName {
-            parts.append(releaseName)
-        }
-        let datePrefix = String(version.publishedDate.prefix(10))
-        if !datePrefix.isEmpty {
-            parts.append(datePrefix)
-        }
-        return parts.joined(separator: " • ")
-    }
 }
 
 private struct OfficialSourceBadge: View {
     var body: some View {
         Text("Official")
+            .lineLimit(1)
+            .fixedSize()
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
@@ -241,11 +227,19 @@ private struct InstalledSourceBadge: View {
                 Text("Installed")
             }
         }
+        .lineLimit(1)
+        .fixedSize()
         .font(.caption.weight(.medium))
         .foregroundStyle(.tint)
         .padding(.horizontal, showIcon ? 10 : 8)
         .padding(.vertical, showIcon ? 4 : 3)
         .background(.tint.opacity(0.15), in: Capsule())
+    }
+}
+
+private extension VersionWithAssets {
+    var browserRowId: String {
+        "\(version.repositoryId):\(version.tagName)"
     }
 }
 

@@ -11,9 +11,8 @@ enum DeviceDetailRoute: Hashable {
     case firmwareBrowser(deviceId: String)
     case firmwareVersionDetails(
         deviceId: String,
-        version: VersionWithAssets,
-        repositoryName: String?,
-        repositoryOwnerAndRepo: String?
+        repositoryId: Int64,
+        tagName: String
     )
 }
 
@@ -88,21 +87,13 @@ struct DeviceView: View {
             case .firmwareBrowser:
                 DeviceFirmwareBrowserView(device: device)
                     .id(device.id)
-            case let .firmwareVersionDetails(
-                _,
-                version,
-                repositoryName,
-                repositoryOwnerAndRepo
-            ):
+            case let .firmwareVersionDetails(_, repositoryId, tagName):
                 DeviceUpdateDetails(
                     device: device,
-                    explicitVersion: version,
-                    repositoryName: repositoryName,
-                    repositoryOwnerAndRepo: repositoryOwnerAndRepo,
-                    showBinaryPicker: true,
+                    browserTarget: (repositoryId: repositoryId, tagName: tagName),
                     onInstallCompleted: onInstallCompleted
                 )
-                .id("\(device.id)-\(version.version.repositoryId)-\(version.version.tagName)")
+                .id("\(device.id)-\(repositoryId)-\(tagName)")
             }
         }
         .onChange(of: device.device.address) {

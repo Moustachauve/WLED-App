@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -18,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -53,6 +57,15 @@ fun UpdateInstallingDialog(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = LocalActivity.current
+
+    DisposableEffect(viewModel, activity) {
+        onDispose {
+            if (activity?.isChangingConfigurations != true) {
+                viewModel.resetState()
+            }
+        }
+    }
 
     LaunchedEffect(
         device.device.macAddress,
@@ -150,7 +163,8 @@ fun UpdateDialogContent(state: UpdateInstallingState) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .width(IntrinsicSize.Min),
+            .width(IntrinsicSize.Min)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         UpdateInstallingStatus(
@@ -290,7 +304,7 @@ class SampleStateStepProvider : PreviewParameterProvider<UpdateInstallingState> 
                 canRetryWithoutValidation = true,
             ),
             canDismiss = true,
-            assetName = "WLED_16.0.0_Dig2Go-Audioreactive.bin",
+            assetName = "WLED_0.15.0_Dig2Go-Audioreactive.bin",
         ),
         UpdateInstallingState(
             step = UpdateInstallingStep.Done,

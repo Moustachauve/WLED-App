@@ -136,23 +136,9 @@ class DeviceEditViewModel(
         updateInstallVersion.value = version
     }
 
-    /**
-     * Called when the OTA install dialog is dismissed or completed.
-     * Updates device state if successful.
-     */
-    fun stopUpdateInstall(
-        device: DeviceWithState? = null,
-        version: VersionWithAssets? = updateInstallVersion.value,
-        wasSuccessful: Boolean = false,
-    ) {
+    /** Clears active install dialog state when the OTA install dialog is dismissed. */
+    fun stopUpdateInstall() {
         updateInstallVersion.value = null
-        if (!wasSuccessful || device == null || version == null) {
-            return
-        }
-        deviceConnectionManager.markUpdateInstalled(
-            macAddress = device.device.macAddress,
-            installedVersionTag = version.version.tagName,
-        )
     }
 
     /**

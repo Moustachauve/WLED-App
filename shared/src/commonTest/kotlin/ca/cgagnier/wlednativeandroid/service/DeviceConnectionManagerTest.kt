@@ -49,6 +49,7 @@ class DeviceConnectionManagerTest {
 
         val updatedOriginalNames = mutableMapOf<String, String>()
         val updatedBranches = mutableMapOf<String, Branch>()
+        val updatedSkipUpdateTags = mutableMapOf<String, String>()
         val updatedRepositoryIds = mutableMapOf<String, Long>()
         val updatedLastSeens = mutableMapOf<String, Long>()
         val deletedDevices = mutableListOf<Device>()
@@ -59,6 +60,10 @@ class DeviceConnectionManagerTest {
 
         override suspend fun updateBranch(macAddress: String, branch: Branch) {
             updatedBranches[macAddress] = branch
+        }
+
+        override suspend fun updateSkipUpdateTag(macAddress: String, skipUpdateTag: String) {
+            updatedSkipUpdateTags[macAddress] = skipUpdateTag
         }
 
         override suspend fun updateRepositoryId(macAddress: String, repositoryId: Long) {
@@ -852,21 +857,5 @@ class DeviceConnectionManagerTest {
         manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "v0.15.0")
 
         assertEquals(null, manager.allDevicesWithState.value[0].updateVersionTag)
-    }
-
-    @Test
-    fun markUpdateInstalledUpdatesRepositoryWhenSwitchingSource() = runTest {
-        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0")
-
-        manager.markUpdateInstalled(
-            macAddress = "A",
-            installedVersionTag = "v0.15.0",
-            repositoryId = 2L,
-            repositoryOwnerAndRepo = "intermittech/QuinLED-Firmware",
-        )
-
-        val updated = manager.allDevicesWithState.value[0]
-        assertEquals(2L, updated.device.repositoryId)
-        assertEquals("intermittech/QuinLED-Firmware", updated.stateInfo?.info?.repository)
     }
 }

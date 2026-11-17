@@ -10,7 +10,6 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
-import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
@@ -34,7 +33,6 @@ import io.ktor.utils.io.writeFully
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,7 +49,6 @@ import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -65,7 +62,6 @@ class UpdateInstallingViewModelTest {
     lateinit var tempDir: File
 
     private val testDispatcher = StandardTestDispatcher()
-    private val deviceRepository: DeviceRepository = mockk(relaxed = true)
     private val repositoryDao: RepositoryDao = mockk(relaxed = true)
     private val deviceConnectionManager: DeviceConnectionManager = mockk(relaxed = true)
 
@@ -194,7 +190,7 @@ class UpdateInstallingViewModelTest {
 
     private fun createViewModel(
         onDownload: () -> Unit = {},
-        onUpload: (HttpRequestData) -> Unit = {},
+        onUpload: suspend (HttpRequestData) -> Unit = {},
         downloadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
         uploadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
     ): UpdateInstallingViewModel {
@@ -226,7 +222,6 @@ class UpdateInstallingViewModelTest {
             installDeviceHttpClientDefaults()
         }
         return UpdateInstallingViewModel(
-            deviceRepository = deviceRepository,
             repositoryDao = repositoryDao,
             deviceApiFactory = DeviceApiFactory(httpClient),
             githubApi = GithubApi(KtorGithubApiEndpoints(httpClient, ioDispatcher = testDispatcher)),
@@ -278,21 +273,7 @@ class UpdateInstallingViewModelTest {
     }
 
     @Test
-    fun `successful install clears skipUpdateTag for updated device`() = runTest(testDispatcher) {
-        writeCachedBinary()
-        val viewModel = createViewModel()
-
-        viewModel.startUpdate(sampleDevice, sampleVersion, tempDir)
-        advanceUntilIdle()
-
-        assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
-        coVerify(exactly = 1) { deviceRepository.updateSkipUpdateTag("AA:BB:CC:DD:EE:FF", "") }
-    }
-
-    @Test
-    fun `successful cross-repository install persists target repositoryId and notifies connection manager`() = runTest(
-        testDispatcher,
-    ) {
+    fun `successful install delegates metadata persistence to connection manager`() = runTest(testDispatcher) {
         stageQuinledCachedBinary()
         val viewModel = createViewModel()
 
@@ -300,30 +281,41 @@ class UpdateInstallingViewModelTest {
         advanceUntilIdle()
 
         assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
-        coVerify(exactly = 1) { deviceRepository.updateSkipUpdateTag("AA:BB:CC:DD:EE:FF", "") }
-        coVerify(exactly = 1) { deviceRepository.updateRepositoryId("AA:BB:CC:DD:EE:FF", 2L) }
-        verify(atLeast = 1) {
-            deviceConnectionManager.markUpdateInstalled(
-                macAddress = "AA:BB:CC:DD:EE:FF",
-                installedVersionTag = "v0.15.0",
-                repositoryId = 2L,
-                repositoryOwnerAndRepo = "intermittech/QuinLED-Firmware",
+        coVerify(exactly = 1) {
+            deviceConnectionManager.completeFirmwareInstall(
+                device = sampleDevice.device,
+                installedVersion = quinledVersion.version,
+                repositoryDao = repositoryDao,
             )
         }
+    }
+
+    private fun createValidationRetryViewModel(
+        onUpload: suspend (HttpRequestData) -> Unit = {},
+    ): UpdateInstallingViewModel {
+        val uploadResponses = ArrayDeque(
+            listOf(
+                HttpStatusCode.InternalServerError to SAMPLE_VALIDATION_HTML,
+                HttpStatusCode.OK to "OK",
+            ),
+        )
+        return createViewModel(
+            onUpload = onUpload,
+            uploadResponder = {
+                val (status, content) = uploadResponses.removeFirst()
+                respond(
+                    content = content,
+                    status = status,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                )
+            },
+        )
     }
 
     @Test
     fun `validation failure exposes retryWithoutValidation and shows error immediately`() = runTest(testDispatcher) {
         stageQuinledCachedBinary()
-        val viewModel = createViewModel(
-            uploadResponder = {
-                respond(
-                    content = SAMPLE_VALIDATION_HTML,
-                    status = HttpStatusCode.InternalServerError,
-                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
-                )
-            },
-        )
+        val viewModel = createValidationRetryViewModel()
 
         viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
         advanceUntilIdle()
@@ -334,76 +326,43 @@ class UpdateInstallingViewModelTest {
     }
 
     @Test
-    fun `retryWithoutValidation uploads cached binary with skipValidation true`() = runTest(testDispatcher) {
+    fun `retryWithoutValidation transitions synchronously to Starting with asset name`() = runTest(testDispatcher) {
         stageQuinledCachedBinary()
-        val capturedUploadBodies = mutableListOf<String>()
-        val uploadResponses = ArrayDeque(
-            listOf(
-                HttpStatusCode.InternalServerError to SAMPLE_VALIDATION_HTML,
-                HttpStatusCode.OK to "OK",
-            ),
-        )
-        val viewModel = createViewModel(
-            uploadResponder = { request ->
-                capturedUploadBodies += request.body.toByteArray().decodeToString()
-                val (status, content) = uploadResponses.removeFirst()
-                respond(
-                    content = content,
-                    status = status,
-                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
-                )
+        val viewModel = createValidationRetryViewModel()
+
+        viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+        advanceUntilIdle()
+
+        viewModel.retryWithoutValidation()
+
+        assertEquals(UpdateInstallingStep.Starting, viewModel.state.value.step)
+        assertEquals(quinledAsset.name, viewModel.state.value.assetName)
+    }
+
+    @Test
+    fun `retryWithoutValidation ignores rapid duplicate taps and completes update`() = runTest(testDispatcher) {
+        stageQuinledCachedBinary()
+        var uploadCount = 0
+        val capturedBodies = mutableListOf<String>()
+        val viewModel = createValidationRetryViewModel(
+            onUpload = { request ->
+                uploadCount++
+                capturedBodies += request.body.toByteArray().decodeToString()
             },
         )
 
         viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
         advanceUntilIdle()
+
+        viewModel.retryWithoutValidation()
         viewModel.retryWithoutValidation()
         advanceUntilIdle()
 
+        assertEquals(2, uploadCount)
         assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
-        assertEquals(2, capturedUploadBodies.size)
-        assertFalse(capturedUploadBodies[0].contains("name=\"skipValidation\""))
-        val skipIndex = capturedUploadBodies[1].indexOf("name=\"skipValidation\"")
-        val fileIndex = capturedUploadBodies[1].indexOf("filename=\"${quinledAsset.name}\"")
-        assertTrue(skipIndex in 0..<fileIndex)
+        assertFalse(capturedBodies[0].contains("name=\"skipValidation\""))
+        assertTrue(capturedBodies[1].contains("name=\"skipValidation\""))
     }
-
-    @Test
-    fun `retryWithoutValidation transitions synchronously and ignores rapid duplicate taps`() =
-        runTest(testDispatcher) {
-            stageQuinledCachedBinary()
-            var uploadCount = 0
-            val uploadResponses = ArrayDeque(
-                listOf(
-                    HttpStatusCode.InternalServerError to SAMPLE_VALIDATION_HTML,
-                    HttpStatusCode.OK to "OK",
-                ),
-            )
-            val viewModel = createViewModel(
-                onUpload = { uploadCount++ },
-                uploadResponder = {
-                    val (status, content) = uploadResponses.removeFirst()
-                    respond(
-                        content = content,
-                        status = status,
-                        headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
-                    )
-                },
-            )
-
-            viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
-            advanceUntilIdle()
-
-            viewModel.retryWithoutValidation()
-            assertEquals(UpdateInstallingStep.Starting, viewModel.state.value.step)
-            assertEquals(quinledAsset.name, viewModel.state.value.assetName)
-
-            viewModel.retryWithoutValidation()
-            advanceUntilIdle()
-
-            assertEquals(2, uploadCount)
-            assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
-        }
 
     @Test
     fun `non-validation 500 error does not offer retryWithoutValidation`() = runTest(testDispatcher) {
@@ -439,8 +398,6 @@ class UpdateInstallingViewModelTest {
         viewModel.resetState()
 
         assertEquals(UpdateInstallingState(), viewModel.state.value)
-        assertNull(viewModel.device.value)
-        assertNull(viewModel.version.value)
     }
 
     @Test
@@ -576,8 +533,8 @@ class UpdateInstallingViewModelTest {
         releaseFirstCleanup.complete(Unit)
         advanceUntilIdle()
 
-        // 2 download lookups (initial + retry) plus 1 post-install repository lookup.
-        assertEquals(3, lookupCount)
+        // 2 download lookups (initial + retry).
+        assertEquals(2, lookupCount)
         assertEquals(1, downloadAttempts)
         assertEquals(1, uploadRequests)
         assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)

@@ -45,6 +45,13 @@ final class DeviceWithState: Identifiable {
         return !(availableUpdateVersion ?? "").isEmpty
     }
 
+    func hasInstalled(_ version: VersionWithAssets) -> Bool {
+        version.matchesInstalledVersion(
+            installedVersion: stateInfo?.info.version,
+            deviceRepositoryId: device.repositoryId
+        )
+    }
+
     // MARK: - Helper Functions
 
     /**

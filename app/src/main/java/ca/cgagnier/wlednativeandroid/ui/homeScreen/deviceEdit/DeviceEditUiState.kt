@@ -37,5 +37,5 @@ data class DeviceEditActions(
     val onInstallUpdate: (VersionWithAssets) -> Unit = {},
     val onHideUpdateDisclaimer: () -> Unit = {},
     val onAcceptUpdateDisclaimer: (VersionWithAssets) -> Unit = {},
-    val onInstallFinished: (Boolean) -> Unit = {},
+    val onInstallFinished: () -> Unit = {},
 )

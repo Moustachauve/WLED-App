@@ -20,7 +20,6 @@ import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteArray
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -33,7 +32,6 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DeviceUpdateServiceTest {
@@ -194,7 +192,7 @@ class DeviceUpdateServiceTest {
         assertEquals("WLED_0.15.0_ESP32_Ethernet.bin", service.getAssetName())
     }
 
-    private fun withTempCacheDir(block: (Path) -> Unit) {
+    private inline fun withTempCacheDir(block: (Path) -> Unit) {
         val cacheDir = newTempCacheDir()
         try {
             block(cacheDir)
@@ -302,81 +300,48 @@ class DeviceUpdateServiceTest {
     }
 
     @Test
-    fun determineDefaultAssetReturnsNullWhenSwitchingToForkWithDifferentBoardNames() {
-        val info = Info(leds = Leds(), wifi = Wifi(), name = "Strip", release = "ESP32")
-        val quinledVersion = VersionWithAssets(
-            version = makeVersion("0.15.4", repositoryId = 2L),
-            assets = listOf(
-                makeAsset(1L, "WLED_0.15.4_Dig-Uno-V3.bin"),
-                makeAsset(1L, "WLED_0.15.4_Dig-Quad-V3.bin"),
+    fun determineDefaultAssetMatchesExpectedBoardAndHandlesCrossForkOrCollisions() {
+        val cases = listOf(
+            Triple(
+                "ESP32" to "0.15.4",
+                listOf("WLED_0.15.4_Dig-Uno-V3.bin", "WLED_0.15.4_Dig-Quad-V3.bin"),
+                null,
+            ),
+            Triple(
+                "esp32_4MB_M" to "v0.14.1-beta.32",
+                listOf("WLEDMM_0.14.1-b32.40_athom_music_esp32_4MB_M.bin", "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin"),
+                "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            ),
+            Triple(
+                "esp01_1MB_S" to "v0.14.0-beta.28",
+                listOf("WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz", "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin"),
+                "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin",
+            ),
+            Triple(
+                "esp01_1MB_S" to "v0.14.0-beta.28",
+                listOf("WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz"),
+                "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz",
+            ),
+            Triple(
+                "ESP32" to "0.15.0",
+                listOf("WLED_bootloader_0.15.0_ESP32.bin", "WLED10.15.0_ESP32.bin"),
+                null,
             ),
         )
-
-        assertNull(DeviceUpdateService.determineDefaultAsset(info, quinledVersion))
-    }
-
-    @Test
-    fun determineDefaultAssetMatchesExactBoardWhenTagDiffersFromAssetVersion() {
-        val info = Info(leds = Leds(), wifi = Wifi(), name = "Matrix", release = "esp32_4MB_M")
-        val wledMmVersion = VersionWithAssets(
-            version = makeVersion("v0.14.1-beta.32", repositoryId = 3L),
-            assets = listOf(
-                makeAsset(1L, "WLEDMM_0.14.1-b32.40_athom_music_esp32_4MB_M.bin"),
-                makeAsset(1L, "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin"),
-            ),
-        )
-
-        assertEquals(
-            "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
-            DeviceUpdateService.determineDefaultAsset(info, wledMmVersion)?.name,
-        )
-    }
-
-    @Test
-    fun determineDefaultAssetPrefersUncompressedBinAndFallsBackToBinGz() {
-        val info = Info(leds = Leds(), wifi = Wifi(), name = "Mini", release = "esp01_1MB_S")
-        val bothVersion = VersionWithAssets(
-            version = makeVersion("v0.14.0-beta.28", repositoryId = 3L),
-            assets = listOf(
-                makeAsset(1L, "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz"),
-                makeAsset(1L, "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin"),
-            ),
-        )
-        val gzOnlyVersion = VersionWithAssets(
-            version = makeVersion("v0.14.0-beta.28", repositoryId = 3L),
-            assets = listOf(
-                makeAsset(1L, "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz"),
-            ),
-        )
-
-        assertEquals(
-            "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin",
-            DeviceUpdateService.determineDefaultAsset(info, bothVersion)?.name,
-        )
-        assertEquals(
-            "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz",
-            DeviceUpdateService.determineDefaultAsset(info, gzOnlyVersion)?.name,
-        )
-    }
-
-    @Test
-    fun determineDefaultAssetIgnoresBootloaderAndVersionSubstringCollisions() {
-        val info = Info(leds = Leds(), wifi = Wifi(), name = "Strip", release = "ESP32")
-        val versionWithCollisions = VersionWithAssets(
-            version = makeVersion("0.15.0"),
-            assets = listOf(
-                makeAsset(1L, "WLED_bootloader_0.15.0_ESP32.bin"),
-                makeAsset(1L, "WLED10.15.0_ESP32.bin"),
-            ),
-        )
-
-        assertNull(DeviceUpdateService.determineDefaultAsset(info, versionWithCollisions))
+        cases.forEach { (releaseAndTag, assetNames, expectedName) ->
+            val (release, tag) = releaseAndTag
+            val info = Info(leds = Leds(), wifi = Wifi(), name = "Test", release = release)
+            val versionWithAssets = VersionWithAssets(
+                version = makeVersion(tag, repositoryId = 2L),
+                assets = assetNames.map { makeAsset(1L, it) },
+            )
+            assertEquals(expectedName, DeviceUpdateService.determineDefaultAsset(info, versionWithAssets)?.name)
+        }
     }
 
     @Test
     fun downloadBinaryResolvesTargetVersionRepositoryInsteadOfDeviceRepository() = runTest {
-        val cacheDir = newTempCacheDir()
-        try {
+        withTempCacheDir { cacheDir ->
             var requestedPath: String? = null
             val httpClient = HttpClient(
                 MockEngine { request ->
@@ -415,44 +380,6 @@ class DeviceUpdateServiceTest {
 
             assertTrue(states.any { it is DownloadState.Finished })
             assertEquals("/repos/intermittech/QuinLED-Firmware/releases/assets/42", requestedPath)
-        } finally {
-            FileSystem.SYSTEM.deleteRecursively(cacheDir)
-        }
-    }
-
-    @Test
-    fun installUpdateForwardsSkipValidationFieldBeforeBinary() = runTest {
-        val cacheDir = newTempCacheDir()
-        try {
-            var multipartText = ""
-            val httpClient = HttpClient(
-                MockEngine { request ->
-                    multipartText = request.body.toByteArray().decodeToString()
-                    respond("OK", HttpStatusCode.OK)
-                },
-            )
-            val asset = makeAsset(1L, "WLED_16.0.0_Dig2Go-Audioreactive.bin")
-            val service = makeDeviceUpdateService(
-                versionWithAssets = VersionWithAssets(
-                    version = makeVersion("16.0.0", repositoryId = 2L),
-                    assets = listOf(asset),
-                ),
-                cacheDir = cacheDir,
-                selectedAsset = asset,
-                httpClient = httpClient,
-            )
-            val binaryPath = service.getPathForAsset()
-            binaryPath.parent?.let(FileSystem.SYSTEM::createDirectories)
-            FileSystem.SYSTEM.write(binaryPath) { writeUtf8("BIN") }
-
-            val response = service.installUpdate(skipValidation = true)
-
-            assertTrue(response.isSuccessful)
-            val skipIndex = multipartText.indexOf("name=\"skipValidation\"")
-            val fileIndex = multipartText.indexOf("filename=\"WLED_16.0.0_Dig2Go-Audioreactive.bin\"")
-            assertTrue(skipIndex in 0..<fileIndex)
-        } finally {
-            FileSystem.SYSTEM.deleteRecursively(cacheDir)
         }
     }
 

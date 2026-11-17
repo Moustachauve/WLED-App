@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.di
 
 import androidx.datastore.core.DataStore
 import ca.cgagnier.wlednativeandroid.domain.AddressValidator
+import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.DevicesDatabase
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
@@ -22,6 +23,7 @@ import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.createHttpClient
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.update.DeviceUpdateManager
+import ca.cgagnier.wlednativeandroid.service.update.FirmwareBrowserStateHolder
 import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceConnectionFactory
 import ca.cgagnier.wlednativeandroid.service.websocket.NoOpDeviceConnectionFactory
@@ -74,6 +76,16 @@ class KoinContainer private constructor(
     val deviceUpdateManager: DeviceUpdateManager get() = koin.get()
     val githubApi: GithubApi get() = koin.get()
     val deviceApiFactory: DeviceApiFactory get() = koin.get()
+
+    fun createFirmwareBrowserStateHolder(initialDevice: Device): FirmwareBrowserStateHolder =
+        FirmwareBrowserStateHolder(
+            macAddress = initialDevice.macAddress,
+            githubApi = githubApi,
+            releaseService = releaseService,
+            deviceConnectionManager = deviceConnectionManager,
+            coroutineScope = koin.get(),
+            initialDevice = initialDevice,
+        )
 
     fun close() {
         koinApplication.close()

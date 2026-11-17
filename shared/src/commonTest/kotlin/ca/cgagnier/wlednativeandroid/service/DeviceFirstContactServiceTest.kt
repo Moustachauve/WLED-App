@@ -132,10 +132,11 @@ class DeviceFirstContactServiceTest {
     private fun infoJson(
         name: String = "WLED Office",
         mac: String? = "001122334455",
-        repo: String = "wled/WLED",
+        repo: String? = "wled/WLED",
     ): String {
         val macField = mac?.let { """"mac": "$it",""" } ?: ""
-        return """{ $macField "name": "$name", "ver": "0.15.0", "repo": "$repo", "leds": {}, "wifi": {} }"""
+        val repoField = repo?.let { """"repo": "$it",""" } ?: ""
+        return """{ $macField "name": "$name", "ver": "0.15.0", $repoField "leds": {}, "wifi": {} }"""
     }
 
     private fun makeService(engine: RecordingEngine): DeviceFirstContactService = DeviceFirstContactService(
@@ -210,6 +211,19 @@ class DeviceFirstContactServiceTest {
         assertEquals(0, deviceDao.updateOriginalNameCalls)
         assertEquals(0, deviceDao.updateRepositoryIdCalls)
         assertTrue(updatedCallbackDevices.isEmpty())
+    }
+
+    @Test
+    fun fetchAndUpsertDevicePreservesExistingRepositoryWhenInfoOmitsExplicitRepo() = runTest {
+        deviceRepository.insert(
+            Device(macAddress = "001122334455", address = "10.0.0.1", originalName = "WLED Office", repositoryId = 42L),
+        )
+        listOf(null, "unknown").forEach { reportedRepo ->
+            val engine = respondingWith(infoJson(name = "WLED Office", mac = "001122334455", repo = reportedRepo))
+            val updated = makeService(engine).fetchAndUpsertDevice("10.0.0.1")
+            assertEquals(42L, updated.repositoryId)
+        }
+        assertEquals(0, deviceDao.updateRepositoryIdCalls)
     }
 
     @Test

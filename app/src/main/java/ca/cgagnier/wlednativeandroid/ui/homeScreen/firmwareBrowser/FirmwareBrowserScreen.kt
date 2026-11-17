@@ -4,8 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -59,21 +56,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
-import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
-import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsDialog
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsMode
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.preview.getPreviewDevice
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-
-private const val ISO_DATE_PREFIX_LENGTH = 10
 
 @Composable
 fun FirmwareBrowserScreen(
@@ -125,18 +120,30 @@ fun FirmwareBrowserContent(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 800.dp)
-                    .fillMaxSize(),
-            ) {
-                FirmwareBrowserHeader(uiState = uiState, actions = actions)
+            Column(modifier = Modifier.widthIn(max = 800.dp).fillMaxSize()) {
+                val installedRepositoryId = uiState.device?.device?.repositoryId
+                val selectedRepository = uiState.selectedRepository
+                RepositoryDropdown(
+                    repositories = uiState.repositories,
+                    selectedRepository = selectedRepository,
+                    installedRepositoryId = installedRepositoryId,
+                    onSelectRepository = actions.onSelectRepository,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                if (selectedRepository != null &&
+                    installedRepositoryId != null &&
+                    selectedRepository.id != installedRepositoryId
+                ) {
+                    SourceSwitchWarningBanner(
+                        sourceName = selectedRepository.name,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
+                    )
+                }
+                BranchTabs(uiState.selectedBranch, actions.onSelectBranch)
                 VersionListContainer(
                     uiState = uiState,
                     onRefresh = actions.onRefresh,
@@ -147,42 +154,7 @@ fun FirmwareBrowserContent(
         }
     }
 
-    FirmwareBrowserDialogs(
-        uiState = uiState,
-        actions = actions,
-        navigateUp = navigateUp,
-    )
-}
-
-@Composable
-private fun FirmwareBrowserHeader(uiState: FirmwareBrowserUiState, actions: FirmwareBrowserActions) {
-    val installedRepositoryId = uiState.device?.device?.repositoryId
-    val selectedRepository = uiState.selectedRepository
-    RepositoryDropdown(
-        repositories = uiState.repositories,
-        selectedRepository = selectedRepository,
-        installedRepositoryId = installedRepositoryId,
-        onSelectRepository = actions.onSelectRepository,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-    if (selectedRepository != null &&
-        installedRepositoryId != null &&
-        selectedRepository.id != installedRepositoryId
-    ) {
-        SourceSwitchWarningBanner(
-            sourceName = selectedRepository.name,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 8.dp),
-        )
-    }
-    BranchTabs(
-        selectedBranch = uiState.selectedBranch,
-        onSelectBranch = actions.onSelectBranch,
-    )
+    FirmwareBrowserDialogs(uiState = uiState, actions = actions, navigateUp = navigateUp)
 }
 
 @Composable
@@ -192,43 +164,47 @@ private fun FirmwareBrowserDialogs(
     navigateUp: () -> Unit,
 ) {
     val device = uiState.device
-
-    uiState.versionDetails?.let { details ->
-        FirmwareVersionDetailsDialog(
-            details = details,
-            device = device,
-            repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
-            actions = actions,
-        )
-    }
-
-    uiState.disclaimerTarget?.let { target ->
-        val targetRepoId = target.versionWithAssets.version.repositoryId
-        val switchingToSourceName = if (device != null && targetRepoId != device.device.repositoryId) {
-            uiState.repositories.firstOrNull { it.id == targetRepoId }?.name
-        } else {
-            null
+    when (val dialog = uiState.dialog) {
+        is FirmwareBrowserDialog.VersionDetails -> {
+            UpdateDetailsDialog(
+                device = device,
+                version = dialog.versionWithAssets,
+                onDismiss = actions.onDismissVersionDetails,
+                onInstall = { actions.onRequestInstall() },
+                mode = UpdateDetailsMode.BinaryPicker(
+                    repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
+                    installableAssets = dialog.installableAssets,
+                    selectedAsset = dialog.selectedAsset,
+                    onSelectAsset = actions.onSelectBinaryAsset,
+                ),
+            )
         }
-        UpdateDisclaimerDialog(
-            onDismiss = actions.onDismissDisclaimer,
-            onAccept = actions.onConfirmDisclaimer,
-            switchingToSourceName = switchingToSourceName,
-        )
-    }
 
-    val installingTarget = uiState.installingTarget
-    if (installingTarget != null && device != null) {
-        UpdateInstallingDialog(
-            device = device,
-            version = installingTarget.versionWithAssets,
-            selectedAsset = installingTarget.selectedAsset,
-            onDismiss = { wasSuccessful ->
-                actions.onInstallFinished()
-                if (wasSuccessful) {
-                    navigateUp()
-                }
-            },
-        )
+        is FirmwareBrowserDialog.Disclaimer -> {
+            UpdateDisclaimerDialog(
+                onDismiss = actions.onDismissDisclaimer,
+                onAccept = actions.onConfirmDisclaimer,
+                switchingToSourceName = dialog.switchingToSourceName,
+            )
+        }
+
+        is FirmwareBrowserDialog.Installing -> {
+            if (device != null) {
+                UpdateInstallingDialog(
+                    device = device,
+                    version = dialog.versionWithAssets,
+                    selectedAsset = dialog.selectedAsset,
+                    onDismiss = { wasSuccessful ->
+                        actions.onInstallFinished()
+                        if (wasSuccessful) {
+                            navigateUp()
+                        }
+                    },
+                )
+            }
+        }
+
+        null -> Unit
     }
 }
 
@@ -273,7 +249,7 @@ private fun FirmwareBrowserTopBar(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.outline_refresh_24),
-                    contentDescription = stringResource(R.string.refresh_versions),
+                    contentDescription = stringResource(R.string.refresh_page),
                 )
             }
         },
@@ -289,6 +265,18 @@ private fun RepositoryDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val supportingTextContent: (@Composable () -> Unit)? = selectedRepository?.let { repo ->
+        {
+            Text(
+                text = repositoryStatusSubtitle(
+                    repository = repo,
+                    isInstalled = repo.id == installedRepositoryId,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -301,22 +289,8 @@ private fun RepositoryDropdown(
             readOnly = true,
             singleLine = true,
             label = { Text(stringResource(R.string.update_source)) },
-            supportingText = selectedRepository?.let { repo ->
-                {
-                    Text(
-                        text = repo.ownerAndRepo,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            },
-            trailingIcon = {
-                RepositoryTrailingContent(
-                    selectedRepository = selectedRepository,
-                    installedRepositoryId = installedRepositoryId,
-                    expanded = expanded,
-                )
-            },
+            supportingText = supportingTextContent,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
             modifier = Modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
@@ -327,18 +301,13 @@ private fun RepositoryDropdown(
             onDismissRequest = { expanded = false },
         ) {
             repositories.forEach { repo ->
-                DropdownMenuItem(
-                    text = {
-                        RepositoryMenuItemContent(
-                            repository = repo,
-                            isInstalled = repo.id == installedRepositoryId,
-                        )
-                    },
+                RepositoryDropdownMenuItem(
+                    repository = repo,
+                    isInstalled = repo.id == installedRepositoryId,
                     onClick = {
                         onSelectRepository(repo.id)
                         expanded = false
                     },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                 )
             }
         }
@@ -346,54 +315,38 @@ private fun RepositoryDropdown(
 }
 
 @Composable
-private fun RepositoryTrailingContent(
-    selectedRepository: Repository?,
-    installedRepositoryId: Long?,
-    expanded: Boolean,
-) {
-    Row(
-        modifier = Modifier.padding(end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (selectedRepository?.isOfficial == true) {
-            OfficialBadge()
-        }
-        if (selectedRepository != null && selectedRepository.id == installedRepositoryId) {
-            InstalledBadge()
-        }
-        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-    }
+private fun RepositoryDropdownMenuItem(repository: Repository, isInstalled: Boolean, onClick: () -> Unit) {
+    val subtitle = repositoryStatusSubtitle(repository, isInstalled)
+    DropdownMenuItem(
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = repository.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isInstalled) FontWeight.SemiBold else FontWeight.Normal,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        onClick = onClick,
+        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+    )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RepositoryMenuItemContent(repository: Repository, isInstalled: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            itemVerticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = repository.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isInstalled) FontWeight.SemiBold else FontWeight.Normal,
-            )
-            if (repository.isOfficial) {
-                OfficialBadge()
-            }
-            if (isInstalled) {
-                InstalledBadge()
-            }
-        }
-        Text(
-            text = repository.ownerAndRepo,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun repositoryStatusSubtitle(repository: Repository, isInstalled: Boolean): String = buildList {
+    if (repository.isOfficial) {
+        add(stringResource(R.string.official_badge))
     }
-}
+    if (isInstalled) {
+        add(stringResource(R.string.installed_badge))
+    }
+    add(repository.ownerAndRepo)
+}.joinToString(" • ")
 
 @Composable
 private fun SourceSwitchWarningBanner(sourceName: String, modifier: Modifier = Modifier) {
@@ -454,14 +407,39 @@ private fun VersionListContainer(
     Box(modifier = modifier.fillMaxWidth()) {
         when {
             uiState.isLoadingVersions && uiState.versions.isEmpty() -> {
-                LoadingVersionsPlaceholder(modifier = Modifier.align(Alignment.Center))
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(R.string.loading_versions),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             uiState.loadError && uiState.versions.isEmpty() -> {
-                LoadErrorPlaceholder(
-                    onRefresh = onRefresh,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = stringResource(R.string.failed_to_load_versions),
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onRefresh) {
+                        Text(stringResource(R.string.retry))
+                    }
+                }
             }
 
             uiState.versions.isEmpty() -> {
@@ -476,78 +454,18 @@ private fun VersionListContainer(
                 )
             }
 
-            else -> {
-                val installedVersion = uiState.device?.stateInfo?.info?.version
-                val deviceRepositoryId = uiState.device?.device?.repositoryId
-                val installedTags = remember(uiState.versions, installedVersion, deviceRepositoryId) {
-                    if (deviceRepositoryId == null || installedVersion.isNullOrBlank()) {
-                        emptySet()
-                    } else {
-                        uiState.versions
-                            .asSequence()
-                            .filter { it.matchesInstalledVersion(installedVersion, deviceRepositoryId) }
-                            .mapTo(mutableSetOf()) { it.version.tagName }
-                    }
-                }
-                val listState = key(uiState.selectedRepositoryId, uiState.selectedBranch) {
-                    rememberLazyListState()
-                }
-                VersionListContent(
-                    versions = uiState.versions,
-                    installedTags = installedTags,
-                    isLoadingVersions = uiState.isLoadingVersions,
-                    listState = listState,
-                    onVersionClick = onVersionClick,
-                )
-            }
+            else -> VersionList(uiState = uiState, onVersionClick = onVersionClick)
         }
     }
 }
 
 @Composable
-private fun LoadingVersionsPlaceholder(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        CircularProgressIndicator()
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(R.string.loading_versions),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun VersionList(uiState: FirmwareBrowserUiState, onVersionClick: (VersionWithAssets) -> Unit) {
+    val listState = key(uiState.selectedRepositoryId, uiState.selectedBranch) {
+        rememberLazyListState()
     }
-}
-
-@Composable
-private fun LoadErrorPlaceholder(onRefresh: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(R.string.failed_to_load_versions),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = onRefresh) {
-            Text(stringResource(R.string.retry))
-        }
-    }
-}
-
-@Composable
-private fun VersionListContent(
-    versions: List<VersionWithAssets>,
-    installedTags: Set<String>,
-    isLoadingVersions: Boolean,
-    listState: LazyListState,
-    onVersionClick: (VersionWithAssets) -> Unit,
-) {
     Column(modifier = Modifier.fillMaxSize()) {
-        if (isLoadingVersions) {
+        if (uiState.isLoadingVersions) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
         LazyColumn(
@@ -557,13 +475,13 @@ private fun VersionListContent(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(
-                items = versions,
+                items = uiState.versions,
                 key = { "${it.version.repositoryId}:${it.version.tagName}" },
                 contentType = { "version" },
             ) { item ->
                 VersionRowCard(
                     item = item,
-                    isInstalled = item.version.tagName in installedTags,
+                    isInstalled = item.version.tagName in uiState.installedTags,
                     onClick = { onVersionClick(item) },
                 )
             }
@@ -573,17 +491,12 @@ private fun VersionListContent(
 
 @Composable
 private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, onClick: () -> Unit) {
-    val border = if (isInstalled) {
-        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
-    } else {
-        null
-    }
+    val border = if (isInstalled) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
     val containerColor = if (isInstalled) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceContainer
     }
-
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -591,9 +504,7 @@ private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, onClic
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -603,7 +514,7 @@ private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, onClic
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isInstalled) FontWeight.SemiBold else FontWeight.Normal,
                 )
-                val subtitle = buildVersionSubtitle(item.version)
+                val subtitle = item.version.displaySubtitle
                 if (subtitle.isNotEmpty()) {
                     Text(
                         text = subtitle,
@@ -615,119 +526,49 @@ private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, onClic
                 }
             }
             if (isInstalled) {
-                InstalledBadge()
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_twotone_check_circle_outline_24),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.installed_badge),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-private fun OfficialBadge() {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-    ) {
-        Text(
-            text = stringResource(R.string.official_badge),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-    }
-}
-
-@Composable
-private fun InstalledBadge() {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_twotone_check_circle_outline_24),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(16.dp),
-            )
-            Text(
-                text = stringResource(R.string.installed_badge),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
-    }
-}
-
-private fun buildVersionSubtitle(version: Version): String {
-    val datePrefix = version.publishedDate.take(ISO_DATE_PREFIX_LENGTH)
-    return buildList {
-        version.distinctReleaseName?.let { add(it) }
-        if (datePrefix.isNotBlank()) {
-            add(datePrefix)
-        }
-    }.joinToString(" • ")
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun FirmwareBrowserScreenPreview() {
-    val repos = Repository.BUILT_IN_REPOSITORIES.mapIndexed { index, repo ->
-        repo.copy(id = (index + 1).toLong())
-    }
-    val previewDevice = getPreviewDevice().copy(
-        stateInfo = DeviceStateInfo.createMock(version = "0.14.4"),
-    )
-    val installedTag = "v${previewDevice.stateInfo?.info?.version ?: "0.14.4"}"
+    val previewDevice = getPreviewDevice()
+    val installedTag = previewDevice.stateInfo?.info?.version ?: "0.14.3"
+    val repos = Repository.BUILT_IN_REPOSITORIES.mapIndexed { index, repo -> repo.copy(id = (index + 1).toLong()) }
     val sampleVersions = listOf(
-        VersionWithAssets(
-            version = Version(
-                id = 1L,
-                repositoryId = 1L,
-                tagName = "v0.15.0",
-                name = "WLED 0.15.0",
-                description = "### Changes\n- Improved effects",
-                isPrerelease = false,
-                publishedDate = "2025-01-15T12:00:00Z",
-                htmlUrl = "https://github.com/wled/WLED/releases/tag/v0.15.0",
-            ),
-            assets = listOf(
-                Asset(
-                    id = 10L,
-                    versionId = 1L,
-                    name = "WLED_0.15.0_ESP32.bin",
-                    size = 1_200_000L,
-                    downloadUrl = "https://github.com/wled/WLED/releases/download/v0.15.0/WLED_0.15.0_ESP32.bin",
-                    assetId = 100,
-                ),
-            ),
-        ),
-        VersionWithAssets(
-            version = Version(
-                id = 2L,
-                repositoryId = 1L,
-                tagName = installedTag,
-                name = "Installed Release",
-                description = "Installed version",
-                isPrerelease = false,
-                publishedDate = "2024-06-01T12:00:00Z",
-                htmlUrl = "https://github.com/wled/WLED/releases/tag/$installedTag",
-            ),
-            assets = emptyList(),
-        ),
+        VersionWithAssets(Version.getPreviewVersion().copy(tagName = "0.15.0"), emptyList()),
+        VersionWithAssets(Version.getPreviewVersion().copy(tagName = installedTag), emptyList()),
     )
-
     WLEDNativeTheme(darkTheme = false) {
         FirmwareBrowserContent(
             uiState = FirmwareBrowserUiState(
                 device = previewDevice,
                 repositories = repos,
                 selectedRepositoryId = 1L,
-                selectedBranch = Branch.STABLE,
                 versions = sampleVersions,
+                installedTags = setOf(installedTag),
+                isLoadingVersions = false,
             ),
             actions = FirmwareBrowserActions(),
             navigateUp = {},

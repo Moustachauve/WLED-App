@@ -6,9 +6,10 @@ import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.repository.DeviceStore
+import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.update.RepositoryIdResolver
 import ca.cgagnier.wlednativeandroid.service.update.UpdateTagResolver
-import ca.cgagnier.wlednativeandroid.service.update.getRepositoryFromInfo
+import ca.cgagnier.wlednativeandroid.service.update.explicitRepository
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceConnection
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceConnectionFactory
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
@@ -23,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "DeviceConnectionManager"
 private val logger = Logger.withTag(TAG)
@@ -85,6 +88,7 @@ class DeviceConnectionManager(
         var updateCheckJob: Job? = null,
         var lastSeenPersisted: Long = 0L,
         var nextUpdateCheckAt: Long = 0L,
+        var stateGeneration: Long = 0L,
     ) {
         fun cancelJobs() {
             connectionJob?.cancel()
@@ -247,6 +251,7 @@ class DeviceConnectionManager(
     ) {
         synchronized(lock) {
             val session = sessions[mac] ?: return
+            val generation = session.stateGeneration
             session.nextUpdateCheckAt = 0L
             session.updateCheckJob?.cancel()
             session.updateCheckJob = managerScope.launch {
@@ -254,16 +259,20 @@ class DeviceConnectionManager(
                     current = previous,
                     deviceToUse = device,
                     stateInfo = stateInfo,
-                    mac = mac,
                     now = timeProvider(),
+                    expectedGeneration = generation,
                 )
                 val tag = if (device.skipUpdateTag.isNotEmpty() && device.skipUpdateTag == newTag) {
                     null
                 } else {
                     newTag
                 }
-                updateDevice(mac) { current ->
-                    current.copy(updateVersionTag = tag)
+                synchronized(lock) {
+                    if (sessions[mac]?.stateGeneration == generation) {
+                        updateDevice(mac) { current ->
+                            current.copy(updateVersionTag = tag)
+                        }
+                    }
                 }
             }
         }
@@ -315,18 +324,31 @@ class DeviceConnectionManager(
         updateDevice(mac) { it.copy(websocketStatus = status) }
     }
 
+    private fun isSessionCurrent(mac: String, connection: DeviceConnection, expectedGeneration: Long): Boolean =
+        synchronized(lock) {
+            val session = sessions[mac]
+            session != null && session.connection === connection && session.stateGeneration == expectedGeneration
+        }
+
     private suspend fun onIncomingStateInfo(mac: String, connection: DeviceConnection, stateInfo: DeviceStateInfo) {
-        if (synchronized(lock) { sessions[mac]?.connection !== connection }) return
+        val generation = synchronized(lock) {
+            sessions[mac]?.takeIf { it.connection === connection }?.stateGeneration
+        } ?: return
         val now = timeProvider()
         val current = _allDevicesWithState.value.firstOrNull { it.device.macAddress == mac } ?: return
         val currentDevice = current.device
 
-        // 1. Targeted column writes if metadata changed
+        // 1. Targeted column writes if metadata changed. Only auto-update repositoryId when info
+        //    explicitly carries one so legacy/fork builds omitting `repo` keep the user's source.
         val name = stateInfo.info.name
         val branch = inferBranch(currentDevice.branch, stateInfo.info.version)
-        val repoStr = getRepositoryFromInfo(stateInfo.info)
-        val repoId = resolveRepositoryIdSafe(repoStr, currentDevice.repositoryId)
-        persistMetadataChanges(mac, currentDevice, name, branch, repoId)
+        val resolvedRepoId = stateInfo.info.explicitRepository()?.let { explicitRepo ->
+            resolveRepositoryIdSafe(explicitRepo, currentDevice.repositoryId)
+        }
+        val effectiveRepoId = resolvedRepoId ?: currentDevice.repositoryId
+        if (!isSessionCurrent(mac, connection, generation)) return
+        persistMetadataChanges(mac, currentDevice, name, branch, effectiveRepoId)
+        if (!isSessionCurrent(mac, connection, generation)) return
 
         // 2. Throttled lastSeen persistence
         persistThrottledLastSeen(mac, now)
@@ -335,13 +357,16 @@ class DeviceConnectionManager(
         val updatedDevice = currentDevice.copy(
             originalName = if (name.isNotBlank()) name else currentDevice.originalName,
             branch = branch,
-            repositoryId = repoId,
+            repositoryId = effectiveRepoId,
             lastSeen = now,
         )
-        val updateTag = determineUpdateTag(current, updatedDevice, stateInfo, mac, now)
+        val updateTag = determineUpdateTag(current, updatedDevice, stateInfo, now, generation)
 
-        // 4. Update in-memory state
-        updateInMemoryState(mac, updatedDevice, stateInfo, updateTag)
+        // 4. Commit in-memory state only if no newer connection or firmware install superseded this frame
+        synchronized(lock) {
+            if (!isSessionCurrent(mac, connection, generation)) return
+            updateInMemoryState(mac, updatedDevice, resolvedRepoId, stateInfo, updateTag)
+        }
     }
 
     private suspend fun resolveRepositoryIdSafe(repoStr: String, fallback: Long): Long {
@@ -401,6 +426,7 @@ class DeviceConnectionManager(
     private fun updateInMemoryState(
         mac: String,
         updatedDevice: Device,
+        resolvedRepoId: Long?,
         stateInfo: DeviceStateInfo,
         updateTag: String?,
     ) {
@@ -408,7 +434,7 @@ class DeviceConnectionManager(
             val mergedDevice = item.device.copy(
                 originalName = updatedDevice.originalName,
                 branch = if (item.device.branch == Branch.UNKNOWN) updatedDevice.branch else item.device.branch,
-                repositoryId = updatedDevice.repositoryId,
+                repositoryId = resolvedRepoId ?: item.device.repositoryId,
                 lastSeen = maxOf(item.device.lastSeen, updatedDevice.lastSeen),
             )
             val finalTag = if (mergedDevice.skipUpdateTag.isNotEmpty() &&
@@ -430,12 +456,14 @@ class DeviceConnectionManager(
         current: DeviceWithState,
         deviceToUse: Device,
         stateInfo: DeviceStateInfo,
-        mac: String,
         now: Long,
+        expectedGeneration: Long,
     ): String? {
+        val mac = deviceToUse.macAddress
         val metadataChanged = hasMetadataChanged(current, deviceToUse, stateInfo)
         val shouldSkipCheck = synchronized(lock) {
-            val session = sessions[mac] ?: return current.updateVersionTag
+            val session = sessions[mac]?.takeIf { it.stateGeneration == expectedGeneration }
+                ?: return current.updateVersionTag
             if (!metadataChanged && now < session.nextUpdateCheckAt) {
                 true
             } else {
@@ -452,7 +480,8 @@ class DeviceConnectionManager(
         val resolvedTag = runCatchingNonCancellation({ "Failed to check update for $mac" }) {
             val tag = updateTagResolver.checkForUpdate(deviceToUse, stateInfo)
             synchronized(lock) {
-                sessions[mac]?.nextUpdateCheckAt = now + config.updateCheckCacheTtlMs
+                sessions[mac]?.takeIf { it.stateGeneration == expectedGeneration }?.nextUpdateCheckAt =
+                    now + config.updateCheckCacheTtlMs
             }
             checkSucceeded = true
             tag
@@ -587,20 +616,6 @@ class DeviceConnectionManager(
     }
 
     /**
-     * Updates the cached [DeviceStateInfo] version and clears the pending [DeviceWithState.updateVersionTag]
-     * for [macAddress] immediately after a successful OTA firmware installation, before the device
-     * finishes rebooting and reconnects over WebSocket.
-     */
-    fun markUpdateInstalled(macAddress: String, installedVersionTag: String) {
-        markUpdateInstalled(
-            macAddress = macAddress,
-            installedVersionTag = installedVersionTag,
-            repositoryId = null,
-            repositoryOwnerAndRepo = null,
-        )
-    }
-
-    /**
      * Updates the cached [DeviceStateInfo] version, optional [repositoryId] /
      * [repositoryOwnerAndRepo] when switching update sources, and clears the pending
      * [DeviceWithState.updateVersionTag] for [macAddress] immediately after a successful OTA
@@ -609,32 +624,94 @@ class DeviceConnectionManager(
     fun markUpdateInstalled(
         macAddress: String,
         installedVersionTag: String,
-        repositoryId: Long?,
+        repositoryId: Long? = null,
         repositoryOwnerAndRepo: String? = null,
     ) {
         val cleanedVersion = Version.normalizeTagOrVersion(installedVersionTag)
         synchronized(lock) {
             sessions[macAddress]?.let { session ->
+                session.stateGeneration++
                 session.nextUpdateCheckAt = 0L
                 session.updateCheckJob?.cancel()
                 session.updateCheckJob = null
             }
+            updateDevice(macAddress) { current ->
+                val updatedDevice = current.device.copy(
+                    repositoryId = repositoryId ?: current.device.repositoryId,
+                    skipUpdateTag = "",
+                )
+                val updatedStateInfo = current.stateInfo?.withInstalledFirmware(
+                    newVersion = cleanedVersion,
+                    repositoryOwnerAndRepo = repositoryOwnerAndRepo,
+                )
+                current.copy(
+                    device = updatedDevice,
+                    stateInfo = updatedStateInfo,
+                    updateVersionTag = null,
+                )
+            }
         }
-        updateDevice(macAddress) { current ->
-            val updatedDevice = current.device.copy(
-                repositoryId = repositoryId ?: current.device.repositoryId,
-                skipUpdateTag = "",
-            )
-            val updatedStateInfo = current.stateInfo?.withInstalledFirmware(
-                newVersion = cleanedVersion,
-                repositoryOwnerAndRepo = repositoryOwnerAndRepo,
-            )
-            current.copy(
-                device = updatedDevice,
-                stateInfo = updatedStateInfo,
-                updateVersionTag = null,
+    }
+
+    /**
+     * Persists updated firmware metadata (`repositoryId` when switching update sources and
+     * clearing `skipUpdateTag`) and synchronizes in-memory [DeviceWithState] after an OTA flash
+     * succeeds. Runs under [NonCancellable] because the controller has already been flashed and
+     * must not drift out of sync with SQLite if the caller UI dismisses mid-write.
+     *
+     * @return The resolved `owner/repo` string for the installed release's repository, or `null`
+     *   if lookup failed.
+     */
+    suspend fun completeFirmwareInstall(
+        device: Device,
+        installedVersion: Version,
+        repositoryDao: RepositoryDao,
+    ): String? = withContext(NonCancellable + ioDispatcher) {
+        val mac = device.macAddress
+        synchronized(lock) {
+            sessions[mac]?.let { session ->
+                session.stateGeneration++
+                session.updateCheckJob?.cancel()
+                session.updateCheckJob = null
+            }
+        }
+        val targetRepoId = installedVersion.repositoryId
+        val resolvedOwnerAndRepo = try {
+            repositoryDao.getRepositoryById(targetRepoId)?.ownerAndRepo
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Fall back to existing repository metadata if lookup fails after flashing
+            logger.w(e) { "Failed to resolve repository $targetRepoId after install" }
+            null
+        }
+
+        // Apply optimistic in-memory state before SQLite writes so Room emissions carry the new
+        // repository metadata, then re-apply in finally once writes finish.
+        markUpdateInstalled(
+            macAddress = mac,
+            installedVersionTag = installedVersion.tagName,
+            repositoryId = targetRepoId,
+            repositoryOwnerAndRepo = resolvedOwnerAndRepo,
+        )
+
+        try {
+            if (targetRepoId != device.repositoryId) {
+                store.updateRepositoryId(mac, targetRepoId)
+            }
+            if (device.skipUpdateTag.isNotEmpty()) {
+                store.updateSkipUpdateTag(mac, "")
+            }
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Log persistence failure without failing an already-flashed OTA update
+            logger.e(e) { "Failed to persist device metadata after install for $mac" }
+        } finally {
+            markUpdateInstalled(
+                macAddress = mac,
+                installedVersionTag = installedVersion.tagName,
+                repositoryId = targetRepoId,
+                repositoryOwnerAndRepo = resolvedOwnerAndRepo,
             )
         }
+        resolvedOwnerAndRepo
     }
 
     suspend fun setBrightness(macAddress: String, brightness: Int): Boolean =
@@ -668,37 +745,6 @@ class DeviceConnectionManager(
         return success
     }
 
-    private fun applyPatch(original: State, patch: State): State = original.copy(
-        isOn = patch.isOn ?: original.isOn,
-        brightness = patch.brightness ?: original.brightness,
-        transition = patch.transition ?: original.transition,
-        selectedPresetId = patch.selectedPresetId ?: original.selectedPresetId,
-        selectedPlaylistId = patch.selectedPlaylistId ?: original.selectedPlaylistId,
-        nightlight = patch.nightlight ?: original.nightlight,
-        liveDataOverride = patch.liveDataOverride ?: original.liveDataOverride,
-        mainSegment = patch.mainSegment ?: original.mainSegment,
-        segment = patch.segment ?: original.segment,
-    )
-
-    private fun <T> rollbackField(current: T?, patch: T?, previous: T?): T? =
-        if (patch != null && current == patch) previous else current
-
-    private fun rollbackPatch(current: State, patch: State, previous: State): State = current.copy(
-        isOn = rollbackField(current.isOn, patch.isOn, previous.isOn),
-        brightness = rollbackField(current.brightness, patch.brightness, previous.brightness),
-        transition = rollbackField(current.transition, patch.transition, previous.transition),
-        selectedPresetId = rollbackField(current.selectedPresetId, patch.selectedPresetId, previous.selectedPresetId),
-        selectedPlaylistId = rollbackField(
-            current.selectedPlaylistId,
-            patch.selectedPlaylistId,
-            previous.selectedPlaylistId,
-        ),
-        nightlight = rollbackField(current.nightlight, patch.nightlight, previous.nightlight),
-        liveDataOverride = rollbackField(current.liveDataOverride, patch.liveDataOverride, previous.liveDataOverride),
-        mainSegment = rollbackField(current.mainSegment, patch.mainSegment, previous.mainSegment),
-        segment = rollbackField(current.segment, patch.segment, previous.segment),
-    )
-
     fun destroy() {
         managerScope.cancel()
         val toDestroy = synchronized(lock) {
@@ -711,3 +757,34 @@ class DeviceConnectionManager(
         toDestroy.forEach { it.destroy() }
     }
 }
+
+private fun applyPatch(original: State, patch: State): State = original.copy(
+    isOn = patch.isOn ?: original.isOn,
+    brightness = patch.brightness ?: original.brightness,
+    transition = patch.transition ?: original.transition,
+    selectedPresetId = patch.selectedPresetId ?: original.selectedPresetId,
+    selectedPlaylistId = patch.selectedPlaylistId ?: original.selectedPlaylistId,
+    nightlight = patch.nightlight ?: original.nightlight,
+    liveDataOverride = patch.liveDataOverride ?: original.liveDataOverride,
+    mainSegment = patch.mainSegment ?: original.mainSegment,
+    segment = patch.segment ?: original.segment,
+)
+
+private fun <T> rollbackField(current: T?, patch: T?, previous: T?): T? =
+    if (patch != null && current == patch) previous else current
+
+private fun rollbackPatch(current: State, patch: State, previous: State): State = current.copy(
+    isOn = rollbackField(current.isOn, patch.isOn, previous.isOn),
+    brightness = rollbackField(current.brightness, patch.brightness, previous.brightness),
+    transition = rollbackField(current.transition, patch.transition, previous.transition),
+    selectedPresetId = rollbackField(current.selectedPresetId, patch.selectedPresetId, previous.selectedPresetId),
+    selectedPlaylistId = rollbackField(
+        current.selectedPlaylistId,
+        patch.selectedPlaylistId,
+        previous.selectedPlaylistId,
+    ),
+    nightlight = rollbackField(current.nightlight, patch.nightlight, previous.nightlight),
+    liveDataOverride = rollbackField(current.liveDataOverride, patch.liveDataOverride, previous.liveDataOverride),
+    mainSegment = rollbackField(current.mainSegment, patch.mainSegment, previous.mainSegment),
+    segment = rollbackField(current.segment, patch.segment, previous.segment),
+)

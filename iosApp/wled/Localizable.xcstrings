@@ -1790,7 +1790,7 @@
         "fr-CA" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Installée"
+            "value" : "Installé"
           }
         },
         "zh-Hans" : {
@@ -2818,34 +2818,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刷新"
-          }
-        }
-      }
-    },
-    "Refresh versions" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Versionen aktualisieren"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refresh versions"
-          }
-        },
-        "fr-CA" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rafraîchir les versions"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刷新版本"
           }
         }
       }

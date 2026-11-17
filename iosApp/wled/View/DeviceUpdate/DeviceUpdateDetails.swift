@@ -5,6 +5,12 @@ import SwiftUI
 
 private typealias State = SwiftUI.State
 
+private struct InstallTarget: Identifiable {
+    let id = UUID()
+    let version: VersionWithAssets
+    let selectedAsset: Asset?
+}
+
 struct DeviceUpdateDetails: View {
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "ca.cgagnier.wled-native",
@@ -14,34 +20,32 @@ struct DeviceUpdateDetails: View {
     @Environment(\.dismiss) var dismiss
     var device: DeviceWithState
     var database: AppDatabase = .shared
-    var explicitVersion: VersionWithAssets?
-    var repositoryName: String?
-    var repositoryOwnerAndRepo: String?
-    var showBinaryPicker: Bool = false
+    var browserTarget: (repositoryId: Int64, tagName: String)?
     var onInstallCompleted: (() -> Void)?
 
     @State private var showWarningDialog = false
-    @State private var showInstallingDialog = false
+    @State private var activeInstall: InstallTarget?
     @State private var didCompleteInstall = false
-    @State private var initializedVersionKey: String?
-    @State private var loadedVersion: VersionWithAssets?
+    @State private var versionWithAssets: VersionWithAssets?
+    @State private var isLoadingVersion = true
+    @State private var repository: Repository?
+    @State private var installableAssets: [Asset] = []
     @State private var selectedAssetName: String?
 
-    private var activeVersion: VersionWithAssets? {
-        explicitVersion ?? loadedVersion
+    private var isBrowserSelection: Bool {
+        browserTarget != nil
+    }
+
+    private var targetRepositoryId: Int64 {
+        browserTarget?.repositoryId ?? device.device.repositoryId
+    }
+
+    private var targetTagName: String? {
+        browserTarget?.tagName ?? device.availableUpdateVersion
     }
 
     private var versionTaskKey: String {
-        let repoId = explicitVersion?.version.repositoryId ?? device.device.repositoryId
-        let tag = explicitVersion?.version.tagName ?? device.availableUpdateVersion ?? ""
-        return "\(repoId):\(tag)"
-    }
-
-    private var installableAssets: [Asset] {
-        guard let activeVersion else { return [] }
-        return DeviceUpdateService.companion.getInstallableAssets(
-            versionWithAssets: activeVersion
-        )
+        "\(targetRepositoryId):\(targetTagName ?? "")"
     }
 
     private var resolvedSelectedAsset: Asset? {
@@ -53,61 +57,53 @@ struct DeviceUpdateDetails: View {
     }
 
     private var isSwitchingSource: Bool {
-        guard let activeVersion else { return false }
-        return activeVersion.version.repositoryId != device.device.repositoryId
-    }
-
-    private var targetSourceDisplayName: String {
-        if let repositoryName, !repositoryName.isEmpty {
-            return repositoryName
-        }
-        if let repositoryOwnerAndRepo, !repositoryOwnerAndRepo.isEmpty {
-            return repositoryOwnerAndRepo
-        }
-        return ""
+        guard let versionWithAssets else { return false }
+        return versionWithAssets.version.repositoryId != device.device.repositoryId
     }
 
     private var canInstall: Bool {
-        guard device.isOnline, isOtaEnabled, activeVersion != nil else {
+        guard device.isOnline, isOtaEnabled, versionWithAssets != nil else {
             return false
         }
-        if showBinaryPicker {
+        if isBrowserSelection {
             return resolvedSelectedAsset != nil
         }
         return true
     }
 
     private var isAlreadyInstalled: Bool {
-        guard let activeVersion else { return false }
-        return activeVersion.matchesInstalledVersion(
-            installedVersion: device.stateInfo?.info.version,
-            deviceRepositoryId: device.device.repositoryId
-        )
+        versionWithAssets.map { device.hasInstalled($0) } ?? false
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                if showBinaryPicker {
-                    DeviceUpdateBinaryHeader(
-                        repositoryOwnerAndRepo: repositoryOwnerAndRepo,
-                        installableAssets: installableAssets,
-                        selectedAssetName: $selectedAssetName,
-                        isDeviceOnline: device.isOnline,
-                        isOtaEnabled: isOtaEnabled,
-                        switchingToSourceName: isSwitchingSource ? targetSourceDisplayName : nil
-                    )
+            if isLoadingVersion && versionWithAssets == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    if isBrowserSelection {
+                        DeviceUpdateBinaryHeader(
+                            repository: repository,
+                            installableAssets: installableAssets,
+                            selectedAssetName: $selectedAssetName,
+                            isDeviceOnline: device.isOnline,
+                            isOtaEnabled: isOtaEnabled,
+                            isSwitchingSource: isSwitchingSource
+                        )
+                    }
+                    releaseNotesView
                 }
-                releaseNotesView
+                .padding()
             }
-            .padding()
         }
         .safeAreaInset(edge: .bottom) {
             bottomBar
         }
-        .navigationTitle("Version \(activeVersion?.version.tagName ?? device.availableUpdateVersion ?? "")")
+        .navigationTitle("Version \(versionWithAssets?.version.tagName ?? targetTagName ?? "")")
         .fullScreenCover(
-            isPresented: $showInstallingDialog,
+            item: $activeInstall,
             onDismiss: {
                 if didCompleteInstall {
                     if let onInstallCompleted {
@@ -117,34 +113,33 @@ struct DeviceUpdateDetails: View {
                     }
                 }
             },
-            content: {
-                if let activeVersion {
-                    DeviceUpdateInstalling(
-                        device: device,
-                        version: activeVersion,
-                        selectedAsset: showBinaryPicker ? resolvedSelectedAsset : nil,
-                        repositoryOwnerAndRepo: repositoryOwnerAndRepo,
-                        database: database
-                    ) {
-                        didCompleteInstall = true
-                    }
-                    .background(BackgroundBlurView())
+            content: { target in
+                DeviceUpdateInstalling(
+                    device: device,
+                    version: target.version,
+                    selectedAsset: target.selectedAsset,
+                    database: database
+                ) {
+                    didCompleteInstall = true
                 }
+                .background(BackgroundBlurView())
             }
         )
         .task(id: versionTaskKey) {
-            if let explicitVersion {
-                initializeDefaultAssetIfNeeded(for: explicitVersion)
-            } else if initializedVersionKey != versionTaskKey || loadedVersion == nil {
-                await loadVersion()
-            }
+            await loadVersion()
+        }
+        .onChange(of: device.stateInfo?.info.version) {
+            autoSelectDefaultAssetIfNeeded()
+        }
+        .onChange(of: device.stateInfo?.info.releaseName) {
+            autoSelectDefaultAssetIfNeeded()
         }
     }
 
     @ViewBuilder
     private var releaseNotesView: some View {
-        if let activeVersion {
-            let trimmed = activeVersion.version.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let versionWithAssets {
+            let trimmed = versionWithAssets.version.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 Text("No release notes provided")
                     .italic()
@@ -161,7 +156,7 @@ struct DeviceUpdateDetails: View {
 
     private var bottomBar: some View {
         HStack {
-            if !showBinaryPicker {
+            if !isBrowserSelection {
                 Button("Skip This Version") {
                     skipVersion()
                 }
@@ -182,52 +177,67 @@ struct DeviceUpdateDetails: View {
                     installVersion()
                 }
             } message: {
-                if isSwitchingSource, !targetSourceDisplayName.isEmpty {
-                    let sourceWarning = String(
-                        localized: "You are switching update sources to \(targetSourceDisplayName). Installing an incompatible firmware binary can make your device unreachable over Wi-Fi until reflashed via USB."
-                    )
-                    let disclaimer = String(localized: "update_disclaimer")
-                    Text(verbatim: "\(sourceWarning)\n\n\(disclaimer)")
-                } else {
-                    Text("update_disclaimer")
-                }
+                Text("update_disclaimer")
             }
         }
         .padding()
         .background(.bar)
     }
 
-    private func initializeDefaultAssetIfNeeded(for version: VersionWithAssets) {
-        guard initializedVersionKey != versionTaskKey else { return }
-        initializedVersionKey = versionTaskKey
-        let defaultAsset = DeviceUpdateService.companion.determineDefaultAsset(
-            info: device.stateInfo?.info,
-            versionWithAssets: version
-        )
-        selectedAssetName = defaultAsset?.name
+    private func autoSelectDefaultAssetIfNeeded() {
+        guard isBrowserSelection,
+              selectedAssetName == nil,
+              let versionWithAssets,
+              let info = device.stateInfo?.info else {
+            return
+        }
+        selectedAssetName = DeviceUpdateService.companion.determineDefaultAsset(
+            info: info,
+            versionWithAssets: versionWithAssets
+        )?.name
     }
 
     private func loadVersion() async {
-        guard let tag = device.availableUpdateVersion, !tag.isEmpty else {
+        guard let tag = targetTagName, !tag.isEmpty else {
+            if versionWithAssets == nil {
+                installableAssets = []
+                repository = nil
+                isLoadingVersion = false
+            }
             return
         }
+        if versionWithAssets == nil {
+            isLoadingVersion = true
+        }
+        let repoId = targetRepositoryId
         await database.waitUntilReady()
+        guard !Task.isCancelled else { return }
         do {
-            loadedVersion = try await database.versionWithAssetsRepository.getVersionByTag(
-                repositoryId: device.device.repositoryId,
+            async let loadedVersionTask = database.versionWithAssetsRepository.getVersionByTag(
+                repositoryId: repoId,
                 tagName: tag
             )
-            if let loadedVersion {
-                initializeDefaultAssetIfNeeded(for: loadedVersion)
-            }
+            async let loadedRepoTask = database.repositoryDao.getRepositoryById(id: repoId)
+            let (loadedVersion, loadedRepo) = try await (loadedVersionTask, loadedRepoTask)
+            try Task.checkCancellation()
+            versionWithAssets = loadedVersion
+            installableAssets = loadedVersion.map {
+                DeviceUpdateService.companion.getInstallableAssets(versionWithAssets: $0)
+            } ?? []
+            repository = loadedRepo
+            isLoadingVersion = false
+            autoSelectDefaultAssetIfNeeded()
         } catch {
-            loadedVersion = nil
+            if error is CancellationError || Task.isCancelled { return }
+            versionWithAssets = nil
+            installableAssets = []
+            isLoadingVersion = false
             Self.logger.error("Unexpected error when loading version \(tag): \(error.localizedDescription)")
         }
     }
 
     func skipVersion() {
-        let rawTag = activeVersion?.version.tagName ?? device.availableUpdateVersion ?? ""
+        let rawTag = versionWithAssets?.version.tagName ?? device.availableUpdateVersion ?? ""
         guard !rawTag.isEmpty else {
             dismiss()
             return
@@ -237,10 +247,10 @@ struct DeviceUpdateDetails: View {
         if device.availableUpdateVersion == rawTag {
             device.availableUpdateVersion = nil
         }
-        let repository = database.deviceRepository
+        let deviceRepository = database.deviceRepository
         Task {
             do {
-                try await repository.updateSkipUpdateTag(macAddress: mac, skipUpdateTag: rawTag)
+                try await deviceRepository.updateSkipUpdateTag(macAddress: mac, skipUpdateTag: rawTag)
             } catch {
                 Self.logger.error("Unresolved error saving skip version: \(error.localizedDescription)")
             }
@@ -249,27 +259,32 @@ struct DeviceUpdateDetails: View {
     }
 
     func installVersion() {
-        showInstallingDialog = true
+        guard let versionWithAssets else { return }
+        didCompleteInstall = false
+        activeInstall = InstallTarget(
+            version: versionWithAssets,
+            selectedAsset: isBrowserSelection ? resolvedSelectedAsset : nil
+        )
     }
 }
 
 private struct DeviceUpdateBinaryHeader: View {
-    let repositoryOwnerAndRepo: String?
+    let repository: Repository?
     let installableAssets: [Asset]
     @Binding var selectedAssetName: String?
     let isDeviceOnline: Bool
     let isOtaEnabled: Bool
-    let switchingToSourceName: String?
+    let isSwitchingSource: Bool
 
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
-                if let repositoryOwnerAndRepo, !repositoryOwnerAndRepo.isEmpty {
+                if let ownerAndRepo = repository?.ownerAndRepo, !ownerAndRepo.isEmpty {
                     HStack {
                         Text("Update Source")
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text(verbatim: repositoryOwnerAndRepo)
+                        Text(verbatim: ownerAndRepo)
                             .lineLimit(1)
                     }
                     .font(.caption)
@@ -293,10 +308,10 @@ private struct DeviceUpdateBinaryHeader: View {
                         .foregroundStyle(.red)
                 }
 
-                if let switchingToSourceName, !switchingToSourceName.isEmpty {
+                if isSwitchingSource, let sourceName = repository?.name, !sourceName.isEmpty {
                     Label {
                         Text(
-                            "You are switching update sources to \(switchingToSourceName). Installing an incompatible firmware binary can make your device unreachable over Wi-Fi until reflashed via USB."
+                            "You are switching update sources to \(sourceName). Installing an incompatible firmware binary can make your device unreachable over Wi-Fi until reflashed via USB."
                         )
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -348,6 +363,7 @@ private struct DeviceUpdateBinaryHeader: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)

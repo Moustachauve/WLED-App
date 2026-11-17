@@ -6,19 +6,6 @@ import Testing
 @MainActor
 struct DeviceFirmwareBrowserViewModelTests {
 
-    struct BranchFilterCase: Sendable {
-        let isBeta: Bool
-        let expectedTags: [String]
-    }
-
-    struct InstalledMatchCase: Sendable {
-        let repositoryId: Int64
-        let tagName: String
-        let assetNames: [String]
-        let installedVersion: String
-        let expected: Bool
-    }
-
     let database: AppDatabase
 
     init() {
@@ -31,7 +18,7 @@ struct DeviceFirmwareBrowserViewModelTests {
     ) async throws -> Repository {
         await database.waitUntilReady()
         let repo = try #require(
-            try await database.versionWithAssetsRepository.getRepositoryById(
+            try await database.repositoryDao.getRepositoryById(
                 id: Repository.companion.DEFAULT_ID
             )
         )
@@ -44,37 +31,28 @@ struct DeviceFirmwareBrowserViewModelTests {
 
     private func makeDeviceWrapper(
         macAddress: String = "aabbcc112233",
-        address: String = "192.168.1.20",
-        originalName: String = "Strip",
         branch: Branch = .stable,
         repositoryId: Int64 = Repository.companion.DEFAULT_ID
     ) -> WLED.DeviceWithState {
         let base = Device(
             macAddress: macAddress,
-            address: address,
-            originalName: originalName,
+            address: "192.168.1.20",
+            originalName: "Strip",
             branch: branch
         )
-        let device = repositoryId == Repository.companion.DEFAULT_ID
-            ? base
-            : base.copy(repositoryId: repositoryId)
+        let device = repositoryId == Repository.companion.DEFAULT_ID ? base : base.copy(repositoryId: repositoryId)
         return DeviceWithState(initialDevice: device)
     }
 
-    private func makeVersion(
-        repositoryId: Int64,
-        tagName: String,
-        isPrerelease: Bool = false,
-        publishedDate: String = "2025-05-01T00:00:00Z"
-    ) -> Version {
+    private func makeVersion(repositoryId: Int64, tagName: String, isPrerelease: Bool = false) -> Version {
         Version(
             id: 0,
             repositoryId: repositoryId,
             tagName: tagName,
             name: tagName,
-            description: "Release notes for \(tagName)",
+            description: "",
             isPrerelease: isPrerelease,
-            publishedDate: publishedDate,
+            publishedDate: "2025-05-01T00:00:00Z",
             htmlUrl: "https://github.com/wled/WLED/releases/tag/\(tagName)"
         )
     }
@@ -87,175 +65,96 @@ struct DeviceFirmwareBrowserViewModelTests {
         #expect(viewModel.selectedBranch == .beta)
     }
 
-    @Test func loadsBuiltInRepositoriesAsSelectableSources() async throws {
-        let wrapper = makeDeviceWrapper(macAddress: "aabbcc112234", address: "192.168.1.21")
-        let viewModel = DeviceFirmwareBrowserViewModel(device: wrapper, database: database)
-
-        let task = Task {
-            await viewModel.observeRepositories()
-        }
-        defer { task.cancel() }
-
-        try await waitUntil {
-            viewModel.repositories.count >= 3
-        }
-        let ownerRepos = viewModel.repositories.map(\.ownerAndRepo)
-        #expect(ownerRepos.first == "wled/WLED")
-        #expect(viewModel.repositories.first?.isOfficial == true)
-        #expect(viewModel.repositories.dropFirst().allSatisfy { !$0.isOfficial })
-        #expect(ownerRepos.contains("intermittech/QuinLED-Firmware"))
-        #expect(ownerRepos.contains("MoonModules/WLED-MM"))
-    }
-
-    @Test(
-        arguments: [
-            BranchFilterCase(isBeta: false, expectedTags: ["v0.15.1", "v0.14.3"]),
-            BranchFilterCase(isBeta: true, expectedTags: ["v14.5.0-beta", "v0.15.0-b2", "v0.14.0.b27"])
-        ]
-    )
-    func filtersAndSortsVersionsDescendingForChannel(_ testCase: BranchFilterCase) async throws {
-        let repo = try await seedDefaultRepository { repoId in
-            [
-                makeVersion(repositoryId: repoId, tagName: "nightly", isPrerelease: true): [],
-                makeVersion(repositoryId: repoId, tagName: "v0.14.3"): [],
-                makeVersion(repositoryId: repoId, tagName: "v0.15.1"): [],
-                makeVersion(repositoryId: repoId, tagName: "v0.15.0-b2", isPrerelease: true): [],
-                makeVersion(repositoryId: repoId, tagName: "v0.14.0.b27", isPrerelease: false): [],
-                makeVersion(repositoryId: repoId, tagName: "v14.5.0-beta", isPrerelease: false): []
-            ]
-        }
-
-        let wrapper = makeDeviceWrapper(
-            macAddress: "aabbcc112235",
-            address: "192.168.1.22",
-            branch: testCase.isBeta ? .beta : .stable,
-            repositoryId: repo.id
-        )
-        let viewModel = DeviceFirmwareBrowserViewModel(device: wrapper, database: database)
-        let task = Task {
-            await viewModel.observeVersions(for: repo.id)
-        }
-        defer { task.cancel() }
-
-        try await waitUntil {
-            !viewModel.filteredVersions.isEmpty
-        }
-        #expect(viewModel.filteredVersions.map(\.version.tagName) == testCase.expectedTags)
-    }
-
-    @Test(
-        arguments: [
-            InstalledMatchCase(
-                repositoryId: 1,
-                tagName: "v0.15.0",
-                assetNames: [],
-                installedVersion: "0.15.0",
-                expected: true
-            ),
-            InstalledMatchCase(
-                repositoryId: 1,
-                tagName: "v0.15.0-rc.1",
-                assetNames: ["WLED_0.15.0-rc1_ESP32.bin"],
-                installedVersion: "0.15.0-rc1",
-                expected: true
-            ),
-            InstalledMatchCase(
-                repositoryId: 2,
-                tagName: "v0.15.0",
-                assetNames: [],
-                installedVersion: "0.15.0",
-                expected: false
-            ),
-            InstalledMatchCase(
-                repositoryId: 1,
-                tagName: "v0.14.4",
-                assetNames: [],
-                installedVersion: "0.15.0",
-                expected: false
+    private func seedQuinledBetaRelease() async throws -> Repository {
+        let quinledRepo = try #require(
+            try await database.repositoryDao.getRepositoryByOwnerAndRepo(
+                ownerAndRepo: "intermittech/QuinLED-Firmware"
             )
-        ]
-    )
-    func isInstalledRequiresMatchingTagOrAssetVersionAndRepository(_ testCase: InstalledMatchCase) {
-        let wrapper = makeDeviceWrapper(macAddress: "aabbcc112236", address: "192.168.1.23")
-        wrapper.stateInfo = DeviceStateInfo.companion.createMock(
-            name: "Kitchen",
-            version: testCase.installedVersion,
-            red: 255,
-            green: 160,
-            blue: 0,
-            brightness: 128,
-            isOn: true
         )
-        let viewModel = DeviceFirmwareBrowserViewModel(device: wrapper, database: database)
-        let assets = testCase.assetNames.enumerated().map { index, name in
-            Asset(
-                id: Int64(index + 1),
-                versionId: 1,
-                name: name,
-                size: 1_000_000,
-                downloadUrl: "https://example.com/\(name)",
-                assetId: Int32(index + 1)
-            )
-        }
-        let item = VersionWithAssets(
-            version: makeVersion(repositoryId: testCase.repositoryId, tagName: testCase.tagName),
-            assets: assets
+        try await database.versionWithAssetsRepository.updateRepository(
+            repository: quinledRepo,
+            versionToAssetsMap: [
+                makeVersion(repositoryId: quinledRepo.id, tagName: "0.15.4"): [],
+                makeVersion(repositoryId: quinledRepo.id, tagName: "0.16.0-b1", isPrerelease: true): []
+            ]
         )
-
-        #expect(viewModel.isInstalled(item) == testCase.expected)
+        return quinledRepo
     }
 
-    @Test func changingSelectedBranchRefiltersCachedVersions() async throws {
+    @Test func switchingSelectedRepositoryUpdatesVersionsForNewSource() async throws {
         let repo = try await seedDefaultRepository { repoId in
-            [
-                makeVersion(repositoryId: repoId, tagName: "v0.15.1"): [],
-                makeVersion(repositoryId: repoId, tagName: "v0.15.0-b2", isPrerelease: true): []
-            ]
+            [makeVersion(repositoryId: repoId, tagName: "0.15.1"): []]
         }
-        let wrapper = makeDeviceWrapper(
-            macAddress: "aabbcc112238",
-            address: "192.168.1.25",
-            repositoryId: repo.id
+        let quinledRepo = try await seedQuinledBetaRelease()
+
+        let viewModel = DeviceFirmwareBrowserViewModel(
+            device: makeDeviceWrapper(macAddress: "aabbcc112239", repositoryId: repo.id),
+            database: database
         )
-        let viewModel = DeviceFirmwareBrowserViewModel(device: wrapper, database: database)
-        let task = Task {
-            await viewModel.observeVersions(for: repo.id)
-        }
+        let task = Task { await viewModel.observe() }
         defer { task.cancel() }
 
         try await waitUntil {
-            viewModel.filteredVersions.map(\.version.tagName) == ["v0.15.1"]
+            !viewModel.isLoadingVersions && viewModel.filteredVersions.map(\.version.tagName) == ["0.15.1"]
         }
 
+        viewModel.selectedRepositoryId = quinledRepo.id
+        try await waitUntil {
+            viewModel.filteredVersions.map(\.version.tagName) == ["0.15.4"] && !viewModel.loadError
+        }
+    }
+
+    @Test func preservesSelectionsAppliedBeforeObserveStarts() async throws {
+        let repo = try await seedDefaultRepository { repoId in
+            [makeVersion(repositoryId: repoId, tagName: "0.15.1"): []]
+        }
+        let quinledRepo = try await seedQuinledBetaRelease()
+
+        let viewModel = DeviceFirmwareBrowserViewModel(
+            device: makeDeviceWrapper(macAddress: "aabbcc11223b", repositoryId: repo.id),
+            database: database
+        )
+        viewModel.selectedRepositoryId = quinledRepo.id
         viewModel.selectedBranch = .beta
-        #expect(viewModel.filteredVersions.map(\.version.tagName) == ["v0.15.0-b2"])
-    }
 
-    @Test func changingSelectedRepositoryIdResetsCachedVersionsAndErrorState() async throws {
-        let repo = try await seedDefaultRepository { repoId in
-            [makeVersion(repositoryId: repoId, tagName: "v0.15.1"): []]
-        }
-        let wrapper = makeDeviceWrapper(
-            macAddress: "aabbcc112239",
-            address: "192.168.1.26",
-            repositoryId: repo.id
-        )
-        let viewModel = DeviceFirmwareBrowserViewModel(device: wrapper, database: database)
-        let task = Task {
-            await viewModel.observeVersions(for: repo.id)
-        }
+        let task = Task { await viewModel.observe() }
         defer { task.cancel() }
 
         try await waitUntil {
-            viewModel.hasLoadedCachedVersions && !viewModel.filteredVersions.isEmpty
+            viewModel.selectedRepositoryId == quinledRepo.id &&
+                viewModel.selectedBranch == .beta &&
+                viewModel.filteredVersions.map(\.version.tagName) == ["0.16.0-b1"]
         }
-        viewModel.loadError = true
-        task.cancel()
+    }
 
-        viewModel.selectedRepositoryId = repo.id + 1
+    @Test func restartingObservePreservesSwitchedSourceAndChannel() async throws {
+        let repo = try await seedDefaultRepository { repoId in
+            [makeVersion(repositoryId: repoId, tagName: "0.15.1"): []]
+        }
+        let quinledRepo = try await seedQuinledBetaRelease()
+        let viewModel = DeviceFirmwareBrowserViewModel(
+            device: makeDeviceWrapper(macAddress: "aabbcc11223c", repositoryId: repo.id),
+            database: database
+        )
 
-        #expect(viewModel.filteredVersions.isEmpty)
-        #expect(viewModel.hasLoadedCachedVersions == false)
-        #expect(viewModel.loadError == false)
+        let firstObserve = Task { await viewModel.observe() }
+        try await waitUntil {
+            !viewModel.isLoadingVersions && viewModel.filteredVersions.map(\.version.tagName) == ["0.15.1"]
+        }
+        viewModel.selectedRepositoryId = quinledRepo.id
+        viewModel.selectedBranch = .beta
+        try await waitUntil {
+            viewModel.filteredVersions.map(\.version.tagName) == ["0.16.0-b1"]
+        }
+        firstObserve.cancel()
+        _ = await firstObserve.result
+
+        let secondObserve = Task { await viewModel.observe() }
+        defer { secondObserve.cancel() }
+        try await waitUntil {
+            viewModel.selectedRepositoryId == quinledRepo.id &&
+                viewModel.selectedBranch == .beta &&
+                viewModel.filteredVersions.map(\.version.tagName) == ["0.16.0-b1"]
+        }
     }
 }

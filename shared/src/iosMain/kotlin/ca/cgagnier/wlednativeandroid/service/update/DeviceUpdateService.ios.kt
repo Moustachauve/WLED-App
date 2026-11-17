@@ -41,10 +41,11 @@ fun DeviceUpdateService.Companion.create(
     deviceApiFactory: DeviceApiFactory,
     githubApi: GithubApi,
     selectedAsset: Asset?,
+    cacheDirPath: String? = null,
 ): DeviceUpdateService = DeviceUpdateService(
     device = DeviceWithState(device = device, stateInfo = stateInfo),
     versionWithAssets = versionWithAssets,
-    cacheDir = cachesDirectory().toPath(),
+    cacheDir = (cacheDirPath ?: cachesDirectory()).toPath(),
     deviceApiFactory = deviceApiFactory,
     githubApi = githubApi,
     selectedAsset = selectedAsset,

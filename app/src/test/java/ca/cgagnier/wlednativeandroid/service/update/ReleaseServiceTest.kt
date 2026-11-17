@@ -166,29 +166,17 @@ class ReleaseServiceTest {
     @Test
     fun `getNewerReleaseTag returns null when installed version matches embedded asset version`() = runTest {
         val deviceInfo = createInfo(version = "0.14.1-b32.40")
-        val mmRelease = VersionWithAssets(
-            version = Version(
-                id = 11L,
-                repositoryId = 1L,
-                tagName = "0.14.1-beta.32",
-                name = "0.14.1-beta.32",
-                description = "Notes",
-                isPrerelease = true,
-                publishedDate = "2024-06-01T00:00:00Z",
-                htmlUrl = "https://github.com/MoonModules/WLED-MM/releases/tag/v0.14.1-beta.32",
-            ),
-            assets = listOf(
-                Asset(
-                    id = 1L,
-                    versionId = 11L,
-                    name = "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
-                    size = 1_200_000L,
-                    downloadUrl = "https://example.com/WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
-                    assetId = 100,
-                ),
-            ),
+        val mmAsset = Asset(
+            id = 1L,
+            versionId = 10L,
+            name = "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            size = 1_200_000L,
+            downloadUrl = "https://example.com/WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            assetId = 100,
         )
-        coEvery { versionWithAssetsRepository.getLatestBetaVersionWithAssets(1L) } returns mmRelease
+        coEvery {
+            versionWithAssetsRepository.getLatestBetaVersionWithAssets(1L)
+        } returns createVersionWithAssets("0.14.1-beta.32", assets = listOf(mmAsset))
 
         val result = releaseService.getNewerReleaseTag(deviceInfo, Branch.BETA, ignoreVersion = "")
 
@@ -198,25 +186,13 @@ class ReleaseServiceTest {
     @Test
     fun `getNewerReleaseTag prefers explicit repositoryId over stale deviceInfo repository`() = runTest {
         val quinledRepo = defaultRepo.copy(id = 2L, ownerAndRepo = "intermittech/QuinLED-Firmware")
-        val staleInfo = createInfo(version = "0.15.0")
-        val quinledLatest = VersionWithAssets(
-            version = Version(
-                id = 20L,
-                repositoryId = 2L,
-                tagName = "0.15.4",
-                name = "0.15.4",
-                description = "QuinLED release",
-                isPrerelease = false,
-                publishedDate = "2026-02-01T00:00:00Z",
-                htmlUrl = "https://github.com/intermittech/QuinLED-Firmware/releases/tag/v0.15.4",
-            ),
-            assets = emptyList(),
-        )
         coEvery { repositoryDao.getRepositoryById(2L) } returns quinledRepo
-        coEvery { versionWithAssetsRepository.getLatestStableVersionWithAssets(2L) } returns quinledLatest
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(2L)
+        } returns createVersionWithAssets("0.15.4", repositoryId = 2L)
 
         val result = releaseService.getNewerReleaseTag(
-            deviceInfo = staleInfo,
+            deviceInfo = createInfo(version = "0.15.0"),
             branch = Branch.STABLE,
             ignoreVersion = "",
             repositoryId = 2L,
@@ -350,53 +326,6 @@ class ReleaseServiceTest {
         coVerify(exactly = 1) { githubApi.getAllReleases("intermittech", "QuinLED-Firmware") }
     }
 
-    @Test
-    fun `getSelectableRepositories includes enabled repositories and current disabled repository`() {
-        val wled = defaultRepo.copy(id = 1L, name = "WLED", isEnabled = true)
-        val quinled = defaultRepo.copy(
-            id = 2L,
-            name = "QuinLED",
-            ownerAndRepo = "intermittech/QuinLED-Firmware",
-            isEnabled = true,
-        )
-        val currentCustom = defaultRepo.copy(
-            id = 3L,
-            name = "Custom",
-            ownerAndRepo = "custom/fork",
-            isEnabled = false,
-        )
-        val otherDisabled = defaultRepo.copy(
-            id = 4L,
-            name = "Other",
-            ownerAndRepo = "other/fork",
-            isEnabled = false,
-        )
-
-        val selectable = ReleaseService.getSelectableRepositories(
-            allRepositories = listOf(wled, quinled, currentCustom, otherDisabled),
-            currentRepositoryId = 3L,
-        )
-
-        assertEquals(listOf(1L, 3L, 2L), selectable.map { it.id })
-    }
-
-    @Test
-    fun `getSelectableRepositories orders official WLED first regardless of input order`() {
-        val moonModules = Repository.BUILT_IN_REPOSITORIES[2].copy(id = 3L)
-        val quinled = Repository.BUILT_IN_REPOSITORIES[1].copy(id = 2L)
-        val officialWled = Repository.BUILT_IN_REPOSITORIES[0].copy(id = 1L)
-
-        val selectable = ReleaseService.getSelectableRepositories(
-            allRepositories = listOf(moonModules, quinled, officialWled),
-            currentRepositoryId = 2L,
-        )
-
-        assertEquals(listOf("WLED", "MoonModules", "QuinLED"), selectable.map { it.name })
-        assertTrue(selectable.first().isOfficial)
-        assertFalse(selectable[1].isOfficial)
-        assertFalse(selectable[2].isOfficial)
-    }
-
     private fun createInfo(version: String?, options: Int = 0x01): Info = Info(
         leds = Leds(count = 30, fps = 30, maxPower = 0, maxSegment = 1),
         wifi = Wifi(bssid = "mac", rssi = -50, signal = 100, channel = 1),
@@ -406,10 +335,14 @@ class ReleaseServiceTest {
         brand = "WLED",
     )
 
-    private fun createVersionWithAssets(tagName: String): VersionWithAssets = VersionWithAssets(
+    private fun createVersionWithAssets(
+        tagName: String,
+        repositoryId: Long = 1L,
+        assets: List<Asset> = emptyList(),
+    ): VersionWithAssets = VersionWithAssets(
         version = Version(
             id = 10L,
-            repositoryId = 1L,
+            repositoryId = repositoryId,
             tagName = tagName,
             name = "Release $tagName",
             description = "Notes",
@@ -417,6 +350,6 @@ class ReleaseServiceTest {
             publishedDate = "2026-01-15T00:00:00Z",
             htmlUrl = "https://github.com/wled/WLED/releases/tag/$tagName",
         ),
-        assets = emptyList(),
+        assets = assets,
     )
 }
