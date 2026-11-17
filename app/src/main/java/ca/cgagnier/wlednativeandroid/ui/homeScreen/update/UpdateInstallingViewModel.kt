@@ -1,12 +1,13 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
 import android.util.Log
-import androidx.core.text.HtmlCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.ApiResponse
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.DownloadState
@@ -23,13 +24,12 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import okio.Path.Companion.toOkioPath
 import java.io.File
-import java.util.regex.Pattern
 
 private const val TAG = "UpdateInstallingViewModel"
 
@@ -38,6 +38,7 @@ class UpdateInstallingViewModel(
     private val repositoryDao: RepositoryDao,
     private val deviceApiFactory: DeviceApiFactory,
     private val githubApi: GithubApi,
+    private val deviceConnectionManager: DeviceConnectionManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val stateLock = Any()
@@ -45,6 +46,7 @@ class UpdateInstallingViewModel(
     private var updateStarted = false
     private var updateJob: Job? = null
     private var activeAttemptId = 0L
+    private var currentAttempt: UpdateAttempt? = null
 
     private var _state = MutableStateFlow(UpdateInstallingState())
     val state = _state.asStateFlow()
@@ -62,19 +64,43 @@ class UpdateInstallingViewModel(
         _state.update { previousState ->
             val step = previousState.step as UpdateInstallingStep.Error
             previousState.copy(
-                step = UpdateInstallingStep.Error(
-                    step.error,
-                    !step.showError,
-                ),
+                step = step.copy(showError = !step.showError),
             )
         }
     }
 
+    fun retryWithoutValidation() {
+        val previousJob = synchronized(stateLock) {
+            val step = state.value.step as? UpdateInstallingStep.Error ?: return
+            if (!step.canRetryWithoutValidation) {
+                return
+            }
+            val previousAttempt = currentAttempt ?: return
+            val retryAttempt = previousAttempt.copy(
+                id = ++activeAttemptId,
+                skipValidation = true,
+            )
+            currentAttempt = retryAttempt
+            _state.value = UpdateInstallingState(
+                canDismiss = true,
+                step = UpdateInstallingStep.Starting,
+                assetName = retryAttempt.updateService.getAssetName(),
+            )
+            val oldJob = updateJob
+            updateJob = downloadAsset(retryAttempt)
+            oldJob
+        }
+        previousJob?.cancel()
+    }
+
     fun resetState() {
-        // Reset on dismiss so we can try again next time
+        // Cancel any in-flight download/install and reset state on dismiss
         val activeJob = synchronized(stateLock) {
             activeAttemptId++
             updateStarted = false
+            currentAttempt = null
+            _device.value = null
+            _version.value = null
             _state.value = UpdateInstallingState()
             val job = updateJob
             updateJob = null
@@ -83,7 +109,12 @@ class UpdateInstallingViewModel(
         activeJob?.cancel()
     }
 
-    fun startUpdate(device: DeviceWithState, version: VersionWithAssets, cacheDir: File) {
+    fun startUpdate(
+        device: DeviceWithState,
+        version: VersionWithAssets,
+        cacheDir: File,
+        selectedAsset: Asset? = null,
+    ) {
         synchronized(stateLock) {
             if (updateStarted) {
                 Log.w(
@@ -101,10 +132,11 @@ class UpdateInstallingViewModel(
             val updateService = DeviceUpdateService(
                 device = device,
                 versionWithAssets = version,
-                cacheDir = cacheDir.toOkioPath(),
+                cacheDir = cacheDir,
                 deviceApiFactory = deviceApiFactory,
                 githubApi = githubApi,
                 ioDispatcher = ioDispatcher,
+                selectedAsset = selectedAsset,
             )
             if (!updateService.couldDetermineAsset()) {
                 _state.value = UpdateInstallingState(
@@ -114,13 +146,24 @@ class UpdateInstallingViewModel(
                 )
                 return
             }
+
+            val attempt = UpdateAttempt(
+                id = attemptId,
+                device = device,
+                version = version,
+                updateService = updateService,
+            )
+            currentAttempt = attempt
             _state.value = UpdateInstallingState(
                 canDismiss = true,
                 step = UpdateInstallingStep.Starting,
             )
-            updateJob = downloadAsset(updateService, attemptId)
+            updateJob = downloadAsset(attempt)
         }
     }
+
+    private suspend fun isActiveAttempt(attemptId: Long): Boolean =
+        currentCoroutineContext().isActive && synchronized(stateLock) { attemptId == activeAttemptId }
 
     private suspend fun updateActiveState(
         attemptId: Long,
@@ -137,58 +180,59 @@ class UpdateInstallingViewModel(
         }
     }
 
-    private fun downloadAsset(updateService: DeviceUpdateService, attemptId: Long) =
-        viewModelScope.launch(ioDispatcher) {
-            updateMutex.withLock {
-                currentCoroutineContext().ensureActive()
-                if (updateService.isAssetFileCached()) {
-                    Log.d(TAG, "asset '${updateService.getAssetName()}' is already downloaded, reusing")
-                    installUpdate(updateService, attemptId)
-                    return@withLock
-                }
+    private fun downloadAsset(attempt: UpdateAttempt) = viewModelScope.launch(ioDispatcher) {
+        val updateService = attempt.updateService
+        updateMutex.withLock {
+            currentCoroutineContext().ensureActive()
+            if (updateService.isAssetFileCached()) {
+                Log.d(TAG, "asset '${updateService.getAssetName()}' is already downloaded, reusing")
+                installUpdate(attempt)
+                return@withLock
+            }
 
-                Log.d(TAG, "Downloading asset '${updateService.getAssetName()}'")
+            Log.d(TAG, "Downloading asset '${updateService.getAssetName()}'")
 
-                updateService.downloadBinary(repositoryDao).collect { downloadState ->
-                    when (downloadState) {
-                        is DownloadState.Downloading -> {
-                            Log.d(TAG, "File download Progress=${downloadState.progress}")
-                            updateActiveState(attemptId) { previousState ->
-                                previousState.copy(
-                                    canDismiss = true,
-                                    step = UpdateInstallingStep.Downloading(downloadState.progress),
-                                    assetName = updateService.getAssetName(),
-                                )
-                            }
+            updateService.downloadBinary(repositoryDao).collect { downloadState ->
+                when (downloadState) {
+                    is DownloadState.Downloading -> {
+                        Log.d(TAG, "File download Progress=${downloadState.progress}")
+                        updateActiveState(attempt.id) { previousState ->
+                            previousState.copy(
+                                canDismiss = true,
+                                step = UpdateInstallingStep.Downloading(downloadState.progress),
+                                assetName = updateService.getAssetName(),
+                            )
                         }
+                    }
 
-                        is DownloadState.Failed -> {
-                            Log.e(TAG, "File download Fail: ${downloadState.error}")
-                            updateActiveState(attemptId) { previousState ->
-                                previousState.copy(
-                                    canDismiss = true,
-                                    step = UpdateInstallingStep.Error(
-                                        downloadState.error.toString(),
-                                    ),
-                                    assetName = updateService.getAssetName(),
-                                )
-                            }
-                            this.coroutineContext.job.cancel()
+                    is DownloadState.Failed -> {
+                        Log.e(TAG, "File download Fail: ${downloadState.error}")
+                        updateActiveState(attempt.id) { previousState ->
+                            previousState.copy(
+                                canDismiss = true,
+                                step = UpdateInstallingStep.Error(
+                                    downloadState.error.toString(),
+                                ),
+                                assetName = updateService.getAssetName(),
+                            )
                         }
+                        this.coroutineContext.job.cancel()
+                    }
 
-                        is DownloadState.Finished -> {
-                            Log.d(TAG, "File download Finished")
-                            installUpdate(updateService, attemptId)
-                            this.coroutineContext.job.cancel()
-                        }
+                    is DownloadState.Finished -> {
+                        Log.d(TAG, "File download Finished")
+                        installUpdate(attempt)
+                        this.coroutineContext.job.cancel()
                     }
                 }
             }
         }
+    }
 
-    private suspend fun installUpdate(updateService: DeviceUpdateService, attemptId: Long) {
+    private suspend fun installUpdate(attempt: UpdateAttempt) {
+        val updateService = attempt.updateService
         Log.d(TAG, "Uploading binary '${updateService.getAssetName()}' to device")
-        updateActiveState(attemptId) { previousState ->
+        updateActiveState(attempt.id) { previousState ->
             previousState.copy(
                 canDismiss = false,
                 step = UpdateInstallingStep.Installing,
@@ -197,38 +241,45 @@ class UpdateInstallingViewModel(
         }
         try {
             onSoftwareUpdateResponse(
-                response = updateService.installUpdate(),
-                attemptId = attemptId,
-                macAddress = updateService.device.device.macAddress,
+                response = updateService.installUpdate(attempt.skipValidation),
+                attempt = attempt,
             )
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             // Catch transport and I/O failures so they can be surfaced in the UI
-            onSoftwareUpdateError(e, attemptId)
+            onSoftwareUpdateError(e, attempt.id)
         }
     }
 
-    private suspend fun onSoftwareUpdateResponse(response: ApiResponse<String>, attemptId: Long, macAddress: String) {
+    private suspend fun onSoftwareUpdateResponse(response: ApiResponse<String>, attempt: UpdateAttempt) {
         if (response.isSuccessful) {
-            val updated = updateActiveState(attemptId) { previousState ->
+            if (!isActiveAttempt(attempt.id)) return
+            updateDeviceUpdated(attempt)
+            updateActiveState(attempt.id) { previousState ->
                 previousState.copy(
                     canDismiss = true,
                     step = UpdateInstallingStep.Done,
                 )
             }
-            if (updated) {
-                Log.d(TAG, "Resetting skipUpdateTag")
-                deviceRepository.updateSkipUpdateTag(macAddress, "")
-            }
         } else {
             Log.d(TAG, "OTA Failed, code ${response.code}")
-            val errorString = "${response.code}: ${getHtmlErrorMessage(response)}"
-            Log.d(TAG, "OTA Failed onResponse, error $errorString")
-            updateActiveState(attemptId) { previousState ->
+            val plainError = DeviceUpdateService.extractPlainTextError(response).orEmpty()
+            val errorString = if (plainError.isNotEmpty()) {
+                "${response.code}: $plainError"
+            } else {
+                response.code.toString()
+            }
+            val canRetry = !attempt.skipValidation && DeviceUpdateService.isValidationFailure(response)
+            Log.d(TAG, "OTA Failed onResponse, error $errorString, canRetry=$canRetry")
+            updateActiveState(attempt.id) { previousState ->
                 previousState.copy(
                     canDismiss = true,
-                    step = UpdateInstallingStep.Error(errorString),
+                    step = UpdateInstallingStep.Error(
+                        error = errorString,
+                        showError = canRetry,
+                        canRetryWithoutValidation = canRetry,
+                    ),
                 )
             }
         }
@@ -247,26 +298,62 @@ class UpdateInstallingViewModel(
         }
     }
 
-    private fun getHtmlErrorMessage(response: ApiResponse<String>): String {
-        val html = response.body ?: response.errorBody ?: ""
-        // Extract the body content to ignore <head> (title, scripts, styles)
-        val bodyMatcher = HTML_BODY_MATCHER.matcher(html)
-        var bodyContent = if (bodyMatcher.find()) bodyMatcher.group(1) else html
-        // Remove <button>, <script>, and <style> blocks entirely so their text (e.g. "Back") doesn't appear
-        bodyContent = JUNK_TAG_PATTERN.matcher(bodyContent).replaceAll("")
-        // Use Android's Html class to strip remaining tags (<h2>, <br>) and decode entities
-        val plainText =
-            HtmlCompat.fromHtml(bodyContent, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
-        // Normalize whitespace (remove newlines from <br>/<h2> and extra spaces)
-        return plainText.trim().replace(Regex("\\s+"), " ")
+    /**
+     * Updates the properties of a device after a software update was done.
+     */
+    private suspend fun updateDeviceUpdated(attempt: UpdateAttempt) {
+        val mac = attempt.device.device.macAddress
+        val previousRepoId = attempt.device.device.repositoryId
+        val targetRepoId = attempt.version.version.repositoryId
+        var repoOwnerAndRepo: String? = null
+
+        // Apply optimistic in-memory state before Room invalidation emissions and re-apply in
+        // finally once repository lookup and targeted SQLite updates complete.
+        applyInMemoryStateIfActive(attempt, repoOwnerAndRepo)
+
+        try {
+            repoOwnerAndRepo = resolveRepositoryOwnerAndRepo(targetRepoId)
+            if (!isActiveAttempt(attempt.id)) return
+            if (targetRepoId != previousRepoId) {
+                deviceRepository.updateRepositoryId(mac, targetRepoId)
+            }
+            Log.d(TAG, "Resetting skipUpdateTag")
+            deviceRepository.updateSkipUpdateTag(mac, "")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // Log persistence failure without marking an already-flashed OTA update as failed
+            Log.e(TAG, "Failed to update device metadata after install", e)
+        } finally {
+            applyInMemoryStateIfActive(attempt, repoOwnerAndRepo)
+        }
     }
 
-    companion object {
-        private val HTML_BODY_MATCHER =
-            Pattern.compile("<body[^>]*>(.*?)</body>", Pattern.CASE_INSENSITIVE or Pattern.DOTALL)
-        private val JUNK_TAG_PATTERN = Pattern.compile(
-            "<(button|script|style)[^>]*>.*?</\\1>",
-            Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
+    private suspend fun applyInMemoryStateIfActive(attempt: UpdateAttempt, repoOwnerAndRepo: String?) {
+        if (!isActiveAttempt(attempt.id)) return
+        deviceConnectionManager.markUpdateInstalled(
+            macAddress = attempt.device.device.macAddress,
+            installedVersionTag = attempt.version.version.tagName,
+            repositoryId = attempt.version.version.repositoryId,
+            repositoryOwnerAndRepo = repoOwnerAndRepo,
         )
     }
+
+    private suspend fun resolveRepositoryOwnerAndRepo(repositoryId: Long): String? = try {
+        repositoryDao.getRepositoryById(repositoryId)?.ownerAndRepo
+    } catch (e: CancellationException) {
+        throw e
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        // Fall back to existing repository metadata if lookup fails
+        Log.w(TAG, "Failed to look up repository $repositoryId after install", e)
+        null
+    }
+
+    private data class UpdateAttempt(
+        val id: Long,
+        val device: DeviceWithState,
+        val version: VersionWithAssets,
+        val updateService: DeviceUpdateService,
+        val skipValidation: Boolean = false,
+    )
 }

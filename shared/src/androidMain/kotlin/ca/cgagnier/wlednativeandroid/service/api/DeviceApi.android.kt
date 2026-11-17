@@ -6,8 +6,8 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import java.io.File
 
-suspend fun DeviceApi.updateDevice(binaryFile: File): ApiResponse<String> =
-    updateDevice(binaryFile.readBytes(), binaryFile.name)
+suspend fun DeviceApi.updateDevice(binaryFile: File, skipValidation: Boolean = false): ApiResponse<String> =
+    updateDevice(binaryFile.readBytes(), binaryFile.name, skipValidation)
 
 fun DeviceApiFactory.Companion.createHttpClient(okHttpClient: OkHttpClient, json: Json = defaultJson): HttpClient =
     HttpClient(OkHttp) {

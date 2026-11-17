@@ -15,7 +15,6 @@ import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import co.touchlab.kermit.Logger
-import io.github.z4kn4fein.semver.toVersionOrNull
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -80,21 +79,26 @@ class ReleaseService(
      * @return The newest version if it is newer than versionName and different than ignoreVersion,
      *      otherwise an empty string.
      */
-    suspend fun getNewerReleaseTag(deviceInfo: Info, branch: Branch, ignoreVersion: String): String? {
+    suspend fun getNewerReleaseTag(
+        deviceInfo: Info,
+        branch: Branch,
+        ignoreVersion: String,
+        repositoryId: Long? = null,
+    ): String? {
         if (!isDeviceEligibleForUpdate(deviceInfo)) {
             return null
         }
 
-        val repositoryStr = getRepositoryFromInfo(deviceInfo)
-        val repository = repositoryDao.getRepositoryByOwnerAndRepo(repositoryStr)
+        val repository = repositoryId?.let { repositoryDao.getRepositoryById(it) }
+            ?: repositoryDao.getRepositoryByOwnerAndRepo(getRepositoryFromInfo(deviceInfo))
 
         val latestVersion = repository?.let {
             getLatestVersionWithAssets(it.id, branch)
         }
 
-        return latestVersion?.version?.tagName?.takeIf {
+        return latestVersion?.takeIf {
             shouldOfferUpdate(deviceInfo, it, ignoreVersion, branch)
-        }
+        }?.version?.tagName
     }
 
     private fun isDeviceEligibleForUpdate(deviceInfo: Info): Boolean =
@@ -102,21 +106,21 @@ class ReleaseService(
 
     private fun shouldOfferUpdate(
         deviceInfo: Info,
-        latestTagName: String,
+        latestVersion: VersionWithAssets,
         ignoreVersion: String,
         branch: Branch,
     ): Boolean {
         val currentVersion = deviceInfo.version ?: return false
+        val latestTagName = latestVersion.version.tagName
 
-        // Don't offer ignored versions or already-installed versions
-        if (latestTagName == ignoreVersion || latestTagName == currentVersion) {
+        // Don't offer ignored versions or already-installed versions (including embedded asset versions)
+        if (latestTagName == ignoreVersion ||
+            latestVersion.matchesInstalledVersion(currentVersion, latestVersion.version.repositoryId)
+        ) {
             return false
         }
 
-        val betaSuffixes = listOf("-a", "-b", "-rc")
-        val isDeviceOnBeta = betaSuffixes.any {
-            currentVersion.contains(it, ignoreCase = true)
-        }
+        val isDeviceOnBeta = Version.isPreReleaseTag(currentVersion)
 
         logger.d {
             "Checking update eligibility for device ${deviceInfo.ipAddress}: " +
@@ -136,8 +140,8 @@ class ReleaseService(
         (branch == Branch.STABLE && isDeviceOnBeta) || (branch == Branch.BETA && !isDeviceOnBeta)
 
     private fun isNewerVersion(currentVersion: String, latestTagName: String): Boolean {
-        val latestSemver = latestTagName.toVersionOrNull(strict = false)
-        val currentSemver = currentVersion.toVersionOrNull(strict = false)
+        val latestSemver = Version.parseSemVer(latestTagName)
+        val currentSemver = Version.parseSemVer(currentVersion)
 
         return if (latestSemver != null && currentSemver != null) {
             latestSemver > currentSemver
@@ -231,6 +235,14 @@ class ReleaseService(
     }
 
     /**
+     * Refreshes versions for an explicit [repository].
+     */
+    suspend fun refreshVersionsForRepository(githubApi: GithubApi, repository: Repository): Boolean =
+        withContext(ioDispatcher) {
+            refreshVersions(githubApi, setOf(repository.ownerAndRepo))
+        }
+
+    /**
      * Refreshes versions from multiple repositories.
      * Gets a list of unique repositories, then fetches releases for each.
      *
@@ -300,4 +312,20 @@ class ReleaseService(
      * Leaves other tags (like "nightly") untouched.
      */
     private fun sanitizeTagName(tagName: String): String = tagName.removePrefix("v")
+
+    companion object {
+        /**
+         * Returns repositories selectable in the firmware version browser: all enabled repositories
+         * plus the repository matching [currentRepositoryId] (so a device running an auto-discovered
+         * custom fork still sees its current source in the selector), ordered with the official
+         * upstream WLED repository first followed by remaining sources alphabetically.
+         */
+        fun getSelectableRepositories(allRepositories: List<Repository>, currentRepositoryId: Long): List<Repository> =
+            allRepositories
+                .filter { it.isEnabled || it.id == currentRepositoryId }
+                .sortedWith(
+                    compareByDescending<Repository> { it.isOfficial }
+                        .thenBy { it.name.lowercase() },
+                )
+    }
 }

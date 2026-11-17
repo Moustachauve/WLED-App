@@ -70,9 +70,7 @@
     <string name="done">完成</string>
     <string name="update_completed">更新完成！</string>
     <string name="are_you_sure">你确定吗？</string>
-    <string name="device_update_disclaimer_part1">您即将在设备上安装新版本的 WLED。如果您之前安装的是自定义版本，可能会丢失部分功能（例如，已启用的某些用户模块可能无法继续工作）。</string>
-    <string name="device_update_disclaimer_part2">如果此设备由他人为您安装，您或许应询问他们是否可以将设备更新到新版本。</string>
-    <string name="device_update_disclaimer_part3">因更新导致的任何问题，WLED 概不负责。</string>
+    <string name="device_update_disclaimer">安装新固件可能会移除自定义功能或用户模块（usermods）。如果此设备由他人配置，请先向对方确认。请自行承担风险。</string>
     <string name="install_update">安装更新</string>
     <string name="no_compatible_version_found">未找到兼容版本</string>
     <string name="no_compatible_version_found_details">未找到与您的设备兼容的版本，您需要手动更新设备。</string>
@@ -185,5 +183,26 @@
     <string name="sound_sync_beta_setting">声音同步（测试版）</string>
     <string name="sound_sync_beta_setting_description">启用声音同步测试版以提前体验此功能。</string>
     <string name="sound_sync_beta_notice">此功能目前处于测试阶段，可能会在未来的更新中发生变化。</string>
+
+    <!-- Firmware Browser -->
+    <string name="browse_versions">其他版本与更新源</string>
+    <string name="reinstall">重新安装</string>
+    <string name="firmware_versions">固件版本</string>
+    <string name="firmware_binary">固件文件</string>
+    <string name="select_firmware_binary">选择固件文件</string>
+    <string name="installed_badge">已安装</string>
+    <string name="official_badge">官方</string>
+    <string name="switching_source_warning">您正在查看来自 %1$s 的固件，而非当前的更新源。安装前请确认所选固件文件与您的控制器硬件完全匹配。</string>
+    <string name="switching_source_disclaimer">您正在将更新源切换为 %1$s。安装不兼容的固件文件可能导致设备无法通过 Wi-Fi 连接，直到通过 USB 重新刷写。</string>
+    <string name="ignore_validation_warning">如果此固件文件与您的硬件不匹配，跳过固件验证可能导致设备无法通过 Wi-Fi 连接。</string>
+    <string name="install_anyway">仍然安装</string>
+    <string name="no_versions_available">此频道未找到版本</string>
+    <string name="loading_versions">正在加载版本…</string>
+    <string name="failed_to_load_versions">无法从 GitHub 加载版本</string>
+    <string name="retry">重试</string>
+    <string name="refresh_versions">刷新版本</string>
+    <string name="ota_disabled_notice">此设备已禁用 OTA 更新</string>
+    <string name="device_offline_install_notice">连接此设备以安装固件</string>
+    <string name="no_installable_binaries">此版本中没有可安装的固件文件</string>
 
 </resources>

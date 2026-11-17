@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +33,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
@@ -44,6 +46,7 @@ fun UpdateInstallingDialog(
     device: DeviceWithState,
     version: VersionWithAssets,
     onDismiss: (wasSuccessful: Boolean) -> Unit,
+    selectedAsset: Asset? = null,
     viewModel: UpdateInstallingViewModel = koinViewModel(
         key = "UpdateInstalling:${device.device.macAddress}",
     ),
@@ -51,8 +54,13 @@ fun UpdateInstallingDialog(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(device.device.macAddress, version.version.tagName) {
-        viewModel.startUpdate(device, version, context.cacheDir)
+    LaunchedEffect(
+        device.device.macAddress,
+        version.version.repositoryId,
+        version.version.tagName,
+        selectedAsset?.name,
+    ) {
+        viewModel.startUpdate(device, version, context.cacheDir, selectedAsset)
     }
 
     UpdateInstallingDialog(
@@ -66,6 +74,7 @@ fun UpdateInstallingDialog(
         onToggleErrorMessage = {
             viewModel.toggleErrorMessage()
         },
+        onRetryWithoutValidation = viewModel::retryWithoutValidation,
     )
 }
 
@@ -75,7 +84,11 @@ fun UpdateInstallingDialog(
     device: DeviceWithState,
     onDismiss: () -> Unit,
     onToggleErrorMessage: () -> Unit,
+    onRetryWithoutValidation: () -> Unit = {},
 ) {
+    val errorStep = state.step as? UpdateInstallingStep.Error
+    val canRetryWithoutValidation = errorStep?.canRetryWithoutValidation == true
+
     AlertDialog(
         title = {
             Text(
@@ -94,27 +107,36 @@ fun UpdateInstallingDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                },
-                enabled = state.canDismiss,
-            ) {
-                if (state.step is UpdateInstallingStep.Done || state.step is UpdateInstallingStep.Error) {
-                    Text(stringResource(R.string.done))
-                } else {
-                    Text(stringResource(R.string.cancel))
+            if (canRetryWithoutValidation) {
+                TextButton(
+                    onClick = onRetryWithoutValidation,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(stringResource(R.string.install_anyway))
+                }
+            } else {
+                TextButton(
+                    onClick = onDismiss,
+                    enabled = state.canDismiss,
+                ) {
+                    if (state.step is UpdateInstallingStep.Done || errorStep != null) {
+                        Text(stringResource(R.string.done))
+                    } else {
+                        Text(stringResource(R.string.cancel))
+                    }
                 }
             }
         },
         dismissButton = {
-            if (state.step is UpdateInstallingStep.Error) {
-                val text = if (state.step.showError) R.string.hide_error else R.string.show_error
-                TextButton(
-                    onClick = {
-                        onToggleErrorMessage()
-                    },
-                ) {
+            if (canRetryWithoutValidation) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+            } else if (errorStep != null) {
+                val text = if (errorStep.showError) R.string.hide_error else R.string.show_error
+                TextButton(onClick = onToggleErrorMessage) {
                     Text(stringResource(text))
                 }
             }
@@ -157,6 +179,17 @@ fun UpdateDialogContent(state: UpdateInstallingState) {
         AnimatedVisibility(state.step is UpdateInstallingStep.Error && state.step.showError) {
             val step = state.step as? UpdateInstallingStep.Error
             ErrorMessageCard(step?.error ?: "Unknown error")
+        }
+        AnimatedVisibility(
+            state.step is UpdateInstallingStep.Error && state.step.canRetryWithoutValidation,
+        ) {
+            Text(
+                text = stringResource(R.string.ignore_validation_warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }
@@ -249,6 +282,15 @@ class SampleStateStepProvider : PreviewParameterProvider<UpdateInstallingState> 
             step = UpdateInstallingStep.Error("Something went wrong", showError = true),
             canDismiss = true,
             assetName = "WLED-1.2.3-WOW.bin",
+        ),
+        UpdateInstallingState(
+            step = UpdateInstallingStep.Error(
+                error = "500: Update failed! This firmware file is missing compatibility metadata.",
+                showError = true,
+                canRetryWithoutValidation = true,
+            ),
+            canDismiss = true,
+            assetName = "WLED_16.0.0_Dig2Go-Audioreactive.bin",
         ),
         UpdateInstallingState(
             step = UpdateInstallingStep.Done,

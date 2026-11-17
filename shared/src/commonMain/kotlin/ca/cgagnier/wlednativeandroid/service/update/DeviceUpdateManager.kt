@@ -20,12 +20,13 @@ class DeviceUpdateManager(private val releaseService: ReleaseService) : UpdateTa
         val info = stateInfo?.info ?: return null
         val repository = getRepositoryFromInfo(info)
         logger.d {
-            "Checking for software update for ${device.macAddress} on $repository"
+            "Checking for software update for ${device.macAddress} on $repository (repoId=${device.repositoryId})"
         }
         return releaseService.getNewerReleaseTag(
             deviceInfo = info,
             branch = device.branch,
             ignoreVersion = device.skipUpdateTag,
+            repositoryId = device.repositoryId,
         )
     }
 

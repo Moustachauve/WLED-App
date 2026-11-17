@@ -27,6 +27,7 @@ import ca.cgagnier.wlednativeandroid.ui.MainViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.DeviceListDetailViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceAdd.DeviceAddViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit.DeviceEditViewModel
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.firmwareBrowser.FirmwareBrowserViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.list.DeviceWebsocketListViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingViewModel
 import ca.cgagnier.wlednativeandroid.ui.settingsScreen.SettingsViewModel
@@ -159,6 +160,7 @@ val appModule: Module = module {
             repositoryDao = get(),
             deviceApiFactory = get(),
             githubApi = get(),
+            deviceConnectionManager = get(),
             ioDispatcher = get(IO_DISPATCHER),
         )
     }
@@ -172,6 +174,16 @@ val appModule: Module = module {
             deviceConnectionManager = get(),
             widgetManager = get(),
             applicationContext = androidContext(),
+            ioDispatcher = get(IO_DISPATCHER),
+        )
+    }
+    viewModel { (macAddress: String) ->
+        FirmwareBrowserViewModel(
+            macAddress = macAddress,
+            versionWithAssetsRepository = get(),
+            githubApi = get(),
+            releaseService = get(),
+            deviceConnectionManager = get(),
             ioDispatcher = get(IO_DISPATCHER),
         )
     }

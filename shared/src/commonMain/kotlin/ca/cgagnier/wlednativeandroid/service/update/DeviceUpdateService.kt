@@ -1,7 +1,10 @@
 package ca.cgagnier.wlednativeandroid.service.update
 
 import ca.cgagnier.wlednativeandroid.model.Asset
+import ca.cgagnier.wlednativeandroid.model.Repository
+import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
+import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.api.ApiResponse
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
@@ -11,7 +14,6 @@ import ca.cgagnier.wlednativeandroid.service.api.updateDevice
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import co.touchlab.kermit.Logger
 import io.github.z4kn4fein.semver.toVersion
-import io.github.z4kn4fein.semver.toVersionOrNull
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +54,7 @@ private val RELEASE_NAME_OVERRIDES = mapOf(
     "ESP32_V4" to "ESP32",
 )
 
+// Injectable FileSystem, CoroutineDispatcher, and selectedAsset support testing and cross-fork OTA
 @Suppress("LongParameterList")
 class DeviceUpdateService(
     val device: DeviceWithState,
@@ -61,71 +64,24 @@ class DeviceUpdateService(
     private val githubApi: GithubApi,
     private val fs: FileSystem = defaultFileSystem,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    selectedAsset: Asset? = null,
 ) {
-    private val supportedPlatforms = listOf(
-        "esp01",
-        "esp02",
-        "esp32",
-        "esp8266",
-    )
-
     private var assetName: String = ""
     private var couldDetermineAsset: Boolean = false
     private lateinit var asset: Asset
 
     init {
-        // Try to use the release variable, but fallback to the legacy platform method for
-        // compatibility with WLED older than 0.15.0
-        val rawRelease = device.stateInfo?.info?.release
-        if (!rawRelease.isNullOrEmpty()) { // never swap to generic build if release name is known
-            determineAssetByRelease(rawRelease)
+        if (selectedAsset != null) {
+            asset = selectedAsset
+            assetName = selectedAsset.name
+            couldDetermineAsset = true
         } else {
-            determineAssetByPlatform()
-        }
-    }
-
-    /**
-     * Determine the asset to download based on the release variable.
-     *
-     * This is the preferred method. It is only available on WLED devices since 0.15.0.
-     */
-    private fun determineAssetByRelease(rawRelease: String) {
-        val release = resolveReleaseOverride(rawRelease, versionWithAssets.version.tagName)
-        val versionWithRelease = formatVersionWithTarget(release)
-        assetName = "WLED_$versionWithRelease.bin"
-        findAsset(versionWithRelease)
-    }
-
-    /**
-     * Determine the asset to download based on the platform.
-     *
-     * Legacy method for backwards compatibility with WLED devices older than 0.15.0
-     */
-    private fun determineAssetByPlatform() {
-        val platformName = device.stateInfo?.info?.platformName
-        if (platformName == null || !supportedPlatforms.contains(platformName)) {
-            return
-        }
-
-        // TODO: Add support for Ethernet devices. Support was never fully implemented.
-        // val ethernetVariant = if (deviceInfo.isEthernet) "_Ethernet" else ""
-        val versionWithPlatform = formatVersionWithTarget(platformName.uppercase())
-        assetName = "WLED_$versionWithPlatform.bin"
-        findAsset(versionWithPlatform)
-    }
-
-    private fun formatVersionWithTarget(target: String): String {
-        val combined = "${versionWithAssets.version.tagName}_$target"
-        return if (combined.startsWith("v", ignoreCase = true)) combined.drop(1) else combined
-    }
-
-    private fun findAsset(assetName: String) {
-        for (asset in versionWithAssets.assets) {
-            if (asset.name.endsWith("$assetName.bin")) {
-                this.asset = asset
-                this.assetName = asset.name
+            val resolution = resolveDefaultAsset(device.stateInfo?.info, versionWithAssets)
+            assetName = resolution.expectedAssetName
+            if (resolution.matchedAsset != null) {
+                asset = resolution.matchedAsset
+                assetName = resolution.matchedAsset.name
                 couldDetermineAsset = true
-                return
             }
         }
     }
@@ -156,8 +112,14 @@ class DeviceUpdateService(
     }
 
     fun downloadBinary(repositoryDao: RepositoryDao): Flow<DownloadState> = flow {
-        val repo = repositoryDao.getRepositoryById(device.device.repositoryId)
-        val repoStr = repo?.ownerAndRepo ?: DEFAULT_REPO
+        val targetRepoId = versionWithAssets.version.repositoryId
+        val repo = repositoryDao.getRepositoryById(targetRepoId)
+        val repoStr = repo?.ownerAndRepo
+            ?: if (targetRepoId == Repository.DEFAULT_ID) {
+                DEFAULT_REPO
+            } else {
+                error("Repository $targetRepoId not found for ${versionWithAssets.version.tagName}")
+            }
         val (repoOwner, repoName) = splitRepository(repoStr)
         emitAll(downloadBinary(repoOwner, repoName))
     }.catch { error ->
@@ -169,21 +131,151 @@ class DeviceUpdateService(
         check(::asset.isInitialized) {
             "Asset could not be determined for ${device.device.macAddress}."
         }
-        return cacheDir / versionWithAssets.version.tagName / asset.name
+        return cacheDir /
+            versionWithAssets.version.repositoryId.toString() /
+            versionWithAssets.version.tagName /
+            asset.name
     }
 
     @Throws(Exception::class)
-    suspend fun installUpdate(): ApiResponse<String> {
-        logger.d { "Installing software update: ${device.device.macAddress}" }
+    suspend fun installUpdate(skipValidation: Boolean = false): ApiResponse<String> {
+        logger.d {
+            "Installing software update: ${device.device.macAddress} (skipValidation=$skipValidation)"
+        }
         // Longer TTL because updates can take a bit of time to fully install
         return deviceApiFactory
             .create(device.device, UPDATE_TIMEOUT_SECONDS)
-            .updateDevice(getPathForAsset(), fs, ioDispatcher)
+            .updateDevice(getPathForAsset(), fs, ioDispatcher, skipValidation)
     }
 
+    private data class AssetResolution(val matchedAsset: Asset?, val expectedAssetName: String)
+
     companion object {
+        private const val VALIDATION_OVERRIDE_HINT = "Ignore firmware validation"
+        private val HTML_BODY_REGEX = Regex(
+            "<body[^>]*>(.*?)</body>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+        )
+        private val HTML_JUNK_TAG_REGEX = Regex(
+            "<(button|script|style)\\b[^>]*>.*?</\\1>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+        )
+        private val HTML_BLOCK_BREAK_REGEX = Regex(
+            "<br\\s*/?>|</(h[1-6]|p|div|li)>",
+            RegexOption.IGNORE_CASE,
+        )
+        private val HTML_TAG_REGEX = Regex("<[^>]+>")
+        private val WHITESPACE_REGEX = Regex("\\s+")
+
+        private val SUPPORTED_LEGACY_PLATFORMS = setOf(
+            "esp01",
+            "esp02",
+            "esp32",
+            "esp8266",
+        )
+
+        /**
+         * Returns `true` when [response] failed because WLED's OTA compatibility validator rejected
+         * the firmware binary (missing metadata, release variant mismatch, or minimum version check)
+         * and can be retried with `skipValidation = true`.
+         */
+        fun isValidationFailure(response: ApiResponse<String>): Boolean {
+            if (response.isSuccessful) return false
+            val plainText = extractPlainTextError(response) ?: return false
+            return plainText.contains(VALIDATION_OVERRIDE_HINT, ignoreCase = true)
+        }
+
+        /**
+         * Extracts a normalized plain-text message from WLED's `/update` HTML or plain-text error
+         * response, removing scripts, styles, and navigation buttons.
+         */
+        fun extractPlainTextError(response: ApiResponse<String>): String? {
+            val raw = response.body ?: response.errorBody ?: return null
+            val bodyContent = HTML_BODY_REGEX.find(raw)?.groupValues?.get(1) ?: raw
+            val withoutJunk = HTML_JUNK_TAG_REGEX.replace(bodyContent, " ")
+            val spacedBlocks = HTML_BLOCK_BREAK_REGEX.replace(withoutJunk, " ")
+            val strippedTags = HTML_TAG_REGEX.replace(spacedBlocks, "")
+            val decoded = decodeBasicHtmlEntities(strippedTags)
+            return decoded.trim().replace(WHITESPACE_REGEX, " ").ifEmpty { null }
+        }
+
+        private fun decodeBasicHtmlEntities(text: String): String = text
+            .replace("&apos;", "'")
+            .replace("&#39;", "'")
+            .replace("&#x27;", "'", ignoreCase = true)
+            .replace("&quot;", "\"")
+            .replace("&#34;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+
+        /**
+         * Returns all installable OTA binary assets (`.bin` and `.bin.gz`, excluding bootloaders)
+         * published for [versionWithAssets], sorted alphabetically by filename.
+         */
+        fun getInstallableAssets(versionWithAssets: VersionWithAssets): List<Asset> = versionWithAssets.assets
+            .filter { VersionWithAssets.isInstallableAssetName(it.name) }
+            .sortedBy { it.name.lowercase() }
+
+        /**
+         * Attempts to automatically match a binary asset in [versionWithAssets] against [info]'s
+         * `release` (WLED 0.15+) or legacy `platformName` (`arch`).
+         *
+         * Returns `null` when switching forks where board/variant names do not match automatically.
+         */
+        fun determineDefaultAsset(info: Info?, versionWithAssets: VersionWithAssets): Asset? =
+            resolveDefaultAsset(info, versionWithAssets).matchedAsset
+
+        fun determineDefaultAsset(device: DeviceWithState, versionWithAssets: VersionWithAssets): Asset? =
+            determineDefaultAsset(device.stateInfo?.info, versionWithAssets)
+
+        private fun resolveDefaultAsset(info: Info?, versionWithAssets: VersionWithAssets): AssetResolution {
+            val rawRelease = info?.release
+            val target = if (!rawRelease.isNullOrEmpty()) {
+                // Never swap to generic build if release name is known
+                resolveReleaseOverride(rawRelease, versionWithAssets.version.tagName)
+            } else {
+                val platformName = info?.platformName
+                if (platformName == null || !SUPPORTED_LEGACY_PLATFORMS.contains(platformName)) {
+                    return AssetResolution(matchedAsset = null, expectedAssetName = "")
+                }
+                // Legacy fallback for WLED older than 0.15.0
+                platformName.uppercase()
+            }
+
+            val candidateAssets = versionWithAssets.assets.filter {
+                VersionWithAssets.isInstallableAssetName(it.name)
+            }
+            val versionWithTarget = formatVersionWithTarget(versionWithAssets.version.tagName, target)
+            val expectedName = "WLED_$versionWithTarget.bin"
+            val matched = findAssetByTarget(candidateAssets, versionWithTarget, target)
+            return AssetResolution(matchedAsset = matched, expectedAssetName = expectedName)
+        }
+
+        private fun formatVersionWithTarget(tagName: String, target: String): String =
+            "${Version.normalizeTagOrVersion(tagName)}_$target"
+
+        private fun findAssetByTarget(assets: List<Asset>, versionWithTarget: String, target: String): Asset? =
+            VersionWithAssets.FIRMWARE_EXTENSIONS.firstNotNullOfOrNull { ext ->
+                assets.firstOrNull { it.name.endsWith("_$versionWithTarget$ext", ignoreCase = true) }
+            } ?: VersionWithAssets.FIRMWARE_EXTENSIONS.firstNotNullOfOrNull { ext ->
+                assets.firstOrNull { matchesFallbackTarget(it.name, target, ext) }
+            }
+
+        /**
+         * Matches `<prefix>_<version>_<target><extension>` when the version embedded in an asset
+         * filename differs from the GitHub tag (e.g. `WLEDMM_0.14.1-b32.40_<board>.bin`),
+         * ensuring `<target>` matches the entire board segment rather than a suffix of another board.
+         */
+        private fun matchesFallbackTarget(assetName: String, target: String, extension: String): Boolean {
+            val parsed = VersionWithAssets.parseFirmwareAssetFilename(assetName) ?: return false
+            return parsed.extension.equals(extension, ignoreCase = true) &&
+                parsed.boardSegment.equals(target, ignoreCase = true)
+        }
+
         fun resolveReleaseOverride(rawRelease: String, targetVersionTag: String): String {
-            val targetVersion = targetVersionTag.toVersionOrNull(strict = false)
+            val targetVersion = Version.parseSemVer(targetVersionTag)
             if (targetVersion == null) {
                 logger.w {
                     "Could not parse target version '$targetVersionTag', skipping release name overrides"

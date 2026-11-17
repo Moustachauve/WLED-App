@@ -158,6 +158,9 @@ fun DeviceListDetail(
                                 device = device,
                                 canNavigateBack = navigator.canNavigateBack(),
                                 navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                onBrowseVersions = {
+                                    actions.openFirmwareBrowser(device.device.macAddress)
+                                },
                             )
                         }
                     }
@@ -239,4 +242,5 @@ data class DeviceListDetailActions(
     val openSettings: () -> Unit,
     val openSoundSync: () -> Unit = {},
     val openChangelogs: () -> Unit = {},
+    val openFirmwareBrowser: (String) -> Unit = {},
 )

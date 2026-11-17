@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -103,28 +104,33 @@ private fun TopHeader(device: DeviceWithState) {
 @Composable
 private fun ReleaseNotes(modifier: Modifier = Modifier, version: VersionWithAssets? = null) {
     if (version != null) {
-        Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-        ) {
-            if (version.version.description.trimIndent().isEmpty()) {
-                Text(
-                    stringResource(R.string.no_release_notes_provided),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    ),
-                )
-            } else {
-                WledMarkdown(
-                    content = version.version.description.trimIndent(),
-                )
-            }
-        }
+        ReleaseNotesContent(
+            markdown = version.version.description,
+            modifier = modifier,
+        )
     } else {
         CircularProgressIndicator()
+    }
+}
+
+@Composable
+internal fun ReleaseNotesContent(markdown: String, modifier: Modifier = Modifier) {
+    val trimmed = markdown.trimIndent()
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+    ) {
+        if (trimmed.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_release_notes_provided),
+                style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+            )
+        } else {
+            WledMarkdown(content = trimmed)
+        }
     }
 }
 

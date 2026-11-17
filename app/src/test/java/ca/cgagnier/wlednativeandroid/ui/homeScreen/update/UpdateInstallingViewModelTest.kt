@@ -12,6 +12,7 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.api.github.KtorGithubApiEndpoints
@@ -21,6 +22,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
@@ -32,6 +34,7 @@ import io.ktor.utils.io.writeFully
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -48,6 +51,7 @@ import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -63,6 +67,7 @@ class UpdateInstallingViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val deviceRepository: DeviceRepository = mockk(relaxed = true)
     private val repositoryDao: RepositoryDao = mockk(relaxed = true)
+    private val deviceConnectionManager: DeviceConnectionManager = mockk(relaxed = true)
 
     private val expectedBinary = ByteArray(1024) { (it % 256).toByte() }
     private val sampleDevice = DeviceWithState(
@@ -103,12 +108,40 @@ class UpdateInstallingViewModelTest {
             ),
         ),
     )
+    private val quinledAsset = Asset(
+        id = 10L,
+        versionId = 20L,
+        name = "WLED_0.15.0_Dig-Uno-V3.bin",
+        size = expectedBinary.size.toLong(),
+        downloadUrl = "https://example.com/WLED_0.15.0_Dig-Uno-V3.bin",
+        assetId = 99,
+    )
+    private val quinledVersion = VersionWithAssets(
+        version = Version(
+            id = 20L,
+            repositoryId = 2L,
+            tagName = "v0.15.0",
+            name = "0.15.0",
+            description = "",
+            isPrerelease = false,
+            publishedDate = "2025-05-01T00:00:00Z",
+            htmlUrl = "https://github.com/intermittech/QuinLED-Firmware/releases/tag/v0.15.0",
+        ),
+        assets = listOf(quinledAsset),
+    )
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         coEvery { repositoryDao.getRepositoryById(Repository.DEFAULT_ID) } returns
             Repository.BUILT_IN_REPOSITORIES.first()
+        coEvery { repositoryDao.getRepositoryById(2L) } returns Repository(
+            id = 2L,
+            ownerAndRepo = "intermittech/QuinLED-Firmware",
+            name = "QuinLED",
+            description = "",
+            htmlUrl = "",
+        )
     }
 
     @AfterEach
@@ -116,13 +149,29 @@ class UpdateInstallingViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun cachedBinaryFile(): File = File(File(tempDir, "0.15.0"), "WLED_0.15.0_ESP32.bin")
+    private fun cachedBinaryFile(
+        repositoryId: Long = Repository.DEFAULT_ID,
+        tagName: String = "0.15.0",
+        assetName: String = "WLED_0.15.0_ESP32.bin",
+    ): File = File(tempDir, "$repositoryId/$tagName/$assetName")
 
     private fun partBinaryFile(): File = File("${cachedBinaryFile().absolutePath}.part")
 
-    private fun writeCachedBinary(bytes: ByteArray = expectedBinary): File = cachedBinaryFile().apply {
-        parentFile?.mkdirs()
-        writeBytes(bytes)
+    private fun writeCachedBinary(bytes: ByteArray = expectedBinary, file: File = cachedBinaryFile()): File =
+        file.apply {
+            parentFile?.mkdirs()
+            writeBytes(bytes)
+        }
+
+    private fun stageQuinledCachedBinary() {
+        writeCachedBinary(
+            bytes = expectedBinary,
+            file = cachedBinaryFile(
+                repositoryId = 2L,
+                tagName = quinledVersion.version.tagName,
+                assetName = quinledAsset.name,
+            ),
+        )
     }
 
     private fun MockRequestHandleScope.respondWithExpectedBinary(): HttpResponseData = respond(
@@ -145,22 +194,25 @@ class UpdateInstallingViewModelTest {
 
     private fun createViewModel(
         onDownload: () -> Unit = {},
-        onUpload: () -> Unit = {},
+        onUpload: (HttpRequestData) -> Unit = {},
         downloadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
+        uploadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
     ): UpdateInstallingViewModel {
         val httpClient = HttpClient(MockEngine) {
             engine {
                 dispatcher = testDispatcher
                 addHandler { request ->
                     when (request.url.encodedPath) {
-                        "/repos/wled/WLED/releases/assets/42" -> {
+                        "/repos/wled/WLED/releases/assets/42",
+                        "/repos/intermittech/QuinLED-Firmware/releases/assets/99",
+                        -> {
                             onDownload()
                             downloadResponder?.invoke(this, request) ?: respondWithExpectedBinary()
                         }
 
                         "/update" -> {
-                            onUpload()
-                            respond(
+                            onUpload(request)
+                            uploadResponder?.invoke(this, request) ?: respond(
                                 content = "Update Success!",
                                 status = HttpStatusCode.OK,
                                 headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
@@ -178,6 +230,7 @@ class UpdateInstallingViewModelTest {
             repositoryDao = repositoryDao,
             deviceApiFactory = DeviceApiFactory(httpClient),
             githubApi = GithubApi(KtorGithubApiEndpoints(httpClient, ioDispatcher = testDispatcher)),
+            deviceConnectionManager = deviceConnectionManager,
             ioDispatcher = testDispatcher,
         )
     }
@@ -237,6 +290,144 @@ class UpdateInstallingViewModelTest {
     }
 
     @Test
+    fun `successful cross-repository install persists target repositoryId and notifies connection manager`() = runTest(
+        testDispatcher,
+    ) {
+        stageQuinledCachedBinary()
+        val viewModel = createViewModel()
+
+        viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+        advanceUntilIdle()
+
+        assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
+        coVerify(exactly = 1) { deviceRepository.updateSkipUpdateTag("AA:BB:CC:DD:EE:FF", "") }
+        coVerify(exactly = 1) { deviceRepository.updateRepositoryId("AA:BB:CC:DD:EE:FF", 2L) }
+        verify(atLeast = 1) {
+            deviceConnectionManager.markUpdateInstalled(
+                macAddress = "AA:BB:CC:DD:EE:FF",
+                installedVersionTag = "v0.15.0",
+                repositoryId = 2L,
+                repositoryOwnerAndRepo = "intermittech/QuinLED-Firmware",
+            )
+        }
+    }
+
+    @Test
+    fun `validation failure exposes retryWithoutValidation and shows error immediately`() = runTest(testDispatcher) {
+        stageQuinledCachedBinary()
+        val viewModel = createViewModel(
+            uploadResponder = {
+                respond(
+                    content = SAMPLE_VALIDATION_HTML,
+                    status = HttpStatusCode.InternalServerError,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                )
+            },
+        )
+
+        viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+        advanceUntilIdle()
+
+        val errorStep = viewModel.state.value.step as UpdateInstallingStep.Error
+        assertTrue(errorStep.showError)
+        assertTrue(errorStep.canRetryWithoutValidation)
+    }
+
+    @Test
+    fun `retryWithoutValidation uploads cached binary with skipValidation true`() = runTest(testDispatcher) {
+        stageQuinledCachedBinary()
+        val capturedUploadBodies = mutableListOf<String>()
+        val uploadResponses = ArrayDeque(
+            listOf(
+                HttpStatusCode.InternalServerError to SAMPLE_VALIDATION_HTML,
+                HttpStatusCode.OK to "OK",
+            ),
+        )
+        val viewModel = createViewModel(
+            uploadResponder = { request ->
+                capturedUploadBodies += request.body.toByteArray().decodeToString()
+                val (status, content) = uploadResponses.removeFirst()
+                respond(
+                    content = content,
+                    status = status,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                )
+            },
+        )
+
+        viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+        advanceUntilIdle()
+        viewModel.retryWithoutValidation()
+        advanceUntilIdle()
+
+        assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
+        assertEquals(2, capturedUploadBodies.size)
+        assertFalse(capturedUploadBodies[0].contains("name=\"skipValidation\""))
+        val skipIndex = capturedUploadBodies[1].indexOf("name=\"skipValidation\"")
+        val fileIndex = capturedUploadBodies[1].indexOf("filename=\"${quinledAsset.name}\"")
+        assertTrue(skipIndex in 0..<fileIndex)
+    }
+
+    @Test
+    fun `retryWithoutValidation transitions synchronously and ignores rapid duplicate taps`() =
+        runTest(testDispatcher) {
+            stageQuinledCachedBinary()
+            var uploadCount = 0
+            val uploadResponses = ArrayDeque(
+                listOf(
+                    HttpStatusCode.InternalServerError to SAMPLE_VALIDATION_HTML,
+                    HttpStatusCode.OK to "OK",
+                ),
+            )
+            val viewModel = createViewModel(
+                onUpload = { uploadCount++ },
+                uploadResponder = {
+                    val (status, content) = uploadResponses.removeFirst()
+                    respond(
+                        content = content,
+                        status = status,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                    )
+                },
+            )
+
+            viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+            advanceUntilIdle()
+
+            viewModel.retryWithoutValidation()
+            assertEquals(UpdateInstallingStep.Starting, viewModel.state.value.step)
+            assertEquals(quinledAsset.name, viewModel.state.value.assetName)
+
+            viewModel.retryWithoutValidation()
+            advanceUntilIdle()
+
+            assertEquals(2, uploadCount)
+            assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
+        }
+
+    @Test
+    fun `non-validation 500 error does not offer retryWithoutValidation`() = runTest(testDispatcher) {
+        stageQuinledCachedBinary()
+        val viewModel = createViewModel(
+            uploadResponder = {
+                respond(
+                    content = "<body><h2>Update failed!</h2><h4>Not enough space</h4></body>",
+                    status = HttpStatusCode.InternalServerError,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                )
+            },
+        )
+
+        viewModel.startUpdate(sampleDevice, quinledVersion, tempDir, selectedAsset = quinledAsset)
+        advanceUntilIdle()
+
+        val errorStep = viewModel.state.value.step as UpdateInstallingStep.Error
+        assertEquals("500: Update failed! Not enough space", errorStep.error)
+        assertFalse(errorStep.showError)
+        assertFalse(errorStep.canRetryWithoutValidation)
+    }
+
+    @Test
     fun `resetState restores initial UpdateInstallingState after completed update`() = runTest(testDispatcher) {
         writeCachedBinary()
 
@@ -248,6 +439,8 @@ class UpdateInstallingViewModelTest {
         viewModel.resetState()
 
         assertEquals(UpdateInstallingState(), viewModel.state.value)
+        assertNull(viewModel.device.value)
+        assertNull(viewModel.version.value)
     }
 
     @Test
@@ -383,7 +576,8 @@ class UpdateInstallingViewModelTest {
         releaseFirstCleanup.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(2, lookupCount)
+        // 2 download lookups (initial + retry) plus 1 post-install repository lookup.
+        assertEquals(3, lookupCount)
         assertEquals(1, downloadAttempts)
         assertEquals(1, uploadRequests)
         assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
@@ -397,5 +591,13 @@ class UpdateInstallingViewModelTest {
     @Test
     fun `startUpdate awaits original download job after chained resetState`() = runTest(testDispatcher) {
         assertStartUpdateAwaitsCancelledJobCleanup(extraCancelledAttempts = 1)
+    }
+
+    companion object {
+        private val SAMPLE_VALIDATION_HTML = """
+            <body><h2>Update failed!</h2>
+            <h4>This firmware file is missing compatibility metadata.
+            Enable 'Ignore firmware validation' to proceed anyway.</h4></body>
+        """.trimIndent()
     }
 }

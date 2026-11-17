@@ -512,6 +512,27 @@ class DeviceConnectionManagerTest {
     }
 
     @Test
+    fun syncDevicesRechecksUpdateWhenRepositoryIdChanges() = runTest {
+        updateResolver.tagToReturn = null
+        val manager = createManager()
+
+        store.allDevicesFlow.value = listOf(createDevice(mac = "A", repositoryId = 1L))
+        advanceUntilIdle()
+
+        val connection = factory.createdConnections["192.168.1.100"]!!
+        connection.emitStateInfo(createStateInfo(version = "0.14.0"))
+        advanceUntilIdle()
+        assertEquals(1, updateResolver.callCount)
+
+        updateResolver.tagToReturn = "v0.15.4"
+        store.allDevicesFlow.value = listOf(createDevice(mac = "A", repositoryId = 2L))
+        advanceUntilIdle()
+
+        assertEquals(2, updateResolver.callCount)
+        assertEquals("v0.15.4", manager.allDevicesWithState.value[0].updateVersionTag)
+    }
+
+    @Test
     fun onBackgroundPausesConnectionsAfterDebounceDelay() = runTest {
         var currentTime = 10_000L
         val manager = createManager(
@@ -786,10 +807,13 @@ class DeviceConnectionManagerTest {
     private fun TestScope.connectSingleDeviceWithVersion(
         initialUpdateTag: String?,
         version: String = "0.14.0",
+        skipUpdateTag: String = "",
     ): DeviceConnectionManager {
         updateResolver.tagToReturn = initialUpdateTag
         val manager = createManager()
-        store.allDevicesFlow.value = listOf(createDevice(mac = "A", address = "192.168.1.50"))
+        store.allDevicesFlow.value = listOf(
+            createDevice(mac = "A", address = "192.168.1.50", skipUpdateTag = skipUpdateTag),
+        )
         advanceUntilIdle()
         factory.createdConnections["192.168.1.50"]!!.emitStateInfo(createStateInfo(version = version))
         advanceUntilIdle()
@@ -808,12 +832,17 @@ class DeviceConnectionManagerTest {
     }
 
     @Test
-    fun markUpdateInstalledUpdatesStateInfoVersion() = runTest {
-        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0")
+    fun markUpdateInstalledUpdatesStateInfoVersionAndClearsSkipTag() = runTest {
+        val manager = connectSingleDeviceWithVersion(
+            initialUpdateTag = "0.15.0",
+            skipUpdateTag = "0.14.4",
+        )
 
-        manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "v0.15.0")
+        manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "V0.15.0")
 
-        assertEquals("0.15.0", manager.allDevicesWithState.value[0].stateInfo?.info?.version)
+        val updated = manager.allDevicesWithState.value[0]
+        assertEquals("0.15.0", updated.stateInfo?.info?.version)
+        assertEquals("", updated.device.skipUpdateTag)
     }
 
     @Test
@@ -823,5 +852,21 @@ class DeviceConnectionManagerTest {
         manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "v0.15.0")
 
         assertEquals(null, manager.allDevicesWithState.value[0].updateVersionTag)
+    }
+
+    @Test
+    fun markUpdateInstalledUpdatesRepositoryWhenSwitchingSource() = runTest {
+        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0")
+
+        manager.markUpdateInstalled(
+            macAddress = "A",
+            installedVersionTag = "v0.15.0",
+            repositoryId = 2L,
+            repositoryOwnerAndRepo = "intermittech/QuinLED-Firmware",
+        )
+
+        val updated = manager.allDevicesWithState.value[0]
+        assertEquals(2L, updated.device.repositoryId)
+        assertEquals("intermittech/QuinLED-Firmware", updated.stateInfo?.info?.repository)
     }
 }

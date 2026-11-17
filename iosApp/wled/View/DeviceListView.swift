@@ -302,7 +302,7 @@ struct DeviceListView: View {
     private var detailView: some View {
         if let device = navigation.selection {
             NavigationStack(path: navigation.detailPathBinding) {
-                DeviceView(device: device)
+                DeviceView(device: device, onInstallCompleted: navigation.popToEdit)
             }
         } else {
             Text("Select A Device")

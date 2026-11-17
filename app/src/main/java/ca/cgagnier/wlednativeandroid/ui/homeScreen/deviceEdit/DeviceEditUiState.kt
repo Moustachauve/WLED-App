@@ -30,6 +30,7 @@ data class DeviceEditActions(
     val onDeviceHiddenChange: (Boolean) -> Unit = {},
     val onBranchChange: (Branch) -> Unit = {},
     val onCheckForUpdates: () -> Unit = {},
+    val onBrowseVersions: () -> Unit = {},
     val onSeeUpdateDetails: (String) -> Unit = {},
     val onHideUpdateDetails: () -> Unit = {},
     val onSkipUpdate: (VersionWithAssets) -> Unit = {},

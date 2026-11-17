@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.service
 
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.repository.DeviceStore
@@ -230,8 +231,9 @@ class DeviceConnectionManager(
             val mac = device.macAddress
 
             val branchChanged = device.branch != previous.device.branch
+            val repoChanged = device.repositoryId != previous.device.repositoryId
             val unskipped = device.skipUpdateTag.isEmpty() && previous.device.skipUpdateTag.isNotEmpty()
-            if (branchChanged || unskipped) {
+            if (branchChanged || repoChanged || unskipped) {
                 scheduleModifiedUpdateCheck(mac, device, previous, stateInfo)
             }
         }
@@ -473,7 +475,8 @@ class DeviceConnectionManager(
         val hardwareChanged = oldInfo.brand != info.brand ||
             oldInfo.product != info.product
         val settingsChanged = current.device.branch != deviceToUse.branch ||
-            current.device.skipUpdateTag != deviceToUse.skipUpdateTag
+            current.device.skipUpdateTag != deviceToUse.skipUpdateTag ||
+            current.device.repositoryId != deviceToUse.repositoryId
 
         return firmwareChanged || hardwareChanged || settingsChanged
     }
@@ -482,7 +485,7 @@ class DeviceConnectionManager(
         if (currentBranch != Branch.UNKNOWN || version.isNullOrBlank()) {
             return currentBranch
         }
-        return if (version.contains("-b")) Branch.BETA else Branch.STABLE
+        return if (Version.isPreReleaseTag(version)) Branch.BETA else Branch.STABLE
     }
 
     fun refreshOfflineDevices() {
@@ -589,7 +592,27 @@ class DeviceConnectionManager(
      * finishes rebooting and reconnects over WebSocket.
      */
     fun markUpdateInstalled(macAddress: String, installedVersionTag: String) {
-        val cleanedVersion = installedVersionTag.removePrefix("v")
+        markUpdateInstalled(
+            macAddress = macAddress,
+            installedVersionTag = installedVersionTag,
+            repositoryId = null,
+            repositoryOwnerAndRepo = null,
+        )
+    }
+
+    /**
+     * Updates the cached [DeviceStateInfo] version, optional [repositoryId] /
+     * [repositoryOwnerAndRepo] when switching update sources, and clears the pending
+     * [DeviceWithState.updateVersionTag] for [macAddress] immediately after a successful OTA
+     * firmware installation.
+     */
+    fun markUpdateInstalled(
+        macAddress: String,
+        installedVersionTag: String,
+        repositoryId: Long?,
+        repositoryOwnerAndRepo: String? = null,
+    ) {
+        val cleanedVersion = Version.normalizeTagOrVersion(installedVersionTag)
         synchronized(lock) {
             sessions[macAddress]?.let { session ->
                 session.nextUpdateCheckAt = 0L
@@ -598,10 +621,16 @@ class DeviceConnectionManager(
             }
         }
         updateDevice(macAddress) { current ->
-            val updatedStateInfo = current.stateInfo?.let { stateInfo ->
-                stateInfo.copy(info = stateInfo.info.copy(version = cleanedVersion))
-            }
+            val updatedDevice = current.device.copy(
+                repositoryId = repositoryId ?: current.device.repositoryId,
+                skipUpdateTag = "",
+            )
+            val updatedStateInfo = current.stateInfo?.withInstalledFirmware(
+                newVersion = cleanedVersion,
+                repositoryOwnerAndRepo = repositoryOwnerAndRepo,
+            )
             current.copy(
+                device = updatedDevice,
                 stateInfo = updatedStateInfo,
                 updateVersionTag = null,
             )

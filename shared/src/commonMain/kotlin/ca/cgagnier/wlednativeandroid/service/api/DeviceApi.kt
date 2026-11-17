@@ -42,7 +42,11 @@ interface DeviceApi {
     suspend fun postJson(state: JsonPost): ApiResponse<State>
 
     @Throws(Exception::class)
-    suspend fun updateDevice(fileData: ByteArray, fileName: String): ApiResponse<String>
+    suspend fun updateDevice(
+        fileData: ByteArray,
+        fileName: String,
+        skipValidation: Boolean = false,
+    ): ApiResponse<String>
 }
 
 @Throws(Exception::class)
@@ -50,11 +54,12 @@ suspend fun DeviceApi.updateDevice(
     binaryPath: Path,
     fs: FileSystem = defaultFileSystem,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    skipValidation: Boolean = false,
 ): ApiResponse<String> {
     val bytes = withContext(ioDispatcher) {
         fs.read(binaryPath) { readByteArray() }
     }
-    return updateDevice(bytes, binaryPath.name)
+    return updateDevice(bytes, binaryPath.name, skipValidation)
 }
 
 class KtorDeviceApi(private val baseUrl: String, private val httpClient: HttpClient) : DeviceApi {
@@ -89,9 +94,13 @@ class KtorDeviceApi(private val baseUrl: String, private val httpClient: HttpCli
     }
 
     @Throws(Exception::class)
-    override suspend fun updateDevice(fileData: ByteArray, fileName: String): ApiResponse<String> {
+    override suspend fun updateDevice(
+        fileData: ByteArray,
+        fileName: String,
+        skipValidation: Boolean,
+    ): ApiResponse<String> {
         val boundary = generateMultipartBoundary()
-        val bodyBytes = buildMultipartFirmwareBody(boundary, fileName, fileData)
+        val bodyBytes = buildMultipartFirmwareBody(boundary, fileName, fileData, skipValidation)
         // Use ByteArrayContent instead of streaming WriteChannelContent so Darwin sends an NSData
         // body with an explicit Content-Length rather than chunked Transfer-Encoding (unsupported by ESP32).
         val response = httpClient.post(normalizeUrl("update")) {
@@ -116,11 +125,24 @@ class KtorDeviceApi(private val baseUrl: String, private val httpClient: HttpCli
         append(Random.nextLong().toULong().toString(HEX_RADIX))
     }
 
-    private fun buildMultipartFirmwareBody(boundary: String, fileName: String, fileData: ByteArray): ByteArray {
+    private fun buildMultipartFirmwareBody(
+        boundary: String,
+        fileName: String,
+        fileData: ByteArray,
+        skipValidation: Boolean,
+    ): ByteArray {
         // ESPAsyncWebServer reads filename="..." up to the next quote without unescaping
         // backslashes, so strip CR/LF and quotes rather than backslash-escaping.
         val safeFileName = fileName.filterNot { it == '\r' || it == '\n' || it == '"' }
         return Buffer().apply {
+            if (skipValidation) {
+                // Must precede the binary "file" part so WLED's streaming upload handler
+                // sees request->getParam("skipValidation", true) on chunk 0.
+                writeUtf8("--$boundary\r\n")
+                writeUtf8("Content-Disposition: form-data; name=\"skipValidation\"\r\n")
+                writeUtf8("\r\n")
+                writeUtf8("1\r\n")
+            }
             writeUtf8("--$boundary\r\n")
             writeUtf8("Content-Disposition: form-data; name=\"file\"; filename=\"$safeFileName\"\r\n")
             writeUtf8("Content-Type: application/octet-stream\r\n")

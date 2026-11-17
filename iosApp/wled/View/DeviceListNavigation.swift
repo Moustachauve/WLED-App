@@ -67,6 +67,19 @@ final class DeviceListNavigation {
         detailPath = []
     }
 
+    /// Pops any screens pushed above `DeviceEditView` while keeping the device's edit screen visible.
+    func popToEdit() {
+        clearPendingReset()
+        if let editIndex = detailPath.lastIndex(where: {
+            if case .edit = $0 { return true }
+            return false
+        }) {
+            detailPath = Array(detailPath.prefix(through: editIndex))
+        } else {
+            detailPath = []
+        }
+    }
+
     private func clearPendingReset() {
         resetExpiryTask?.cancel()
         resetExpiryTask = nil

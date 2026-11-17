@@ -40,7 +40,7 @@ class DeviceUpdateManagerTest {
         val result = updateManager.checkForUpdate(testDevice, null)
 
         assertNull(result)
-        coVerify(exactly = 0) { releaseService.getNewerReleaseTag(any(), any(), any()) }
+        coVerify(exactly = 0) { releaseService.getNewerReleaseTag(any(), any(), any(), any()) }
     }
 
     @Test
@@ -51,6 +51,7 @@ class DeviceUpdateManagerTest {
                 deviceInfo = stateInfo.info,
                 branch = Branch.STABLE,
                 ignoreVersion = "0.13.3",
+                repositoryId = testDevice.repositoryId,
             )
         } returns "0.14.1"
 
@@ -62,6 +63,7 @@ class DeviceUpdateManagerTest {
                 deviceInfo = stateInfo.info,
                 branch = Branch.STABLE,
                 ignoreVersion = "0.13.3",
+                repositoryId = testDevice.repositoryId,
             )
         }
     }
@@ -70,7 +72,7 @@ class DeviceUpdateManagerTest {
     fun `checkForUpdate returns null when device is up to date`() = runTest {
         val stateInfo = createDeviceStateInfo(version = "0.14.1")
         coEvery {
-            releaseService.getNewerReleaseTag(any(), any(), any())
+            releaseService.getNewerReleaseTag(any(), any(), any(), any())
         } returns null
 
         val result = updateManager.checkForUpdate(testDevice, stateInfo)
@@ -87,6 +89,7 @@ class DeviceUpdateManagerTest {
                 deviceInfo = stateInfo.info,
                 branch = Branch.STABLE,
                 ignoreVersion = "0.13.3",
+                repositoryId = testDevice.repositoryId,
             )
         } returns "0.14.2"
 

@@ -61,10 +61,11 @@ struct DeviceEditView: View {
                     } else if (device.availableUpdateVersion ?? "").isEmpty {
                         DeviceNoUpdateAvailable(
                             device: device,
-                            isCheckingForUpdates: viewModel.isCheckingForUpdates
-                        ) {
-                            await viewModel.checkForUpdate()
-                        }
+                            isCheckingForUpdates: viewModel.isCheckingForUpdates,
+                            onCheckForUpdate: {
+                                await viewModel.checkForUpdate()
+                            }
+                        )
                     } else {
                         DeviceUpdateAvailable(device: device)
                     }
@@ -82,7 +83,6 @@ struct DeviceEditView: View {
                     }
                 }
                 .animation(.default, value: device.availableUpdateVersion)
-                .animation(.default, value: viewModel.isCheckingForUpdates)
 
                 Text("Mac Address: \(device.device.macAddress)")
                     .font(.caption)
@@ -130,26 +130,33 @@ struct DeviceNoUpdateAvailable: View {
     let onCheckForUpdate: () async -> Void
 
     var body: some View {
-        Text("Your device is up to date")
-        Text(
-            "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
-        )
-        HStack {
-            Button(
-                action: {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your device is up to date")
+            Text(
+                "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
+            )
+            VStack(spacing: 8) {
+                Button {
                     Task {
                         await onCheckForUpdate()
                     }
-                },
-                label: {
-                    Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
+                } label: {
+                    HStack(spacing: 8) {
+                        if isCheckingForUpdates {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-            )
-            .buttonStyle(.bordered)
-            .padding(.trailing)
-            .disabled(isCheckingForUpdates)
-            ProgressView()
-                .opacity(isCheckingForUpdates ? 1 : 0)
+                .buttonStyle(.bordered)
+                .disabled(isCheckingForUpdates)
+
+                OtherVersionsLink(deviceId: device.id)
+            }
+            .padding(.top, 2)
         }
     }
 }
@@ -163,27 +170,50 @@ struct DeviceUpdateAvailable: View {
     private let unknownVersion = String(localized: "unknown_version")
 
     var body: some View {
-        HStack {
-            Image(systemName: getUpdateIconName())
-                .resizable()
-                // TODO: Migrate legacy aspectRatio to scaledToFill in a dedicated follow-up PR
-                // swiftlint:disable:next all
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 30.0, height: 30.0)
-                .padding(.trailing)
-            VStack(alignment: .leading) {
-                Text("Update Available")
-                Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
-                NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
-                    Text("See Update")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: getUpdateIconName())
+                    .resizable()
+                    // TODO: Migrate legacy aspectRatio to scaledToFill in a dedicated follow-up PR
+                    // swiftlint:disable:next all
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 30.0, height: 30.0)
+                    .padding(.trailing)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Update Available")
+                    Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
                 }
             }
+            VStack(spacing: 8) {
+                NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
+                    Text("See Update")
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                OtherVersionsLink(deviceId: device.id)
+            }
         }
-        .buttonStyle(.borderedProminent)
     }
 
     private func getUpdateIconName() -> String {
         "arrow.down.circle.dotted"
+    }
+}
+
+private struct OtherVersionsLink: View {
+    let deviceId: String
+
+    var body: some View {
+        NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: deviceId)) {
+            Text("Other Versions & Sources")
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
     }
 }
 

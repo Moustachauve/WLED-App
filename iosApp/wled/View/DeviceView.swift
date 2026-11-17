@@ -8,11 +8,19 @@ private typealias State = SwiftUI.State
 enum DeviceDetailRoute: Hashable {
     case edit(deviceId: String)
     case updateDetails(deviceId: String)
+    case firmwareBrowser(deviceId: String)
+    case firmwareVersionDetails(
+        deviceId: String,
+        version: VersionWithAssets,
+        repositoryName: String?,
+        repositoryOwnerAndRepo: String?
+    )
 }
 
 struct DeviceView: View {
     @Environment(\.colorScheme) var colorScheme
     var device: DeviceWithState
+    var onInstallCompleted: (() -> Void)?
 
     @State var showDownloadFinished = false
     @State var shouldWebViewRefresh = false
@@ -72,8 +80,29 @@ struct DeviceView: View {
                 DeviceEditView(device: device)
                     .id(device.id)
             case .updateDetails:
-                DeviceUpdateDetails(device: device)
+                DeviceUpdateDetails(
+                    device: device,
+                    onInstallCompleted: onInstallCompleted
+                )
+                .id(device.id)
+            case .firmwareBrowser:
+                DeviceFirmwareBrowserView(device: device)
                     .id(device.id)
+            case let .firmwareVersionDetails(
+                _,
+                version,
+                repositoryName,
+                repositoryOwnerAndRepo
+            ):
+                DeviceUpdateDetails(
+                    device: device,
+                    explicitVersion: version,
+                    repositoryName: repositoryName,
+                    repositoryOwnerAndRepo: repositoryOwnerAndRepo,
+                    showBinaryPicker: true,
+                    onInstallCompleted: onInstallCompleted
+                )
+                .id("\(device.id)-\(version.version.repositoryId)-\(version.version.tagName)")
             }
         }
         .onChange(of: device.device.address) {
