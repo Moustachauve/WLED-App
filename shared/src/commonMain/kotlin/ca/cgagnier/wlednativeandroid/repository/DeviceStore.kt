@@ -14,6 +14,7 @@ interface DeviceStore {
     val allDevices: Flow<List<Device>>
     suspend fun updateOriginalName(macAddress: String, originalName: String)
     suspend fun updateBranch(macAddress: String, branch: Branch)
+    suspend fun updateSkipUpdateTag(macAddress: String, skipUpdateTag: String)
     suspend fun updateRepositoryId(macAddress: String, repositoryId: Long)
     suspend fun updateLastSeen(macAddress: String, lastSeen: Long)
     suspend fun delete(device: Device)

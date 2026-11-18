@@ -9,7 +9,14 @@ private const val DEFAULT_MOCK_SIGNAL = -60
 
 @Serializable
 data class DeviceStateInfo(@SerialName("state") val state: State, @SerialName("info") val info: Info) {
-    fun withVersion(newVersion: String): DeviceStateInfo = copy(info = info.copy(version = newVersion))
+    fun withVersion(newVersion: String): DeviceStateInfo = withInstalledFirmware(newVersion)
+
+    fun withInstalledFirmware(newVersion: String, repositoryOwnerAndRepo: String? = null): DeviceStateInfo = copy(
+        info = info.copy(
+            version = newVersion,
+            repository = repositoryOwnerAndRepo ?: info.repository,
+        ),
+    )
 
     fun withIsOn(isOn: Boolean): DeviceStateInfo = copy(state = state.copy(isOn = isOn))
 

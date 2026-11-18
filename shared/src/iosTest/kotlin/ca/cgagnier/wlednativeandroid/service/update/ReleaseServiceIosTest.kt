@@ -146,4 +146,28 @@ class ReleaseServiceIosTest {
         assertNotNull(savedVersion)
         assertEquals("0.15.0", savedVersion.version.tagName)
     }
+
+    @Test
+    fun refreshVersionsForRepositoryPreservesBuiltInRepositoryMetadata() = runTest {
+        val service = ReleaseService(
+            versionWithAssetsRepository,
+            repositoryDao,
+            StandardTestDispatcher(testScheduler),
+        )
+        service.syncBuiltInRepositories()
+        val quinledBefore = repositoryDao.getRepositoryByOwnerAndRepo("intermittech/QuinLED-Firmware")
+        assertNotNull(quinledBefore)
+
+        val succeeded = service.refreshVersionsForRepository(
+            fakeGithubApi { _, _ -> listOf(makeRelease("v0.15.4")) },
+            quinledBefore,
+        )
+
+        assertTrue(succeeded)
+        val quinledAfter = repositoryDao.getRepositoryById(quinledBefore.id)
+        assertNotNull(quinledAfter)
+        assertEquals("QuinLED", quinledAfter.name)
+        assertTrue(quinledAfter.isDefault)
+        assertTrue(quinledAfter.isEnabled)
+    }
 }

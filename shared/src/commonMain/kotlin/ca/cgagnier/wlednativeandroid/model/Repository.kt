@@ -25,6 +25,12 @@ data class Repository(
     @ColumnInfo(defaultValue = "1")
     val isUpdateEnabled: Boolean = true,
 ) {
+    /**
+     * Whether this repository is the official upstream WLED repository (`wled/WLED`).
+     */
+    val isOfficial: Boolean
+        get() = ownerAndRepo.equals(DEFAULT_OWNER_REPO, ignoreCase = true)
+
     companion object {
         const val DEFAULT_ID = 1L
         const val DEFAULT_OWNER_REPO = "wled/WLED"

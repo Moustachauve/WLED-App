@@ -36,6 +36,10 @@ interface VersionDao {
     suspend fun getVersionByTagName(repositoryId: Long, tagName: String): VersionWithAssets?
 
     @Transaction
+    @Query("SELECT * FROM version WHERE repositoryId = :repositoryId")
+    fun observeVersionsWithAssetsByRepository(repositoryId: Long): Flow<List<VersionWithAssets>>
+
+    @Transaction
     @Query("SELECT * FROM version")
     fun getVersionsWithAsset(): Flow<List<VersionWithAssets>>
 }
