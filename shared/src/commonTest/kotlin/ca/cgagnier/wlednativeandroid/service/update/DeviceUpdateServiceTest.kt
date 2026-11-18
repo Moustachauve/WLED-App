@@ -10,19 +10,17 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
-import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.api.ApiResponse
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.DownloadState
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.api.github.KtorGithubApiEndpoints
+import ca.cgagnier.wlednativeandroid.service.fakeRepositoryDao
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import okio.FileSystem
@@ -406,18 +404,6 @@ class DeviceUpdateServiceTest {
                 "Enable 'Ignore firmware validation' to proceed anyway.",
             DeviceUpdateService.extractPlainTextError(validationResponse),
         )
-    }
-
-    private fun fakeRepositoryDao(vararg repos: Repository): RepositoryDao = object : RepositoryDao {
-        override suspend fun insert(repository: Repository): Long = 0L
-        override suspend fun insertMany(repositories: List<Repository>) = Unit
-        override suspend fun update(repository: Repository) = Unit
-        override suspend fun delete(repository: Repository) = Unit
-        override suspend fun deleteAll() = Unit
-        override suspend fun getRepositoryById(id: Long): Repository? = repos.firstOrNull { it.id == id }
-        override suspend fun getRepositoryByOwnerAndRepo(ownerAndRepo: String): Repository? =
-            repos.firstOrNull { it.ownerAndRepo.equals(ownerAndRepo, ignoreCase = true) }
-        override fun getAllRepositories(): Flow<List<Repository>> = emptyFlow()
     }
 
     companion object {

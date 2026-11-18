@@ -36,7 +36,7 @@ data class VersionWithAssets(
         }
     }
 
-    data class ParsedFirmwareAssetName(val versionSegment: String, val boardSegment: String, val extension: String)
+    data class ParsedFirmwareAssetName(val versionSegment: String, val boardSegment: String)
 
     companion object {
         val FIRMWARE_EXTENSIONS = listOf(".bin", ".bin.gz")
@@ -72,7 +72,6 @@ data class VersionWithAssets(
             return ParsedFirmwareAssetName(
                 versionSegment = versionSegment,
                 boardSegment = boardSegment,
-                extension = extension,
             )
         }
     }

@@ -8,7 +8,6 @@ import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import io.github.z4kn4fein.semver.Version as SemVersion
 
 /**
@@ -106,12 +105,10 @@ class VersionWithAssetsRepository(
         versionDao.getVersionByTagName(repositoryId, tagName)
 
     /**
-     * Streams all supported releases (with their binary assets) cached for [repositoryId].
+     * Streams all releases (with their binary assets) cached for [repositoryId].
      */
     fun observeVersionsForRepository(repositoryId: Long): Flow<List<VersionWithAssets>> =
-        versionDao.observeVersionsWithAssetsByRepository(repositoryId).map { versions ->
-            versions.filter { !it.version.tagName.equals(IGNORED_TAG, ignoreCase = true) }
-        }
+        versionDao.observeVersionsWithAssetsByRepository(repositoryId)
 
     companion object {
         val semVerComparator =
@@ -149,9 +146,9 @@ class VersionWithAssetsRepository(
                     !item.version.tagName.equals(IGNORED_TAG, ignoreCase = true) &&
                         item.version.isBetaRelease == wantBeta
                 }
-                .map { item -> item to (item.version to Version.parseSemVer(item.version.tagName)) }
-                .sortedWith { a, b -> semVerComparator.compare(b.second, a.second) }
-                .map { it.first }
+                .map { item -> (item.version to Version.parseSemVer(item.version.tagName)) to item }
+                .sortedWith(compareBy(semVerComparator.reversed()) { it.first })
+                .map { it.second }
         }
     }
 }

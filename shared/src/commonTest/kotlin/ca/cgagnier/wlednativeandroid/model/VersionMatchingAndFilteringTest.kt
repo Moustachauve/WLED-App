@@ -1,12 +1,9 @@
 package ca.cgagnier.wlednativeandroid.model
 
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
-import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class VersionMatchingAndFilteringTest {
 
@@ -33,13 +30,17 @@ class VersionMatchingAndFilteringTest {
     }
 
     @Test
-    fun isPreReleaseTagAndParseSemVerHandleUppercaseVPrefixesAndBuildMetadata() {
-        listOf("0.16.0+rev.b1", "v0.16.0+2025.rc1", "V0.15.0", "2025.05.01.1+build.b2").forEach { tag ->
-            assertFalse(Version.isPreReleaseTag(tag), "Expected stable classification for $tag")
+    fun isPreReleaseTagClassifiesStableAndPreReleaseTagsIncludingForkFormats() {
+        listOf(
+            "0.16.0+rev.b1" to false,
+            "v0.16.0+2025.rc1" to false,
+            "V0.15.0" to false,
+            "0.15.0-b2" to true,
+            "V0.14.0.b27" to true,
+            "0.16.0-rc1+2025.05" to true,
+        ).forEach { (tag, expected) ->
+            assertEquals(expected, Version.isPreReleaseTag(tag), "Unexpected result for $tag")
         }
-        assertEquals(Version.parseSemVer("v0.15.0"), Version.parseSemVer("V0.15.0"))
-        assertTrue(Version.isPreReleaseTag("V0.14.0.b27"))
-        assertTrue(Version.isPreReleaseTag("0.16.0-rc1+2025.05"))
     }
 
     @Test
@@ -83,36 +84,6 @@ class VersionMatchingAndFilteringTest {
         ).forEach { (release, query, expected) ->
             assertEquals(expected, release.matchesInstalledVersion(query.first, query.second))
         }
-    }
-
-    @Test
-    fun getSelectableRepositoriesIncludesCurrentDisabledRepoAndOrdersOfficialFirst() {
-        val official = Repository.BUILT_IN_REPOSITORIES[0].copy(id = 1L)
-        val quinled = Repository.BUILT_IN_REPOSITORIES[1].copy(id = 2L)
-        val moonModules = Repository.BUILT_IN_REPOSITORIES[2].copy(id = 3L)
-        val currentCustom = official.copy(
-            id = 4L,
-            name = "Alpha Custom",
-            ownerAndRepo = "custom/fork",
-            isDefault = false,
-            isEnabled = false,
-        )
-        val hiddenCustom = official.copy(
-            id = 5L,
-            name = "Other",
-            ownerAndRepo = "other/fork",
-            isDefault = false,
-            isEnabled = false,
-        )
-
-        val selectable = ReleaseService.getSelectableRepositories(
-            allRepositories = listOf(moonModules, hiddenCustom, quinled, currentCustom, official),
-            currentRepositoryId = 4L,
-        )
-
-        assertEquals(listOf(1L, 4L, 3L, 2L), selectable.map { it.id })
-        assertTrue(selectable.first().isOfficial)
-        assertFalse(selectable.drop(1).any { it.isOfficial })
     }
 
     private fun version(

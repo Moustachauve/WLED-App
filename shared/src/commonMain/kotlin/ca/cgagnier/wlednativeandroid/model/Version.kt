@@ -77,11 +77,7 @@ data class Version(
         fun normalizeTagOrVersion(value: String): String = value.removePrefix("v").removePrefix("V")
 
         private val DOT_PRERELEASE_REGEX =
-            Regex("""^([vV]?\d+(?:\.\d+){1,2})\.([A-Za-z][0-9A-Za-z.-]*)$""")
-        private val FALLBACK_PRERELEASE_REGEX = Regex(
-            """[-.](?:(?:alpha|beta|rc)\d*|[ab]\d+)(?:[.-][0-9A-Za-z]+)*$""",
-            RegexOption.IGNORE_CASE,
-        )
+            Regex("""^(\d+(?:\.\d+){1,2})\.([A-Za-z][0-9A-Za-z.-]*)$""")
 
         /**
          * Parses [tagName] as a relaxed SemVer, normalizing dot-separated pre-release suffixes
@@ -90,15 +86,15 @@ data class Version(
         fun parseSemVer(tagName: String): SemVersion? {
             val normalized = normalizeTagOrVersion(tagName)
             return normalized.toVersionOrNull(strict = false)
-                ?: DOT_PRERELEASE_REGEX.replace(normalized, "$1-$2").toVersionOrNull(strict = false)
+                ?: DOT_PRERELEASE_REGEX.matchEntire(normalized)
+                    ?.let { "${it.groupValues[1]}-${it.groupValues[2]}".toVersionOrNull(strict = false) }
         }
 
         /**
          * Returns `true` when [tagOrVersion] carries a SemVer or fork pre-release suffix
          * (such as `0.15.0-b2`, `14.5.0-beta`, or `v0.14.0.b27`).
          */
-        fun isPreReleaseTag(tagOrVersion: String): Boolean = parseSemVer(tagOrVersion)?.isPreRelease
-            ?: FALLBACK_PRERELEASE_REGEX.containsMatchIn(tagOrVersion.substringBefore('+'))
+        fun isPreReleaseTag(tagOrVersion: String): Boolean = parseSemVer(tagOrVersion)?.isPreRelease == true
 
         fun getPreviewVersion(): Version = Version(
             repositoryId = 1,

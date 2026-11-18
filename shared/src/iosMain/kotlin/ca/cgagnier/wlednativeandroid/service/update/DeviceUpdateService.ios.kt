@@ -47,7 +47,6 @@ fun DeviceUpdateService.Companion.create(
     deviceApiFactory = deviceApiFactory,
     githubApi = githubApi,
     selectedAsset = null,
-    cacheDirPath = null,
 )
 
 // Platform factory mirrors DeviceUpdateService constructor dependencies for Swift interop
@@ -59,11 +58,10 @@ fun DeviceUpdateService.Companion.create(
     deviceApiFactory: DeviceApiFactory,
     githubApi: GithubApi,
     selectedAsset: Asset?,
-    cacheDirPath: String? = null,
 ): DeviceUpdateService = DeviceUpdateService(
     device = DeviceWithState(device = device, stateInfo = stateInfo),
     versionWithAssets = versionWithAssets,
-    cacheDir = (cacheDirPath ?: cachesDirectory()).toPath(),
+    cacheDir = cachesDirectory().toPath(),
     deviceApiFactory = deviceApiFactory,
     githubApi = githubApi,
     selectedAsset = selectedAsset,
