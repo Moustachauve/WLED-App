@@ -180,6 +180,20 @@ class KtorDeviceApiTest {
     }
 
     @Test
+    fun updateDeviceWithSkipValidationPlacesFieldBeforeFilePart() = runTest {
+        val engine = respondingWith("OK", contentType = ContentType.Text.Html)
+
+        engine.api().updateDevice(firmware, "wled.bin", skipValidation = true)
+
+        val bodyText = engine.lastRequest.body.text()
+        val skipIndex = bodyText.indexOf("name=\"skipValidation\"")
+        val fileIndex = bodyText.indexOf("filename=\"wled.bin\"")
+        assertTrue(skipIndex >= 0, "Expected skipValidation field in multipart body")
+        assertTrue(fileIndex > skipIndex, "skipValidation must precede binary file part")
+        assertTrue(bodyText.substring(skipIndex, fileIndex).contains("\r\n\r\n1\r\n"))
+    }
+
+    @Test
     fun updateDeviceReturnsTextBodyOnSuccess() = runTest {
         val engine = respondingWith("Update Success! Rebooting...", contentType = ContentType.Text.Html)
 

@@ -3,10 +3,12 @@ package ca.cgagnier.wlednativeandroid.repository
 import androidx.room.immediateTransaction
 import androidx.room.useWriterConnection
 import ca.cgagnier.wlednativeandroid.model.Asset
+import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
-import io.github.z4kn4fein.semver.toVersionOrNull
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import io.github.z4kn4fein.semver.Version as SemVersion
 
 /**
@@ -26,22 +28,15 @@ class VersionWithAssetsRepository(
     suspend fun updateRepository(repository: Repository, versionToAssetsMap: Map<Version, List<Asset>>) {
         database.useWriterConnection { transactor ->
             transactor.immediateTransaction {
-                // Ensure repository exists and get its ID
+                // Ensure repository exists and get its ID, preserving existing metadata
+                // (display name, description, and flags) when refreshing a known repository.
                 val existingRepo = repositoryDao.getRepositoryByOwnerAndRepo(repository.ownerAndRepo)
-                val isDefaultRepo = repository.ownerAndRepo.equals(
-                    Repository.DEFAULT_OWNER_REPO,
-                    ignoreCase = true,
-                )
-                val repoToInsert = if (isDefaultRepo) {
-                    repository.copy(id = Repository.DEFAULT_ID)
-                } else {
-                    repository
-                }
-
-                val repoId = if (existingRepo != null) {
-                    repositoryDao.update(repoToInsert.copy(id = existingRepo.id))
-                    existingRepo.id
-                } else {
+                val repoId = existingRepo?.id ?: run {
+                    val repoToInsert = if (repository.isOfficial) {
+                        repository.copy(id = Repository.DEFAULT_ID)
+                    } else {
+                        repository
+                    }
                     repositoryDao.insert(repoToInsert)
                 }
 
@@ -91,20 +86,32 @@ class VersionWithAssetsRepository(
 
     suspend fun getLatestStableVersionWithAssets(repositoryId: Long): VersionWithAssets? {
         val latestVersion = getLatestVersion(
-            versionDao.getVersionsByRepository(repositoryId).filter { !it.isPrerelease && it.tagName != IGNORED_TAG },
+            versionDao.getVersionsByRepository(repositoryId).filter {
+                !it.isBetaRelease && !it.tagName.equals(IGNORED_TAG, ignoreCase = true)
+            },
         )
         return latestVersion?.let { versionDao.getVersionByTagName(repositoryId, it.tagName) }
     }
 
     suspend fun getLatestBetaVersionWithAssets(repositoryId: Long): VersionWithAssets? {
         val latestVersion = getLatestVersion(
-            versionDao.getVersionsByRepository(repositoryId).filter { it.tagName != IGNORED_TAG },
+            versionDao.getVersionsByRepository(repositoryId).filter {
+                !it.tagName.equals(IGNORED_TAG, ignoreCase = true)
+            },
         )
         return latestVersion?.let { versionDao.getVersionByTagName(repositoryId, it.tagName) }
     }
 
     suspend fun getVersionByTag(repositoryId: Long, tagName: String): VersionWithAssets? =
         versionDao.getVersionByTagName(repositoryId, tagName)
+
+    /**
+     * Streams all supported releases (with their binary assets) cached for [repositoryId].
+     */
+    fun observeVersionsForRepository(repositoryId: Long): Flow<List<VersionWithAssets>> =
+        versionDao.observeVersionsWithAssetsByRepository(repositoryId).map { versions ->
+            versions.filter { !it.version.tagName.equals(IGNORED_TAG, ignoreCase = true) }
+        }
 
     companion object {
         val semVerComparator =
@@ -127,7 +134,24 @@ class VersionWithAssetsRepository(
             }
 
         fun getLatestVersion(versions: List<Version>): Version? = versions.map {
-            it to it.tagName.toVersionOrNull(strict = false)
+            it to Version.parseSemVer(it.tagName)
         }.maxWithOrNull(semVerComparator)?.first
+
+        /**
+         * Filters [versions] to either Stable-only or Beta-only releases based on [branch]
+         * (excluding unsupported `"nightly"` builds) and sorts them descending with the
+         * most recent / highest version number first.
+         */
+        fun filterAndSortVersions(versions: List<VersionWithAssets>, branch: Branch): List<VersionWithAssets> {
+            val wantBeta = branch == Branch.BETA
+            return versions
+                .filter { item ->
+                    !item.version.tagName.equals(IGNORED_TAG, ignoreCase = true) &&
+                        item.version.isBetaRelease == wantBeta
+                }
+                .map { item -> item to (item.version to Version.parseSemVer(item.version.tagName)) }
+                .sortedWith { a, b -> semVerComparator.compare(b.second, a.second) }
+                .map { it.first }
+        }
     }
 }

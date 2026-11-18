@@ -18,14 +18,14 @@ class DeviceUpdateManager(private val releaseService: ReleaseService) : UpdateTa
      */
     override suspend fun checkForUpdate(device: Device, stateInfo: DeviceStateInfo?): String? {
         val info = stateInfo?.info ?: return null
-        val repository = getRepositoryFromInfo(info)
         logger.d {
-            "Checking for software update for ${device.macAddress} on $repository"
+            "Checking for software update for ${device.macAddress} (repoId=${device.repositoryId})"
         }
         return releaseService.getNewerReleaseTag(
             deviceInfo = info,
             branch = device.branch,
             ignoreVersion = device.skipUpdateTag,
+            repositoryId = device.repositoryId,
         )
     }
 

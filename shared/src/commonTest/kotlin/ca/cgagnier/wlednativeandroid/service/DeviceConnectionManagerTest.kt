@@ -2,12 +2,15 @@ package ca.cgagnier.wlednativeandroid.service
 
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.model.Repository
+import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
 import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
 import ca.cgagnier.wlednativeandroid.repository.DeviceStore
+import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.update.RepositoryIdResolver
 import ca.cgagnier.wlednativeandroid.service.update.UpdateTagResolver
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceConnection
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -49,6 +53,7 @@ class DeviceConnectionManagerTest {
 
         val updatedOriginalNames = mutableMapOf<String, String>()
         val updatedBranches = mutableMapOf<String, Branch>()
+        val updatedSkipUpdateTags = mutableMapOf<String, String>()
         val updatedRepositoryIds = mutableMapOf<String, Long>()
         val updatedLastSeens = mutableMapOf<String, Long>()
         val deletedDevices = mutableListOf<Device>()
@@ -59,6 +64,10 @@ class DeviceConnectionManagerTest {
 
         override suspend fun updateBranch(macAddress: String, branch: Branch) {
             updatedBranches[macAddress] = branch
+        }
+
+        override suspend fun updateSkipUpdateTag(macAddress: String, skipUpdateTag: String) {
+            updatedSkipUpdateTags[macAddress] = skipUpdateTag
         }
 
         override suspend fun updateRepositoryId(macAddress: String, repositoryId: Long) {
@@ -342,6 +351,22 @@ class DeviceConnectionManagerTest {
     }
 
     @Test
+    fun incomingFramePreservesSavedRepositoryIdWhenInfoOmitsRepository() = runTest {
+        val manager = createManager()
+
+        store.allDevicesFlow.value = listOf(createDevice(mac = "A", repositoryId = 2L))
+        advanceUntilIdle()
+
+        val connection = factory.createdConnections["192.168.1.100"]!!
+        connection.emitStateInfo(createStateInfo(repository = null))
+        advanceUntilIdle()
+
+        assertEquals(0, repoIdResolver.callCount)
+        assertFalse(store.updatedRepositoryIds.containsKey("A"))
+        assertEquals(2L, manager.allDevicesWithState.value[0].device.repositoryId)
+    }
+
+    @Test
     fun incomingFrameThrottlesLastSeenWriteUntilIntervalElapses() = runTest {
         var currentTime = 10_000L
         createManager(
@@ -509,6 +534,27 @@ class DeviceConnectionManagerTest {
 
         assertEquals(2, updateResolver.callCount)
         assertEquals("0.15.0", manager.allDevicesWithState.value[0].updateVersionTag)
+    }
+
+    @Test
+    fun syncDevicesRechecksUpdateWhenRepositoryIdChanges() = runTest {
+        updateResolver.tagToReturn = null
+        val manager = createManager()
+
+        store.allDevicesFlow.value = listOf(createDevice(mac = "A", repositoryId = 1L))
+        advanceUntilIdle()
+
+        val connection = factory.createdConnections["192.168.1.100"]!!
+        connection.emitStateInfo(createStateInfo(version = "0.14.0"))
+        advanceUntilIdle()
+        assertEquals(1, updateResolver.callCount)
+
+        updateResolver.tagToReturn = "0.15.4"
+        store.allDevicesFlow.value = listOf(createDevice(mac = "A", repositoryId = 2L))
+        advanceUntilIdle()
+
+        assertEquals(2, updateResolver.callCount)
+        assertEquals("0.15.4", manager.allDevicesWithState.value[0].updateVersionTag)
     }
 
     @Test
@@ -786,10 +832,13 @@ class DeviceConnectionManagerTest {
     private fun TestScope.connectSingleDeviceWithVersion(
         initialUpdateTag: String?,
         version: String = "0.14.0",
+        skipUpdateTag: String = "",
     ): DeviceConnectionManager {
         updateResolver.tagToReturn = initialUpdateTag
         val manager = createManager()
-        store.allDevicesFlow.value = listOf(createDevice(mac = "A", address = "192.168.1.50"))
+        store.allDevicesFlow.value = listOf(
+            createDevice(mac = "A", address = "192.168.1.50", skipUpdateTag = skipUpdateTag),
+        )
         advanceUntilIdle()
         factory.createdConnections["192.168.1.50"]!!.emitStateInfo(createStateInfo(version = version))
         advanceUntilIdle()
@@ -808,12 +857,17 @@ class DeviceConnectionManagerTest {
     }
 
     @Test
-    fun markUpdateInstalledUpdatesStateInfoVersion() = runTest {
-        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0")
+    fun markUpdateInstalledUpdatesStateInfoVersionAndClearsSkipTag() = runTest {
+        val manager = connectSingleDeviceWithVersion(
+            initialUpdateTag = "0.15.0",
+            skipUpdateTag = "0.14.4",
+        )
 
-        manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "v0.15.0")
+        manager.markUpdateInstalled(macAddress = "A", installedVersionTag = "V0.15.0")
 
-        assertEquals("0.15.0", manager.allDevicesWithState.value[0].stateInfo?.info?.version)
+        val updated = manager.allDevicesWithState.value[0]
+        assertEquals("0.15.0", updated.stateInfo?.info?.version)
+        assertEquals("", updated.device.skipUpdateTag)
     }
 
     @Test
@@ -824,4 +878,48 @@ class DeviceConnectionManagerTest {
 
         assertEquals(null, manager.allDevicesWithState.value[0].updateVersionTag)
     }
+
+    @Test
+    fun completeFirmwareInstallPersistsChangedRepoAndSkipTagAndUpdatesState() = runTest {
+        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0", skipUpdateTag = "0.14.4")
+        val targetVersion = Version.getPreviewVersion().copy(repositoryId = 2L, tagName = "v16.0.0")
+        val dao = fakeRepositoryDao(Repository.BUILT_IN_REPOSITORIES[1].copy(id = 2L))
+
+        val ownerRepo = manager.completeFirmwareInstall(manager.allDevicesWithState.value[0].device, targetVersion, dao)
+
+        assertEquals("intermittech/QuinLED-Firmware", ownerRepo)
+        assertEquals(2L, store.updatedRepositoryIds["A"])
+        assertEquals("", store.updatedSkipUpdateTags["A"])
+        val updated = manager.allDevicesWithState.value[0]
+        assertEquals(2L, updated.device.repositoryId)
+        assertEquals("", updated.device.skipUpdateTag)
+        assertEquals("16.0.0", updated.stateInfo?.info?.version)
+        assertEquals("intermittech/QuinLED-Firmware", updated.stateInfo?.info?.repository)
+        assertNull(updated.updateVersionTag)
+    }
+
+    @Test
+    fun completeFirmwareInstallSkipsStoreWritesWhenRepoAndSkipTagUnchanged() = runTest {
+        val manager = connectSingleDeviceWithVersion(initialUpdateTag = "0.15.0")
+        val targetVersion = Version.getPreviewVersion().copy(repositoryId = 1L, tagName = "v0.15.0")
+        val dao = fakeRepositoryDao(Repository.BUILT_IN_REPOSITORIES[0])
+
+        manager.completeFirmwareInstall(manager.allDevicesWithState.value[0].device, targetVersion, dao)
+
+        assertFalse(store.updatedRepositoryIds.containsKey("A"))
+        assertFalse(store.updatedSkipUpdateTags.containsKey("A"))
+        assertEquals("0.15.0", manager.allDevicesWithState.value[0].stateInfo?.info?.version)
+    }
+}
+
+private fun fakeRepositoryDao(vararg repos: Repository): RepositoryDao = object : RepositoryDao {
+    private val byId = repos.associateBy { it.id }
+    override suspend fun getRepositoryById(id: Long): Repository? = byId[id]
+    override suspend fun getRepositoryByOwnerAndRepo(ownerAndRepo: String): Repository? = null
+    override fun getAllRepositories(): Flow<List<Repository>> = emptyFlow()
+    override suspend fun insert(repository: Repository): Long = 0L
+    override suspend fun insertMany(repositories: List<Repository>) = Unit
+    override suspend fun update(repository: Repository) = Unit
+    override suspend fun delete(repository: Repository) = Unit
+    override suspend fun deleteAll() = Unit
 }

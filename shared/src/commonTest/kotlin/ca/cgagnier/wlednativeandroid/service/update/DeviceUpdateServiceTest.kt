@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.service.update
 
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
@@ -9,7 +10,10 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
+import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
+import ca.cgagnier.wlednativeandroid.service.api.ApiResponse
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
+import ca.cgagnier.wlednativeandroid.service.api.DownloadState
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.api.github.KtorGithubApiEndpoints
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
@@ -17,6 +21,10 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
 import okio.FileSystem
 import okio.Path
 import okio.SYSTEM
@@ -35,14 +43,14 @@ class DeviceUpdateServiceTest {
         val expectedAssetName: String,
     )
 
-    private fun makeVersion(tagName: String) = Version(
+    private fun makeVersion(tagName: String, repositoryId: Long = 1L) = Version(
         tagName = tagName,
         name = "WLED $tagName",
         description = "",
         isPrerelease = tagName.contains("-"),
         publishedDate = "2024-01-01T00:00:00Z",
         htmlUrl = "https://github.com/wled/WLED",
-        repositoryId = 1L,
+        repositoryId = repositoryId,
     )
 
     private fun makeAsset(versionId: Long, assetName: String) = Asset(
@@ -58,12 +66,11 @@ class DeviceUpdateServiceTest {
 
     private fun makeDeviceUpdateService(
         targetVersionTag: String,
-        release: String?,
+        release: String? = null,
         platformName: String? = null,
         availableAssets: List<Asset>,
         cacheDir: Path = newTempCacheDir(),
     ): DeviceUpdateService {
-        val device = Device(macAddress = "AA:BB:CC:DD:EE:FF", address = "192.168.1.1")
         val stateInfo = if (release != null || platformName != null) {
             DeviceStateInfo(
                 state = State(),
@@ -78,19 +85,31 @@ class DeviceUpdateServiceTest {
         } else {
             null
         }
-        val deviceWithState = DeviceWithState(device, stateInfo = stateInfo)
-        val versionWithAssets =
-            VersionWithAssets(version = makeVersion(targetVersionTag), assets = availableAssets)
-        val httpClient = HttpClient(MockEngine { respond("", HttpStatusCode.OK) })
-        val deviceApiFactory = DeviceApiFactory(httpClient)
-        val githubApi = GithubApi(KtorGithubApiEndpoints(httpClient))
+        return makeDeviceUpdateService(
+            versionWithAssets = VersionWithAssets(
+                version = makeVersion(targetVersionTag),
+                assets = availableAssets,
+            ),
+            stateInfo = stateInfo,
+            cacheDir = cacheDir,
+        )
+    }
 
+    private fun makeDeviceUpdateService(
+        versionWithAssets: VersionWithAssets,
+        stateInfo: DeviceStateInfo? = null,
+        cacheDir: Path = newTempCacheDir(),
+        selectedAsset: Asset? = null,
+        httpClient: HttpClient = HttpClient(MockEngine { respond("", HttpStatusCode.OK) }),
+    ): DeviceUpdateService {
+        val device = Device(macAddress = "AA:BB:CC:DD:EE:FF", address = "192.168.1.1", repositoryId = 1L)
         return DeviceUpdateService(
-            device = deviceWithState,
+            device = DeviceWithState(device, stateInfo = stateInfo),
             versionWithAssets = versionWithAssets,
             cacheDir = cacheDir,
-            deviceApiFactory = deviceApiFactory,
-            githubApi = githubApi,
+            deviceApiFactory = DeviceApiFactory(httpClient),
+            githubApi = GithubApi(KtorGithubApiEndpoints(httpClient)),
+            selectedAsset = selectedAsset,
         )
     }
 
@@ -173,7 +192,7 @@ class DeviceUpdateServiceTest {
         assertEquals("WLED_0.15.0_ESP32_Ethernet.bin", service.getAssetName())
     }
 
-    private fun withTempCacheDir(block: (Path) -> Unit) {
+    private inline fun withTempCacheDir(block: (Path) -> Unit) {
         val cacheDir = newTempCacheDir()
         try {
             block(cacheDir)
@@ -233,5 +252,181 @@ class DeviceUpdateServiceTest {
             "ESP32_V4",
             DeviceUpdateService.resolveReleaseOverride("ESP32_V4", "invalid_version_string"),
         )
+    }
+
+    @Test
+    fun selectedAssetOverridesAutomaticMatchingForCrossForkInstall() {
+        val quinledAsset = makeAsset(1L, "WLED_0.15.4_Dig-Uno-V3.bin")
+        val cacheDir = newTempCacheDir()
+        val stateInfo = DeviceStateInfo(
+            state = State(),
+            info = Info(leds = Leds(), wifi = Wifi(), name = "Strip", release = "ESP32"),
+        )
+        val service = makeDeviceUpdateService(
+            versionWithAssets = VersionWithAssets(
+                version = makeVersion("0.15.4", repositoryId = 2L),
+                assets = listOf(quinledAsset),
+            ),
+            stateInfo = stateInfo,
+            cacheDir = cacheDir,
+            selectedAsset = quinledAsset,
+        )
+
+        assertTrue(service.couldDetermineAsset())
+        assertEquals("WLED_0.15.4_Dig-Uno-V3.bin", service.getAssetName())
+        assertEquals(cacheDir / "2" / "0.15.4" / "WLED_0.15.4_Dig-Uno-V3.bin", service.getPathForAsset())
+    }
+
+    @Test
+    fun getInstallableAssetsFiltersNonFirmwareAndBootloaderFilesAndSortsByName() {
+        val versionWithAssets = VersionWithAssets(
+            version = makeVersion("0.15.4"),
+            assets = listOf(
+                makeAsset(1L, "WLED_0.15.4_ESP32.bin"),
+                makeAsset(1L, "esp32_bootloader_v4.bin"),
+                makeAsset(1L, "S3_partitions_4M.bin"),
+                makeAsset(1L, "WLED_0.15.4_ESP02.bin.gz"),
+                makeAsset(1L, "checksums.sha256"),
+                makeAsset(1L, "source.zip"),
+            ),
+        )
+
+        val installable = DeviceUpdateService.getInstallableAssets(versionWithAssets).map { it.name }
+
+        assertEquals(
+            listOf("WLED_0.15.4_ESP02.bin.gz", "WLED_0.15.4_ESP32.bin"),
+            installable,
+        )
+    }
+
+    @Test
+    fun determineDefaultAssetMatchesExpectedBoardAndHandlesCrossForkOrCollisions() {
+        val cases = listOf(
+            Triple(
+                "ESP32" to "0.15.4",
+                listOf("WLED_0.15.4_Dig-Uno-V3.bin", "WLED_0.15.4_Dig-Quad-V3.bin"),
+                null,
+            ),
+            Triple(
+                "esp32_4MB_M" to "v0.14.1-beta.32",
+                listOf("WLEDMM_0.14.1-b32.40_athom_music_esp32_4MB_M.bin", "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin"),
+                "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            ),
+            Triple(
+                "esp01_1MB_S" to "v0.14.0-beta.28",
+                listOf("WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz", "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin"),
+                "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin",
+            ),
+            Triple(
+                "esp01_1MB_S" to "v0.14.0-beta.28",
+                listOf("WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz"),
+                "WLEDMM_0.14.0-b28.34_esp01_1MB_S.bin.gz",
+            ),
+            Triple(
+                "ESP32" to "0.15.0",
+                listOf("WLED_bootloader_0.15.0_ESP32.bin", "WLED10.15.0_ESP32.bin"),
+                null,
+            ),
+        )
+        cases.forEach { (releaseAndTag, assetNames, expectedName) ->
+            val (release, tag) = releaseAndTag
+            val info = Info(leds = Leds(), wifi = Wifi(), name = "Test", release = release)
+            val versionWithAssets = VersionWithAssets(
+                version = makeVersion(tag, repositoryId = 2L),
+                assets = assetNames.map { makeAsset(1L, it) },
+            )
+            assertEquals(expectedName, DeviceUpdateService.determineDefaultAsset(info, versionWithAssets)?.name)
+        }
+    }
+
+    @Test
+    fun downloadBinaryResolvesTargetVersionRepositoryInsteadOfDeviceRepository() = runTest {
+        withTempCacheDir { cacheDir ->
+            var requestedPath: String? = null
+            val httpClient = HttpClient(
+                MockEngine { request ->
+                    requestedPath = request.url.encodedPath
+                    respond("firmware-bytes", HttpStatusCode.OK)
+                },
+            )
+            val quinledAsset = Asset(
+                versionId = 1L,
+                name = "WLED_0.15.4_Dig-Uno-V3.bin",
+                size = 14L,
+                downloadUrl = "https://example.com/WLED_0.15.4_Dig-Uno-V3.bin",
+                assetId = 42,
+            )
+            val service = makeDeviceUpdateService(
+                versionWithAssets = VersionWithAssets(
+                    version = makeVersion("0.15.4", repositoryId = 2L),
+                    assets = listOf(quinledAsset),
+                ),
+                cacheDir = cacheDir,
+                selectedAsset = quinledAsset,
+                httpClient = httpClient,
+            )
+            val fakeDao = fakeRepositoryDao(
+                Repository(id = 1L, name = "WLED", ownerAndRepo = "wled/WLED", description = "", htmlUrl = ""),
+                Repository(
+                    id = 2L,
+                    name = "QuinLED",
+                    ownerAndRepo = "intermittech/QuinLED-Firmware",
+                    description = "",
+                    htmlUrl = "",
+                ),
+            )
+
+            val states = service.downloadBinary(fakeDao).toList()
+
+            assertTrue(states.any { it is DownloadState.Finished })
+            assertEquals("/repos/intermittech/QuinLED-Firmware/releases/assets/42", requestedPath)
+        }
+    }
+
+    @Test
+    fun isValidationFailureDetectsWledMetadataRejectionOnly() {
+        val validationResponse = ApiResponse<String>(code = 500, errorBody = SAMPLE_VALIDATION_ERROR_HTML)
+        val spaceErrorResponse = ApiResponse<String>(
+            code = 500,
+            errorBody = "<body><h2>Update failed!</h2><h4>Not enough space</h4></body>",
+        )
+        val successResponse = ApiResponse<String>(code = 200, body = "Update successful!")
+
+        assertTrue(DeviceUpdateService.isValidationFailure(validationResponse))
+        assertFalse(DeviceUpdateService.isValidationFailure(spaceErrorResponse))
+        assertFalse(DeviceUpdateService.isValidationFailure(successResponse))
+    }
+
+    @Test
+    fun extractPlainTextErrorStripsHtmlJunkAndDecodesEntities() {
+        val validationResponse = ApiResponse<String>(code = 500, errorBody = SAMPLE_VALIDATION_ERROR_HTML)
+
+        assertEquals(
+            "Update failed! This firmware file is missing compatibility metadata. " +
+                "Enable 'Ignore firmware validation' to proceed anyway.",
+            DeviceUpdateService.extractPlainTextError(validationResponse),
+        )
+    }
+
+    private fun fakeRepositoryDao(vararg repos: Repository): RepositoryDao = object : RepositoryDao {
+        override suspend fun insert(repository: Repository): Long = 0L
+        override suspend fun insertMany(repositories: List<Repository>) = Unit
+        override suspend fun update(repository: Repository) = Unit
+        override suspend fun delete(repository: Repository) = Unit
+        override suspend fun deleteAll() = Unit
+        override suspend fun getRepositoryById(id: Long): Repository? = repos.firstOrNull { it.id == id }
+        override suspend fun getRepositoryByOwnerAndRepo(ownerAndRepo: String): Repository? =
+            repos.firstOrNull { it.ownerAndRepo.equals(ownerAndRepo, ignoreCase = true) }
+        override fun getAllRepositories(): Flow<List<Repository>> = emptyFlow()
+    }
+
+    companion object {
+        private val SAMPLE_VALIDATION_ERROR_HTML = """
+            <!DOCTYPE html><html><head><title>WLED</title><style>body{}</style></head>
+            <body><h2>Update failed!</h2>
+            <h4>This firmware file is missing compatibility metadata.
+            Enable &#39;Ignore firmware validation&#39; to proceed anyway.</h4>
+            <button onclick="history.back()">Back</button></body></html>
+        """.trimIndent()
     }
 }

@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.service.update
 
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.Repository
@@ -127,6 +128,18 @@ class ReleaseServiceTest {
     }
 
     @Test
+    fun `getNewerReleaseTag does not offer older beta for dot-separated beta version`() = runTest {
+        val deviceInfo = createInfo(version = "0.14.0.b27")
+        coEvery {
+            versionWithAssetsRepository.getLatestBetaVersionWithAssets(1L)
+        } returns createVersionWithAssets("v0.14.0.b15")
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, Branch.BETA, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
     fun `getNewerReleaseTag returns null when device has a newer version than repo`() = runTest {
         val deviceInfo = createInfo(version = "0.16.0")
         coEvery {
@@ -148,6 +161,45 @@ class ReleaseServiceTest {
         val result = releaseService.getNewerReleaseTag(deviceInfo, Branch.STABLE, ignoreVersion = "")
 
         assertEquals("custom-build-2026", result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag returns null when installed version matches embedded asset version`() = runTest {
+        val deviceInfo = createInfo(version = "0.14.1-b32.40")
+        val mmAsset = Asset(
+            id = 1L,
+            versionId = 10L,
+            name = "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            size = 1_200_000L,
+            downloadUrl = "https://example.com/WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
+            assetId = 100,
+        )
+        coEvery {
+            versionWithAssetsRepository.getLatestBetaVersionWithAssets(1L)
+        } returns createVersionWithAssets("0.14.1-beta.32", assets = listOf(mmAsset))
+
+        val result = releaseService.getNewerReleaseTag(deviceInfo, Branch.BETA, ignoreVersion = "")
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getNewerReleaseTag prefers explicit repositoryId over stale deviceInfo repository`() = runTest {
+        val quinledRepo = defaultRepo.copy(id = 2L, ownerAndRepo = "intermittech/QuinLED-Firmware")
+        coEvery { repositoryDao.getRepositoryById(2L) } returns quinledRepo
+        coEvery {
+            versionWithAssetsRepository.getLatestStableVersionWithAssets(2L)
+        } returns createVersionWithAssets("0.15.4", repositoryId = 2L)
+
+        val result = releaseService.getNewerReleaseTag(
+            deviceInfo = createInfo(version = "0.15.0", repository = "wled/WLED"),
+            branch = Branch.STABLE,
+            ignoreVersion = "",
+            repositoryId = 2L,
+        )
+
+        assertEquals("0.15.4", result)
+        coVerify(exactly = 0) { repositoryDao.getRepositoryByOwnerAndRepo(any()) }
     }
 
     @Test
@@ -264,19 +316,35 @@ class ReleaseServiceTest {
         coVerify(exactly = 1) { githubApi.getAllReleases("MoonModules", "WLED") }
     }
 
-    private fun createInfo(version: String?, options: Int = 0x01): Info = Info(
+    @Test
+    fun `refreshVersionsForRepository refreshes explicit repository`() = runTest {
+        val quinledRepo = Repository.BUILT_IN_REPOSITORIES[1]
+        coEvery { githubApi.getAllReleases("intermittech", "QuinLED-Firmware") } returns Result.success(emptyList())
+
+        val succeeded = releaseService.refreshVersionsForRepository(githubApi, quinledRepo)
+
+        assertTrue(succeeded)
+        coVerify(exactly = 1) { githubApi.getAllReleases("intermittech", "QuinLED-Firmware") }
+    }
+
+    private fun createInfo(version: String?, options: Int = 0x01, repository: String? = null): Info = Info(
         leds = Leds(count = 30, fps = 30, maxPower = 0, maxSegment = 1),
         wifi = Wifi(bssid = "mac", rssi = -50, signal = 100, channel = 1),
         name = "Test Device",
         version = version,
         options = options,
         brand = "WLED",
+        repository = repository,
     )
 
-    private fun createVersionWithAssets(tagName: String): VersionWithAssets = VersionWithAssets(
+    private fun createVersionWithAssets(
+        tagName: String,
+        repositoryId: Long = 1L,
+        assets: List<Asset> = emptyList(),
+    ): VersionWithAssets = VersionWithAssets(
         version = Version(
             id = 10L,
-            repositoryId = 1L,
+            repositoryId = repositoryId,
             tagName = tagName,
             name = "Release $tagName",
             description = "Notes",
@@ -284,6 +352,6 @@ class ReleaseServiceTest {
             publishedDate = "2026-01-15T00:00:00Z",
             htmlUrl = "https://github.com/wled/WLED/releases/tag/$tagName",
         ),
-        assets = emptyList(),
+        assets = assets,
     )
 }

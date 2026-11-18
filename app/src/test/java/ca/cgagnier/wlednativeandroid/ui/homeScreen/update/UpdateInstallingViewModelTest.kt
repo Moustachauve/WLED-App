@@ -116,7 +116,7 @@ class UpdateInstallingViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun cachedBinaryFile(): File = File(File(tempDir, "0.15.0"), "WLED_0.15.0_ESP32.bin")
+    private fun cachedBinaryFile(): File = File(tempDir, "${Repository.DEFAULT_ID}/0.15.0/WLED_0.15.0_ESP32.bin")
 
     private fun partBinaryFile(): File = File("${cachedBinaryFile().absolutePath}.part")
 

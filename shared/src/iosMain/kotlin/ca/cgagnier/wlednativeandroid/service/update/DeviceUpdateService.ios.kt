@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.service.update
 
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
@@ -31,16 +32,39 @@ internal fun cachesDirectory(): String {
     }
 }
 
+// Platform factory mirrors DeviceUpdateService constructor dependencies for Swift interop
+@Suppress("LongParameterList")
 fun DeviceUpdateService.Companion.create(
     device: Device,
     stateInfo: DeviceStateInfo?,
     versionWithAssets: VersionWithAssets,
     deviceApiFactory: DeviceApiFactory,
     githubApi: GithubApi,
+): DeviceUpdateService = create(
+    device = device,
+    stateInfo = stateInfo,
+    versionWithAssets = versionWithAssets,
+    deviceApiFactory = deviceApiFactory,
+    githubApi = githubApi,
+    selectedAsset = null,
+    cacheDirPath = null,
+)
+
+// Platform factory mirrors DeviceUpdateService constructor dependencies for Swift interop
+@Suppress("LongParameterList")
+fun DeviceUpdateService.Companion.create(
+    device: Device,
+    stateInfo: DeviceStateInfo?,
+    versionWithAssets: VersionWithAssets,
+    deviceApiFactory: DeviceApiFactory,
+    githubApi: GithubApi,
+    selectedAsset: Asset?,
+    cacheDirPath: String? = null,
 ): DeviceUpdateService = DeviceUpdateService(
     device = DeviceWithState(device = device, stateInfo = stateInfo),
     versionWithAssets = versionWithAssets,
-    cacheDir = cachesDirectory().toPath(),
+    cacheDir = (cacheDirPath ?: cachesDirectory()).toPath(),
     deviceApiFactory = deviceApiFactory,
     githubApi = githubApi,
+    selectedAsset = selectedAsset,
 )
