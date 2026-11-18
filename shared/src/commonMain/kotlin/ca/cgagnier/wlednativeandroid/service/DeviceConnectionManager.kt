@@ -654,8 +654,8 @@ class DeviceConnectionManager(
             repositoryDao.getRepositoryById(targetRepoId)?.ownerAndRepo
         }
 
-        // Apply in-memory before SQLite writes so Room re-emissions see the updated metadata, then
-        // re-apply afterwards to leave in-memory state consistent even if a write fails.
+        // Apply in-memory before SQLite writes so Room re-emissions see the updated metadata and do
+        // not re-evaluate update availability against the prior firmware.
         markUpdateInstalled(mac, installedVersion.tagName, targetRepoId, resolvedOwnerAndRepo)
         if (targetRepoId != device.repositoryId) {
             runCatchingNonCancellation({ "Failed to update repositoryId after install for $mac" }) {
@@ -667,7 +667,6 @@ class DeviceConnectionManager(
                 store.updateSkipUpdateTag(mac, "")
             }
         }
-        markUpdateInstalled(mac, installedVersion.tagName, targetRepoId, resolvedOwnerAndRepo)
         resolvedOwnerAndRepo
     }
 

@@ -243,18 +243,12 @@ class ReleaseService(
         versionWithAssetsRepository.observeVersionsForRepository(repositoryId)
 
     /**
-     * Refreshes versions for an explicit [repository].
-     */
-    suspend fun refreshVersionsForRepository(githubApi: GithubApi, repository: Repository): Boolean =
-        refreshVersions(githubApi, setOf(repository.ownerAndRepo))
-
-    /**
      * Refreshes versions for the repository matching [repositoryId], returning `false` if missing.
      */
     suspend fun refreshVersionsForRepositoryId(githubApi: GithubApi, repositoryId: Long): Boolean =
         withContext(ioDispatcher) {
             val repo = repositoryDao.getRepositoryById(repositoryId) ?: return@withContext false
-            refreshVersionsForRepository(githubApi, repo)
+            refreshVersions(githubApi, setOf(repo.ownerAndRepo))
         }
 
     /**

@@ -158,9 +158,9 @@ class ReleaseServiceIosTest {
         val quinledBefore = repositoryDao.getRepositoryByOwnerAndRepo("intermittech/QuinLED-Firmware")
         assertNotNull(quinledBefore)
 
-        val succeeded = service.refreshVersionsForRepository(
+        val succeeded = service.refreshVersionsForRepositoryId(
             fakeGithubApi { _, _ -> listOf(makeRelease("v0.15.4")) },
-            quinledBefore,
+            quinledBefore.id,
         )
 
         assertTrue(succeeded)

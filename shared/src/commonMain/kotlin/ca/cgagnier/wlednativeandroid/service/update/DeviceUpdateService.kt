@@ -1,7 +1,6 @@
 package ca.cgagnier.wlednativeandroid.service.update
 
 import ca.cgagnier.wlednativeandroid.model.Asset
-import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.model.wledapi.Info
@@ -94,13 +93,9 @@ class DeviceUpdateService(
             "Asset could not be determined for ${device.device.macAddress}."
         }
         val targetRepoId = versionWithAssets.version.repositoryId
-        val repo = repositoryDao.getRepositoryById(targetRepoId)
-        val repoStr = repo?.ownerAndRepo
-            ?: if (targetRepoId == Repository.DEFAULT_ID) {
-                DEFAULT_REPO
-            } else {
-                error("Repository $targetRepoId not found for ${versionWithAssets.version.tagName}")
-            }
+        val repoStr = checkNotNull(repositoryDao.getRepositoryById(targetRepoId)) {
+            "Repository $targetRepoId not found for ${versionWithAssets.version.tagName}"
+        }.ownerAndRepo
         val (repoOwner, repoName) = splitRepository(repoStr)
         val targetPath = getPathForAsset()
         targetPath.parent?.let(fs::createDirectories)
@@ -243,19 +238,15 @@ class DeviceUpdateService(
             VersionWithAssets.FIRMWARE_EXTENSIONS.firstNotNullOfOrNull { ext ->
                 assets.firstOrNull { it.name.endsWith("_$versionWithTarget$ext", ignoreCase = true) }
             } ?: VersionWithAssets.FIRMWARE_EXTENSIONS.firstNotNullOfOrNull { ext ->
-                assets.firstOrNull { matchesFallbackTarget(it.name, target, ext) }
+                // Fallback when the embedded binary version differs from the GitHub tag (e.g. WLEDMM):
+                // check extension + exact board segment rather than substring matching.
+                assets.firstOrNull {
+                    it.name.endsWith(ext, ignoreCase = true) &&
+                        VersionWithAssets.parseFirmwareAssetFilename(it.name)
+                            ?.boardSegment
+                            ?.equals(target, ignoreCase = true) == true
+                }
             }
-
-        /**
-         * Matches `<prefix>_<version>_<target><extension>` when the version embedded in an asset
-         * filename differs from the GitHub tag (e.g. `WLEDMM_0.14.1-b32.40_<board>.bin`),
-         * ensuring `<target>` matches the entire board segment rather than a suffix of another board.
-         */
-        private fun matchesFallbackTarget(assetName: String, target: String, extension: String): Boolean {
-            val parsed = VersionWithAssets.parseFirmwareAssetFilename(assetName) ?: return false
-            return parsed.extension.equals(extension, ignoreCase = true) &&
-                parsed.boardSegment.equals(target, ignoreCase = true)
-        }
 
         fun resolveReleaseOverride(rawRelease: String, targetVersionTag: String): String {
             val targetVersion = Version.parseSemVer(targetVersionTag)

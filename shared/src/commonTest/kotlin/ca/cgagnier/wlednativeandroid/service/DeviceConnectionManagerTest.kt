@@ -912,10 +912,11 @@ class DeviceConnectionManagerTest {
     }
 }
 
-private fun fakeRepositoryDao(vararg repos: Repository): RepositoryDao = object : RepositoryDao {
+internal fun fakeRepositoryDao(vararg repos: Repository): RepositoryDao = object : RepositoryDao {
     private val byId = repos.associateBy { it.id }
     override suspend fun getRepositoryById(id: Long): Repository? = byId[id]
-    override suspend fun getRepositoryByOwnerAndRepo(ownerAndRepo: String): Repository? = null
+    override suspend fun getRepositoryByOwnerAndRepo(ownerAndRepo: String): Repository? =
+        repos.firstOrNull { it.ownerAndRepo.equals(ownerAndRepo, ignoreCase = true) }
     override fun getAllRepositories(): Flow<List<Repository>> = emptyFlow()
     override suspend fun insert(repository: Repository): Long = 0L
     override suspend fun insertMany(repositories: List<Repository>) = Unit

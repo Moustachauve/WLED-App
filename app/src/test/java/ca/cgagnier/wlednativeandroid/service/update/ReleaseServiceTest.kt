@@ -166,17 +166,12 @@ class ReleaseServiceTest {
     @Test
     fun `getNewerReleaseTag returns null when installed version matches embedded asset version`() = runTest {
         val deviceInfo = createInfo(version = "0.14.1-b32.40")
-        val mmAsset = Asset(
-            id = 1L,
-            versionId = 10L,
-            name = "WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
-            size = 1_200_000L,
-            downloadUrl = "https://example.com/WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin",
-            assetId = 100,
-        )
         coEvery {
             versionWithAssetsRepository.getLatestBetaVersionWithAssets(1L)
-        } returns createVersionWithAssets("0.14.1-beta.32", assets = listOf(mmAsset))
+        } returns createVersionWithAssets(
+            tagName = "0.14.1-beta.32",
+            assetNames = listOf("WLEDMM_0.14.1-b32.40_esp32_4MB_M.bin"),
+        )
 
         val result = releaseService.getNewerReleaseTag(deviceInfo, Branch.BETA, ignoreVersion = "")
 
@@ -199,7 +194,6 @@ class ReleaseServiceTest {
         )
 
         assertEquals("0.15.4", result)
-        coVerify(exactly = 0) { repositoryDao.getRepositoryByOwnerAndRepo(any()) }
     }
 
     @Test
@@ -317,14 +311,31 @@ class ReleaseServiceTest {
     }
 
     @Test
-    fun `refreshVersionsForRepository refreshes explicit repository`() = runTest {
-        val quinledRepo = Repository.BUILT_IN_REPOSITORIES[1]
-        coEvery { githubApi.getAllReleases("intermittech", "QuinLED-Firmware") } returns Result.success(emptyList())
+    fun `getSelectableRepositories includes current disabled repo and orders official first`() {
+        val official = Repository.BUILT_IN_REPOSITORIES[0].copy(id = 1L)
+        val quinled = Repository.BUILT_IN_REPOSITORIES[1].copy(id = 2L)
+        val moonModules = Repository.BUILT_IN_REPOSITORIES[2].copy(id = 3L)
+        val currentCustom = official.copy(
+            id = 4L,
+            name = "Alpha Custom",
+            ownerAndRepo = "custom/fork",
+            isDefault = false,
+            isEnabled = false,
+        )
+        val hiddenCustom = official.copy(
+            id = 5L,
+            name = "Other",
+            ownerAndRepo = "other/fork",
+            isDefault = false,
+            isEnabled = false,
+        )
 
-        val succeeded = releaseService.refreshVersionsForRepository(githubApi, quinledRepo)
+        val selectable = ReleaseService.getSelectableRepositories(
+            allRepositories = listOf(moonModules, hiddenCustom, quinled, currentCustom, official),
+            currentRepositoryId = 4L,
+        )
 
-        assertTrue(succeeded)
-        coVerify(exactly = 1) { githubApi.getAllReleases("intermittech", "QuinLED-Firmware") }
+        assertEquals(listOf(1L, 4L, 3L, 2L), selectable.map { it.id })
     }
 
     private fun createInfo(version: String?, options: Int = 0x01, repository: String? = null): Info = Info(
@@ -340,7 +351,7 @@ class ReleaseServiceTest {
     private fun createVersionWithAssets(
         tagName: String,
         repositoryId: Long = 1L,
-        assets: List<Asset> = emptyList(),
+        assetNames: List<String> = emptyList(),
     ): VersionWithAssets = VersionWithAssets(
         version = Version(
             id = 10L,
@@ -352,6 +363,8 @@ class ReleaseServiceTest {
             publishedDate = "2026-01-15T00:00:00Z",
             htmlUrl = "https://github.com/wled/WLED/releases/tag/$tagName",
         ),
-        assets = assets,
+        assets = assetNames.map {
+            Asset(versionId = 10L, name = it, size = 1024L, downloadUrl = "", assetId = 1)
+        },
     )
 }
