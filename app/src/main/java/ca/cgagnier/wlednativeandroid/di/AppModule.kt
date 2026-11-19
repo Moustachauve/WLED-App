@@ -155,10 +155,10 @@ val appModule: Module = module {
     viewModelOf(::ThemeViewModel)
     viewModel {
         UpdateInstallingViewModel(
-            deviceRepository = get(),
             repositoryDao = get(),
             deviceApiFactory = get(),
             githubApi = get(),
+            deviceConnectionManager = get(),
             ioDispatcher = get(IO_DISPATCHER),
         )
     }

@@ -73,9 +73,7 @@
     <string name="done">Fertig</string>
     <string name="update_completed">Update abgeschlossen!</string>
     <string name="are_you_sure">Bist du sicher?</string>
-    <string name="device_update_disclaimer_part1">Du bist dabei, eine neue Version von WLED zu installieren. Wenn du zuvor eine angepasste Version installiert hattest, könnten einige Funktionen verloren gehen (z. B. wenn du Usermods aktiviert hattest, funktionieren diese möglicherweise nicht mehr).</string>
-    <string name="device_update_disclaimer_part2">Wenn jemand dieses Gerät für dich installiert hat, solltest du diese Person fragen, ob ein Update des Geräts in Ordnung ist.</string>
-    <string name="device_update_disclaimer_part3">WLED ist nicht verantwortlich, wenn durch ein Update etwas schiefgeht.</string>
+    <string name="device_update_disclaimer">Das Installieren neuer Firmware kann angepasste Funktionen oder Usermods entfernen. Wenn jemand anderes dieses Gerät eingerichtet hat, frage dort zuerst nach. Die Installation erfolgt auf eigenes Risiko.</string>
     <string name="install_update">Update installieren</string>
     <string name="no_compatible_version_found">Keine kompatible Version gefunden</string>
     <string name="no_compatible_version_found_details">Es wurde keine Version gefunden, die mit deinem Gerät kompatibel ist. Du musst dein Gerät manuell aktualisieren.</string>
@@ -187,5 +185,7 @@
     <string name="sound_sync_beta_setting">Sound Sync (Beta)</string>
     <string name="sound_sync_beta_setting_description">Aktiviere die Sound-Sync-Beta, um diese Funktion vorab auszuprobieren.</string>
     <string name="sound_sync_beta_notice">Diese Funktion befindet sich derzeit in der Beta-Phase und kann sich in zukünftigen Updates ändern.</string>
+    <string name="ignore_validation_warning">Das Überspringen der Firmware-Prüfung kann dazu führen, dass dein Gerät über WLAN nicht mehr erreichbar ist, wenn diese Datei nicht zu deiner Hardware passt.</string>
+    <string name="install_anyway">Trotzdem installieren</string>
 
 </resources>

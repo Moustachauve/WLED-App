@@ -593,14 +593,6 @@ class DeviceConnectionManager(
     }
 
     /**
-     * Updates the cached [DeviceStateInfo] version and clears the pending [DeviceWithState.updateVersionTag]
-     * for [macAddress] immediately after a successful OTA firmware installation, before the device
-     * finishes rebooting and reconnects over WebSocket.
-     */
-    fun markUpdateInstalled(macAddress: String, installedVersionTag: String) =
-        markUpdateInstalled(macAddress, installedVersionTag, repositoryId = null, repositoryOwnerAndRepo = null)
-
-    /**
      * Updates the cached [DeviceStateInfo] version, clears `skipUpdateTag` and pending
      * [DeviceWithState.updateVersionTag], and optionally updates [repositoryId] and
      * [repositoryOwnerAndRepo] when switching update sources.
@@ -608,7 +600,7 @@ class DeviceConnectionManager(
     fun markUpdateInstalled(
         macAddress: String,
         installedVersionTag: String,
-        repositoryId: Long?,
+        repositoryId: Long? = null,
         repositoryOwnerAndRepo: String? = null,
     ) {
         val cleanedVersion = Version.normalizeTagOrVersion(installedVersionTag)

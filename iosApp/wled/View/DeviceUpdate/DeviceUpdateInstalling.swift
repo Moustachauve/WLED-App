@@ -7,9 +7,11 @@ struct DeviceUpdateInstalling: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var viewModel = DeviceUpdateInstallingViewModel()
+    @State private var retryWithoutValidation = false
     var device: DeviceWithState
     let version: VersionWithAssets
     var database: AppDatabase = .shared
+    var onInstallCompleted: () -> Void = {}
 
     var body: some View {
         ZStack {
@@ -38,40 +40,57 @@ struct DeviceUpdateInstalling: View {
                     )
                 case .completed:
                     SuccessView()
-                case .failed(let versionName, let error):
-                    FailureView(errorMessage: error, versionName: versionName)
+                case .failed(let versionName, let error, let canRetryWithoutValidation):
+                    FailureView(
+                        errorMessage: error,
+                        versionName: versionName,
+                        canRetryWithoutValidation: canRetryWithoutValidation
+                    )
                 }
 
-                Button {
-                    viewModel.completeUpdateIfInstalled(
-                        device: device,
-                        version: version,
-                        database: database
-                    )
-                    NotificationCenter.default.post(
-                        name: .didCompleteUpdateInstall,
-                        object: nil
-                    )
-                    dismiss()
-                } label: {
-                    Text(dismissButtonText)
-                        .buttonStyle(.plain)
-                }
-                .disabled(!canDismiss)
-                .padding(.top)
+                actionButtons
+                    .padding(.top)
             }
             .fixedSize(horizontal: false, vertical: true)
             .padding()
             .background(Color(UIColor.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .shadow(radius: 20)
-            .task {
+            .padding(.horizontal)
+            .task(id: retryWithoutValidation) {
                 await viewModel.startUpdateProcess(
                     device: device,
                     version: version,
+                    skipValidation: retryWithoutValidation,
                     database: database
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        if case .failed(_, _, let canRetry) = viewModel.status, canRetry {
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                Button("Install Anyway") {
+                    retryWithoutValidation = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+        } else {
+            Button {
+                if viewModel.status == .completed {
+                    onInstallCompleted()
+                }
+                dismiss()
+            } label: {
+                Text(dismissButtonText)
+            }
+            .disabled(!canDismiss)
         }
     }
 
@@ -155,6 +174,7 @@ struct SuccessView: View {
 struct FailureView: View {
     let errorMessage: String
     var versionName: String = ""
+    var canRetryWithoutValidation: Bool = false
 
     var body: some View {
         Image(systemName: "exclamationmark.octagon.fill")
@@ -175,12 +195,16 @@ struct FailureView: View {
         Text(errorMessage)
             .multilineTextAlignment(.center)
             .padding()
-    }
-}
 
-extension Notification.Name {
-    static var didCompleteUpdateInstall: Notification.Name {
-        return Notification.Name("did complete update install")
+        if canRetryWithoutValidation {
+            Text(
+                "Bypassing firmware validation can make your device unreachable over Wi-Fi if this binary does not match your hardware."
+            )
+            .font(.caption)
+            .foregroundStyle(.red)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal)
+        }
     }
 }
 

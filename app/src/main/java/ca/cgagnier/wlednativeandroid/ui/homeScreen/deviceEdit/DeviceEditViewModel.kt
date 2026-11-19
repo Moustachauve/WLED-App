@@ -14,7 +14,6 @@ import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
-import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.widget.WledWidgetManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +56,7 @@ class DeviceEditViewModel(
      * Single combined UI state for the device edit screen.
      *
      * The [DeviceEditUiState.updateTag] field is always `null` here because
-     * the update tag comes from [DeviceWithState.updateVersionTag], which
+     * the update tag comes from `DeviceWithState.updateVersionTag`, which
      * is owned by the caller and merged in the composable layer.
      */
     val uiState: StateFlow<DeviceEditUiState> = combine(
@@ -136,23 +135,9 @@ class DeviceEditViewModel(
         updateInstallVersion.value = version
     }
 
-    /**
-     * Called when the OTA install dialog is dismissed or completed.
-     * Updates device state if successful.
-     */
-    fun stopUpdateInstall(
-        device: DeviceWithState? = null,
-        version: VersionWithAssets? = updateInstallVersion.value,
-        wasSuccessful: Boolean = false,
-    ) {
+    /** Clears active install dialog state when the OTA install dialog is dismissed. */
+    fun stopUpdateInstall() {
         updateInstallVersion.value = null
-        if (!wasSuccessful || device == null || version == null) {
-            return
-        }
-        deviceConnectionManager.markUpdateInstalled(
-            macAddress = device.device.macAddress,
-            installedVersionTag = version.version.tagName,
-        )
     }
 
     /**

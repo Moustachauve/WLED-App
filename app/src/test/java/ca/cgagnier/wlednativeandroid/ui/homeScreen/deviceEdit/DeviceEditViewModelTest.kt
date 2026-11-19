@@ -5,24 +5,17 @@ import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.Version
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
-import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
-import ca.cgagnier.wlednativeandroid.model.wledapi.Info
-import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
-import ca.cgagnier.wlednativeandroid.model.wledapi.State
-import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.repository.VersionWithAssetsRepository
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
-import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.widget.WledWidgetManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -84,19 +77,6 @@ class DeviceEditViewModelTest {
         macAddress = "AA:BB:CC:DD:EE:01",
         address = "192.168.0.1",
         originalName = "Office Light",
-    )
-
-    private fun makeDeviceWithState(version: String = "0.15.0"): DeviceWithState = DeviceWithState(
-        device = sampleDevice,
-        stateInfo = DeviceStateInfo(
-            state = State(isOn = true, brightness = 200, transition = 7),
-            info = Info(
-                leds = Leds(count = 30, fps = 30, maxPower = 0, maxSegment = 1),
-                wifi = Wifi(bssid = "mac", rssi = -50, signal = 100, channel = 1),
-                name = "WLED",
-                version = version,
-            ),
-        ),
     )
 
     private fun makeVersion(tagName: String = "v0.15.1"): VersionWithAssets = VersionWithAssets(
@@ -172,42 +152,6 @@ class DeviceEditViewModelTest {
             deviceConnectionManager.recheckUpdates()
         }
         assertFalse(viewModel.uiState.value.isCheckingUpdates)
-    }
-
-    // -- stopUpdateInstall: connection manager delegation ---------------------
-
-    @Test
-    fun `stopUpdateInstall marks update installed on success`() {
-        val deviceWithState = makeDeviceWithState("0.15.0")
-        val version = makeVersion("v0.15.1")
-
-        viewModel.startUpdateInstall(version)
-        viewModel.stopUpdateInstall(device = deviceWithState, wasSuccessful = true)
-
-        verify(exactly = 1) {
-            deviceConnectionManager.markUpdateInstalled("AA:BB:CC:DD:EE:01", "v0.15.1")
-        }
-    }
-
-    @Test
-    fun `stopUpdateInstall does not mark update installed when unsuccessful`() {
-        val deviceWithState = makeDeviceWithState("0.15.0")
-        val version = makeVersion("v0.15.1")
-
-        viewModel.startUpdateInstall(version)
-        viewModel.stopUpdateInstall(device = deviceWithState, wasSuccessful = false)
-
-        verify(exactly = 0) { deviceConnectionManager.markUpdateInstalled(any(), any()) }
-    }
-
-    @Test
-    fun `stopUpdateInstall does not mark update installed when device is null`() {
-        val version = makeVersion("v0.15.1")
-
-        viewModel.startUpdateInstall(version)
-        viewModel.stopUpdateInstall(device = null, wasSuccessful = true)
-
-        verify(exactly = 0) { deviceConnectionManager.markUpdateInstalled(any(), any()) }
     }
 
     // -- Dialog lifecycle methods ---------------------------------------------
