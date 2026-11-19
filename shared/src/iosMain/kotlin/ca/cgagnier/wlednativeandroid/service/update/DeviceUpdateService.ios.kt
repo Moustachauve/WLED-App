@@ -40,28 +40,12 @@ fun DeviceUpdateService.Companion.create(
     versionWithAssets: VersionWithAssets,
     deviceApiFactory: DeviceApiFactory,
     githubApi: GithubApi,
-): DeviceUpdateService = create(
-    device = device,
-    stateInfo = stateInfo,
-    versionWithAssets = versionWithAssets,
-    deviceApiFactory = deviceApiFactory,
-    githubApi = githubApi,
-    selectedAsset = null,
-)
-
-// Platform factory mirrors DeviceUpdateService constructor dependencies for Swift interop
-@Suppress("LongParameterList")
-fun DeviceUpdateService.Companion.create(
-    device: Device,
-    stateInfo: DeviceStateInfo?,
-    versionWithAssets: VersionWithAssets,
-    deviceApiFactory: DeviceApiFactory,
-    githubApi: GithubApi,
-    selectedAsset: Asset?,
+    selectedAsset: Asset? = null,
+    cacheDirPath: String? = null,
 ): DeviceUpdateService = DeviceUpdateService(
     device = DeviceWithState(device = device, stateInfo = stateInfo),
     versionWithAssets = versionWithAssets,
-    cacheDir = cachesDirectory().toPath(),
+    cacheDir = (cacheDirPath ?: cachesDirectory()).toPath(),
     deviceApiFactory = deviceApiFactory,
     githubApi = githubApi,
     selectedAsset = selectedAsset,

@@ -23,7 +23,7 @@ final class DeviceUpdateInstallingViewModel {
         case downloading(versionName: String, progress: Int)
         case installing(versionName: String)
         case completed
-        case failed(versionName: String, error: String)
+        case failed(versionName: String, error: String, canRetryWithoutValidation: Bool = false)
     }
 
     var status: UpdateStatus = .idle
@@ -31,14 +31,19 @@ final class DeviceUpdateInstallingViewModel {
     func startUpdateProcess(
         device: DeviceWithState,
         version: VersionWithAssets,
-        database: AppDatabase = .shared
+        skipValidation: Bool = false,
+        database: AppDatabase = .shared,
+        cacheDirPath: String? = nil
     ) async {
+        status = .idle
         let updateService = DeviceUpdateService.companion.create(
             device: device.device,
             stateInfo: device.stateInfo,
             versionWithAssets: version,
             deviceApiFactory: database.deviceApiFactory,
-            githubApi: database.githubApi
+            githubApi: database.githubApi,
+            selectedAsset: nil,
+            cacheDirPath: cacheDirPath
         )
         let assetName = updateService.getAssetName()
         let fallbackName = assetName.isEmpty ? version.version.tagName : assetName
@@ -78,6 +83,7 @@ final class DeviceUpdateInstallingViewModel {
                         break
                     }
                 }
+                try Task.checkCancellation()
                 guard didFinishDownload else {
                     status = .failed(versionName: assetName, error: downloadFailedMessage)
                     return
@@ -85,48 +91,49 @@ final class DeviceUpdateInstallingViewModel {
             }
 
             status = .installing(versionName: assetName)
-            let response = try await updateService.installUpdate()
+            let response = try await updateService.installUpdate(skipValidation: skipValidation)
             guard response.isSuccessful else {
+                let plainTextError = DeviceUpdateService.companion.extractPlainTextError(response: response)
+                let errorMessage = if let plainTextError, !plainTextError.isEmpty {
+                    "\(Int(response.code)): \(plainTextError)"
+                } else {
+                    String(localized: "Update failed with status code: \(Int(response.code))")
+                }
+                let canRetry = !skipValidation &&
+                    DeviceUpdateService.companion.isValidationFailure(response: response)
                 status = .failed(
                     versionName: assetName,
-                    error: String(localized: "Update failed with status code: \(Int(response.code))")
+                    error: errorMessage,
+                    canRetryWithoutValidation: canRetry
                 )
                 return
             }
 
-            do {
-                try await database.deviceRepository.updateSkipUpdateTag(
-                    macAddress: device.device.macAddress,
-                    skipUpdateTag: ""
+            await database.waitUntilReady()
+            let resolvedOwnerAndRepo = try await database.deviceConnectionManager.completeFirmwareInstall(
+                device: device.device,
+                installedVersion: version.version,
+                repositoryDao: database.repositoryDao
+            )
+            try Task.checkCancellation()
+
+            let cleanedTag = Version.companion.normalizeTagOrVersion(value: version.version.tagName)
+            device.device = device.device.copy(skipUpdateTag: "", repositoryId: version.version.repositoryId)
+            if let current = device.stateInfo {
+                device.stateInfo = current.withInstalledFirmware(
+                    newVersion: cleanedTag,
+                    repositoryOwnerAndRepo: resolvedOwnerAndRepo
                 )
-            } catch {
-                Self.logger.error("Failed to reset skipUpdateTag: \(error.localizedDescription)")
             }
+            device.availableUpdateVersion = nil
             status = .completed
         } catch {
             if error is CancellationError || Task.isCancelled {
                 status = .idle
                 return
             }
+            Self.logger.error("Firmware install failed: \(error.localizedDescription)")
             status = .failed(versionName: assetName, error: error.localizedDescription)
         }
-    }
-
-    func completeUpdateIfInstalled(
-        device: DeviceWithState,
-        version: VersionWithAssets,
-        database: AppDatabase = .shared
-    ) {
-        guard status == .completed else { return }
-        let rawTag = version.version.tagName
-        let cleanedTag = rawTag.hasPrefix("v") ? String(rawTag.dropFirst()) : rawTag
-        if let current = device.stateInfo {
-            device.stateInfo = current.withVersion(newVersion: cleanedTag)
-        }
-        device.availableUpdateVersion = nil
-        database.deviceConnectionManager.markUpdateInstalled(
-            macAddress: device.device.macAddress,
-            installedVersionTag: rawTag
-        )
     }
 }

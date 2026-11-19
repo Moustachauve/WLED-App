@@ -11,7 +11,11 @@ sealed class UpdateInstallingStep {
     data class Downloading(val progress: Int) : UpdateInstallingStep()
     data object Installing : UpdateInstallingStep()
     data object NoCompatibleVersion : UpdateInstallingStep()
-    data class Error(val error: String, val showError: Boolean = false) : UpdateInstallingStep()
+    data class Error(
+        val error: String,
+        val showError: Boolean = false,
+        val canRetryWithoutValidation: Boolean = false,
+    ) : UpdateInstallingStep()
 
     data object Done : UpdateInstallingStep()
 }

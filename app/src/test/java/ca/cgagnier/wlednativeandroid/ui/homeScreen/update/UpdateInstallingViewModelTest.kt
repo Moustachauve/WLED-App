@@ -10,8 +10,8 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.Info
 import ca.cgagnier.wlednativeandroid.model.wledapi.Leds
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
-import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.api.DeviceApiFactory
 import ca.cgagnier.wlednativeandroid.service.api.github.GithubApi
 import ca.cgagnier.wlednativeandroid.service.api.github.KtorGithubApiEndpoints
@@ -21,6 +21,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
@@ -61,7 +62,7 @@ class UpdateInstallingViewModelTest {
     lateinit var tempDir: File
 
     private val testDispatcher = StandardTestDispatcher()
-    private val deviceRepository: DeviceRepository = mockk(relaxed = true)
+    private val deviceConnectionManager: DeviceConnectionManager = mockk(relaxed = true)
     private val repositoryDao: RepositoryDao = mockk(relaxed = true)
 
     private val expectedBinary = ByteArray(1024) { (it % 256).toByte() }
@@ -147,6 +148,7 @@ class UpdateInstallingViewModelTest {
         onDownload: () -> Unit = {},
         onUpload: () -> Unit = {},
         downloadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
+        uploadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
     ): UpdateInstallingViewModel {
         val httpClient = HttpClient(MockEngine) {
             engine {
@@ -160,7 +162,7 @@ class UpdateInstallingViewModelTest {
 
                         "/update" -> {
                             onUpload()
-                            respond(
+                            uploadResponder?.invoke(this, request) ?: respond(
                                 content = "Update Success!",
                                 status = HttpStatusCode.OK,
                                 headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
@@ -174,10 +176,10 @@ class UpdateInstallingViewModelTest {
             installDeviceHttpClientDefaults()
         }
         return UpdateInstallingViewModel(
-            deviceRepository = deviceRepository,
             repositoryDao = repositoryDao,
             deviceApiFactory = DeviceApiFactory(httpClient),
             githubApi = GithubApi(KtorGithubApiEndpoints(httpClient, ioDispatcher = testDispatcher)),
+            deviceConnectionManager = deviceConnectionManager,
             ioDispatcher = testDispatcher,
         )
     }
@@ -225,7 +227,7 @@ class UpdateInstallingViewModelTest {
     }
 
     @Test
-    fun `successful install clears skipUpdateTag for updated device`() = runTest(testDispatcher) {
+    fun `successful install completes firmware install via connection manager`() = runTest(testDispatcher) {
         writeCachedBinary()
         val viewModel = createViewModel()
 
@@ -233,7 +235,100 @@ class UpdateInstallingViewModelTest {
         advanceUntilIdle()
 
         assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
-        coVerify(exactly = 1) { deviceRepository.updateSkipUpdateTag("AA:BB:CC:DD:EE:FF", "") }
+        coVerify(exactly = 1) {
+            deviceConnectionManager.completeFirmwareInstall(
+                sampleDevice.device,
+                sampleVersion.version,
+                repositoryDao,
+            )
+        }
+    }
+
+    @Test
+    fun `startUpdate exposes retryWithoutValidation when device rejects validation`() = runTest(testDispatcher) {
+        writeCachedBinary()
+        val html = "<body><h2>Update failed!</h2>" +
+            "<h4>Enable &#39;Ignore firmware validation&#39; to proceed anyway.</h4></body>"
+        val viewModel = createViewModel(
+            uploadResponder = { respond(html, HttpStatusCode.InternalServerError) },
+        )
+
+        viewModel.startUpdate(sampleDevice, sampleVersion, tempDir)
+        advanceUntilIdle()
+
+        assertEquals(
+            UpdateInstallingStep.Error(
+                error = "500: Update failed! Enable 'Ignore firmware validation' to proceed anyway.",
+                showError = true,
+                canRetryWithoutValidation = true,
+            ),
+            viewModel.state.value.step,
+        )
+    }
+
+    @Test
+    fun `retryWithoutValidation uploads skipValidation part and completes`() = runTest(testDispatcher) {
+        writeCachedBinary()
+        val capturedBodies = mutableListOf<String>()
+        val viewModel = createViewModel(
+            uploadResponder = { request ->
+                val bodyText = request.body.toByteArray().decodeToString()
+                capturedBodies.add(bodyText)
+                if ("name=\"skipValidation\"" in bodyText) {
+                    respond("Update Success!", HttpStatusCode.OK)
+                } else {
+                    respond("Enable 'Ignore firmware validation' to proceed", HttpStatusCode.InternalServerError)
+                }
+            },
+        )
+
+        viewModel.startUpdate(sampleDevice, sampleVersion, tempDir)
+        advanceUntilIdle()
+        viewModel.retryWithoutValidation()
+        advanceUntilIdle()
+
+        assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
+        assertEquals(2, capturedBodies.size)
+        assertFalse("name=\"skipValidation\"" in capturedBodies[0])
+        assertTrue("name=\"skipValidation\"" in capturedBodies[1])
+    }
+
+    @Test
+    fun `retryWithoutValidation disables retry if validation fails again`() = runTest(testDispatcher) {
+        writeCachedBinary()
+        val viewModel = createViewModel(
+            uploadResponder = {
+                respond("Enable 'Ignore firmware validation' to proceed", HttpStatusCode.InternalServerError)
+            },
+        )
+
+        viewModel.startUpdate(sampleDevice, sampleVersion, tempDir)
+        advanceUntilIdle()
+        viewModel.retryWithoutValidation()
+        advanceUntilIdle()
+
+        val step = viewModel.state.value.step as UpdateInstallingStep.Error
+        assertFalse(step.canRetryWithoutValidation)
+    }
+
+    @Test
+    fun `startUpdate does not offer retryWithoutValidation on non-validation error`() = runTest(testDispatcher) {
+        writeCachedBinary()
+        val viewModel = createViewModel(
+            uploadResponder = { respond("Not enough space", HttpStatusCode.InternalServerError) },
+        )
+
+        viewModel.startUpdate(sampleDevice, sampleVersion, tempDir)
+        advanceUntilIdle()
+
+        assertEquals(
+            UpdateInstallingStep.Error(
+                error = "500: Not enough space",
+                showError = false,
+                canRetryWithoutValidation = false,
+            ),
+            viewModel.state.value.step,
+        )
     }
 
     @Test

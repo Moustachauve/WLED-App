@@ -57,7 +57,7 @@ private val RELEASE_NAME_OVERRIDES = mapOf(
 @Suppress("LongParameterList")
 class DeviceUpdateService(
     val device: DeviceWithState,
-    private val versionWithAssets: VersionWithAssets,
+    val versionWithAssets: VersionWithAssets,
     private val cacheDir: Path,
     private val deviceApiFactory: DeviceApiFactory,
     private val githubApi: GithubApi,
@@ -116,10 +116,7 @@ class DeviceUpdateService(
     }
 
     @Throws(Exception::class)
-    suspend fun installUpdate(): ApiResponse<String> = installUpdate(skipValidation = false)
-
-    @Throws(Exception::class)
-    suspend fun installUpdate(skipValidation: Boolean): ApiResponse<String> {
+    suspend fun installUpdate(skipValidation: Boolean = false): ApiResponse<String> {
         logger.d {
             "Installing software update: ${device.device.macAddress} (skipValidation=$skipValidation)"
         }

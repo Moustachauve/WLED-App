@@ -19,6 +19,7 @@ struct DeviceUpdateDetails: View {
 
     @State var showWarningDialog = false
     @State var showInstallingDialog = false
+    @State private var didCompleteInstall = false
     @State private var versionWithAssets: VersionWithAssets?
 
     var body: some View {
@@ -54,19 +55,26 @@ struct DeviceUpdateDetails: View {
             .background(.bar)
         }
         .navigationTitle("Version \(versionWithAssets?.version.tagName ?? device.availableUpdateVersion ?? "")")
-        .fullScreenCover(isPresented: $showInstallingDialog) {
-            if let versionWithAssets {
-                DeviceUpdateInstalling(
-                    device: device,
-                    version: versionWithAssets,
-                    database: database
-                )
-                .background(BackgroundBlurView())
+        .fullScreenCover(
+            isPresented: $showInstallingDialog,
+            onDismiss: {
+                if didCompleteInstall {
+                    dismiss()
+                }
+            },
+            content: {
+                if let versionWithAssets {
+                    DeviceUpdateInstalling(
+                        device: device,
+                        version: versionWithAssets,
+                        database: database
+                    ) {
+                        didCompleteInstall = true
+                    }
+                    .background(BackgroundBlurView())
+                }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .didCompleteUpdateInstall)) { _ in
-            dismiss()
-        }
+        )
         .task(id: device.availableUpdateVersion) {
             await loadVersion()
         }
