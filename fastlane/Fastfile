@@ -13,6 +13,7 @@ IOS_TEAM_ID = "RWLNCUSDCJ"
 ANDROID_PACKAGE_NAME = "ca.cgagnier.wlednativeandroid"
 IOS_BUNDLE_ID = "ca.cgagnier.wled-native"
 IOS_WIDGET_BUNDLE_ID = "ca.cgagnier.wled-native.widgets"
+IOS_WATCH_BUNDLE_ID = "ca.cgagnier.wled-native.watchkitapp"
 GOOGLE_PLAY_MAX_CHANGELOG_CHARS = 500
 ANDROID_PLAY_CHANGELOG_DIR = File.join(__dir__, "changelogs")
 # Keep localized "Other Improvements" heading prefixes in sync with `.agents/skills/translate-changelog/SKILL.md` (Step 3).
@@ -367,7 +368,7 @@ platform :ios do
       end
       import_certificate(cert_opts)
 
-      # Fetch/create App Store provisioning profiles for both targets using the API key and
+      # Fetch/create App Store provisioning profiles for all targets using the API key and
       # switch targets to manual distribution signing so Xcode archive never attempts to
       # create an Apple Development certificate on ephemeral CI runners.
       get_provisioning_profile(
@@ -383,6 +384,13 @@ platform :ios do
         output_path: tmpdir
       )
       widget_profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
+
+      get_provisioning_profile(
+        api_key: api_key,
+        app_identifier: IOS_WATCH_BUNDLE_ID,
+        output_path: tmpdir
+      )
+      watch_profile_name = Actions.lane_context[SharedValues::SIGH_NAME]
 
       update_code_signing_settings(
         path: IOS_PROJECT_PATH,
@@ -401,6 +409,15 @@ platform :ios do
         targets: ["WLEDWidgets"],
         profile_name: widget_profile_name,
         bundle_identifier: IOS_WIDGET_BUNDLE_ID
+      )
+      update_code_signing_settings(
+        path: IOS_PROJECT_PATH,
+        use_automatic_signing: false,
+        team_id: IOS_TEAM_ID,
+        code_sign_identity: "Apple Distribution",
+        targets: ["WLEDWatch"],
+        profile_name: watch_profile_name,
+        bundle_identifier: IOS_WATCH_BUNDLE_ID
       )
 
       version_xcargs = [
@@ -425,7 +442,8 @@ platform :ios do
           teamID: IOS_TEAM_ID,
           provisioningProfiles: {
             IOS_BUNDLE_ID => main_profile_name,
-            IOS_WIDGET_BUNDLE_ID => widget_profile_name
+            IOS_WIDGET_BUNDLE_ID => widget_profile_name,
+            IOS_WATCH_BUNDLE_ID => watch_profile_name
           }
         }
       )

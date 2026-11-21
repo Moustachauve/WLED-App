@@ -5,7 +5,9 @@ included:
   - wled
   - WLEDWidgets
   - WatchShared
+  - WLEDWatch
   - wledTests
+  - WLEDWatchTests
 
 # Directories to exclude from linting
 excluded:
