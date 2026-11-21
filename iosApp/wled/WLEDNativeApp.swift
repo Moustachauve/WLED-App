@@ -14,6 +14,7 @@ struct WLEDNativeApp: App {
             } else {
                 DeviceListView(database: .shared)
                     .task {
+                        WatchSyncService.shared.start()
                         await SoundSyncManager.shared.endStaleLiveActivitiesIfNeeded()
                         await AppDatabase.shared.refreshVersionsIfNeeded()
                     }

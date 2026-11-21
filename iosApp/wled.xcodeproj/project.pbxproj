@@ -96,6 +96,7 @@
 		8813CE002EE9178D00B0A987 /* wled */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (8813CE392EE9178D00B0A987 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 88WIDGET0000000000000003 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = wled; sourceTree = "<group>"; };
 		882CC9142F05CFE00080567C /* wledTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = wledTests; sourceTree = "<group>"; };
 		88WIDGET0000000000000004 /* WLEDWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (88WIDGET0000000000000005 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = WLEDWidgets; sourceTree = "<group>"; };
+		88WATCH00000000000000001 /* WatchShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = WatchShared; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,6 +143,7 @@
 				C9C4B47E2AC0050500791D20 /* README.md */,
 				8813CE002EE9178D00B0A987 /* wled */,
 				88WIDGET0000000000000004 /* WLEDWidgets */,
+				88WATCH00000000000000001 /* WatchShared */,
 				882CC9142F05CFE00080567C /* wledTests */,
 				C9A9E5BE2918D1C3005B5C22 /* Products */,
 			);
@@ -225,6 +227,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				8813CE002EE9178D00B0A987 /* wled */,
+				88WATCH00000000000000001 /* WatchShared */,
 			);
 			name = WLED;
 			packageProductDependencies = (
