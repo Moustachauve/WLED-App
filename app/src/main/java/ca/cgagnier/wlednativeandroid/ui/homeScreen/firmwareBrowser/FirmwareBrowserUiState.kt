@@ -4,6 +4,7 @@ import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
+import ca.cgagnier.wlednativeandroid.service.update.DeviceUpdateService
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 
 data class FirmwareBrowserUiState(
@@ -22,11 +23,9 @@ data class FirmwareBrowserUiState(
         get() = repositories.firstOrNull { it.id == selectedRepositoryId }
 }
 
-data class SelectedFirmwareVersion(
-    val versionWithAssets: VersionWithAssets,
-    val installableAssets: List<Asset>,
-    val selectedAsset: Asset?,
-)
+data class SelectedFirmwareVersion(val versionWithAssets: VersionWithAssets, val selectedAsset: Asset?) {
+    val installableAssets: List<Asset> = DeviceUpdateService.getInstallableAssets(versionWithAssets)
+}
 
 sealed interface FirmwareBrowserDialog {
     data class Disclaimer(

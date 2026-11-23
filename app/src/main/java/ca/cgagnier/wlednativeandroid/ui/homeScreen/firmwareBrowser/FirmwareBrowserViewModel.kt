@@ -15,6 +15,8 @@ import ca.cgagnier.wlednativeandroid.service.update.ReleaseService
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +26,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -39,27 +40,26 @@ class FirmwareBrowserViewModel(
     deviceConnectionManager: DeviceConnectionManager,
 ) : ViewModel() {
 
-    private data class SelectionState(
+    private data class BrowserState(
         val branch: Branch? = null,
-        val loadingRepositoryIds: Set<Long> = emptySet(),
-        val failedRepositoryIds: Set<Long> = emptySet(),
+        val isRefreshing: Boolean = false,
+        val loadError: Boolean = false,
         val selectedVersion: SelectedFirmwareVersion? = null,
         val dialog: FirmwareBrowserDialog? = null,
     )
 
     private val selectedRepositoryId = MutableStateFlow<Long?>(null)
-    private val selectionState = MutableStateFlow(SelectionState())
+    private val browserState = MutableStateFlow(BrowserState())
     private val refreshedRepositoryIds = mutableSetOf<Long>()
+    private var refreshJob: Job? = null
 
     private val deviceFlow = deviceConnectionManager.allDevicesWithState
         .map { devices -> devices.firstOrNull { it.device.macAddress == macAddress } }
         .distinctUntilChanged()
 
-    private val allRepositoriesFlow = releaseService.observeAllRepositories()
-
-    private val effectiveRepositoryId = combine(
+    private val repoSelectionFlow = combine(
         deviceFlow,
-        allRepositoriesFlow,
+        releaseService.observeAllRepositories(),
         selectedRepositoryId,
     ) { device, allRepos, explicitRepoId ->
         val selectable = ReleaseService.getSelectableRepositories(
@@ -67,38 +67,32 @@ class FirmwareBrowserViewModel(
             currentRepositoryId = device?.device?.repositoryId ?: Repository.DEFAULT_ID,
         )
         val candidateId = explicitRepoId ?: device?.device?.repositoryId
-        if (candidateId != null && selectable.any { it.id == candidateId }) {
-            candidateId
-        } else {
-            selectable.firstOrNull()?.id
-        }
-    }.distinctUntilChanged()
+        val activeId = candidateId?.takeIf { id -> selectable.any { it.id == id } }
+            ?: selectable.firstOrNull()?.id
+        selectable to activeId
+    }
 
-    private val versionsFlow = effectiveRepositoryId
+    private val versionsFlow = repoSelectionFlow
+        .map { it.second }
+        .distinctUntilChanged()
         .onEach { repoId ->
+            refreshJob?.cancel()
+            browserState.update { it.copy(isRefreshing = false, loadError = false) }
             if (repoId != null && repoId !in refreshedRepositoryIds) {
                 refreshRepository(repoId)
             }
         }
         .flatMapLatest { repoId ->
-            if (repoId == null) {
-                flowOf<Pair<Long?, List<VersionWithAssets>?>>(null to emptyList())
-            } else {
-                releaseService.observeVersionsForRepository(repoId)
-                    .map<List<VersionWithAssets>, Pair<Long?, List<VersionWithAssets>?>> { versions ->
-                        repoId to versions
-                    }
-                    .onStart { emit(repoId to null) }
-            }
+            if (repoId == null) flowOf(emptyList()) else releaseService.observeVersionsForRepository(repoId)
         }
 
     val uiState: StateFlow<FirmwareBrowserUiState> = combine(
         deviceFlow,
-        allRepositoriesFlow,
+        repoSelectionFlow,
         versionsFlow,
-        selectionState,
-    ) { device, allRepos, (activeRepoId, rawVersions), selection ->
-        buildUiState(device, allRepos, activeRepoId, rawVersions, selection)
+        browserState,
+    ) { device, (repositories, activeRepoId), versionsForRepo, state ->
+        buildUiState(device, repositories, activeRepoId, versionsForRepo, state)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -108,25 +102,25 @@ class FirmwareBrowserViewModel(
     fun selectRepository(repositoryId: Long) {
         if (uiState.value.selectedRepositoryId == repositoryId) return
         selectedRepositoryId.value = repositoryId
-        selectionState.update { it.copy(selectedVersion = null) }
+        browserState.update { it.copy(selectedVersion = null) }
     }
 
     fun selectBranch(branch: Branch) {
         if (uiState.value.selectedBranch == branch) return
-        selectionState.update { it.copy(branch = branch, selectedVersion = null) }
+        browserState.update { it.copy(branch = branch, selectedVersion = null) }
     }
 
     fun refreshSelectedRepository() {
         val repoId = uiState.value.selectedRepositoryId ?: return
+        if (browserState.value.isRefreshing) return
         refreshRepository(repoId)
     }
 
     fun selectVersion(versionWithAssets: VersionWithAssets) {
-        selectionState.update {
+        browserState.update {
             it.copy(
                 selectedVersion = SelectedFirmwareVersion(
                     versionWithAssets = versionWithAssets,
-                    installableAssets = DeviceUpdateService.getInstallableAssets(versionWithAssets),
                     selectedAsset = null,
                 ),
             )
@@ -134,7 +128,7 @@ class FirmwareBrowserViewModel(
     }
 
     fun selectBinaryAsset(asset: Asset) {
-        selectionState.update { current ->
+        browserState.update { current ->
             current.copy(selectedVersion = current.selectedVersion?.copy(selectedAsset = asset))
         }
     }
@@ -150,7 +144,7 @@ class FirmwareBrowserViewModel(
         } else {
             null
         }
-        selectionState.update {
+        browserState.update {
             it.copy(
                 dialog = FirmwareBrowserDialog.Disclaimer(
                     versionWithAssets = details.versionWithAssets,
@@ -161,12 +155,12 @@ class FirmwareBrowserViewModel(
         }
     }
 
-    fun dismissDisclaimer() {
-        selectionState.update { it.copy(dialog = null) }
+    fun dismissDialog() {
+        browserState.update { it.copy(dialog = null) }
     }
 
     fun confirmDisclaimer() {
-        selectionState.update { state ->
+        browserState.update { state ->
             val disclaimer = state.dialog as? FirmwareBrowserDialog.Disclaimer ?: return@update state
             state.copy(
                 dialog = FirmwareBrowserDialog.Installing(
@@ -177,59 +171,45 @@ class FirmwareBrowserViewModel(
         }
     }
 
-    fun onInstallFinished() {
-        selectionState.update { it.copy(dialog = null) }
-    }
-
     private fun refreshRepository(repositoryId: Long) {
-        if (repositoryId in selectionState.value.loadingRepositoryIds) return
-        selectionState.update {
-            it.copy(
-                loadingRepositoryIds = it.loadingRepositoryIds + repositoryId,
-                failedRepositoryIds = it.failedRepositoryIds - repositoryId,
-            )
-        }
-        viewModelScope.launch {
-            try {
-                val success = releaseService.refreshVersionsForRepositoryId(githubApi, repositoryId)
-                if (success) {
-                    refreshedRepositoryIds.add(repositoryId)
-                } else {
-                    selectionState.update { it.copy(failedRepositoryIds = it.failedRepositoryIds + repositoryId) }
-                }
+        refreshJob?.cancel()
+        browserState.update { it.copy(isRefreshing = true, loadError = false) }
+        refreshJob = viewModelScope.launch {
+            val success = try {
+                releaseService.refreshVersionsForRepositoryId(githubApi, repositoryId)
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
                 // Keep GitHub/database refresh errors contained to the list error state
                 Log.w(TAG, "Failed to refresh versions for repository $repositoryId", e)
-                selectionState.update { it.copy(failedRepositoryIds = it.failedRepositoryIds + repositoryId) }
-            } finally {
-                selectionState.update { it.copy(loadingRepositoryIds = it.loadingRepositoryIds - repositoryId) }
+                false
             }
+            coroutineContext.ensureActive()
+            if (success) refreshedRepositoryIds.add(repositoryId)
+            browserState.update { it.copy(isRefreshing = false, loadError = !success) }
         }
     }
 
     private fun buildUiState(
         device: DeviceWithState?,
-        allRepos: List<Repository>,
+        repositories: List<Repository>,
         activeRepoId: Long?,
-        rawVersions: List<VersionWithAssets>?,
-        selection: SelectionState,
+        versionsForRepo: List<VersionWithAssets>,
+        state: BrowserState,
     ): FirmwareBrowserUiState {
-        val branch = selection.branch
-            ?: if (device?.device?.branch == Branch.BETA) Branch.BETA else Branch.STABLE
-        val repositories = ReleaseService.getSelectableRepositories(
-            allRepositories = allRepos,
-            currentRepositoryId = device?.device?.repositoryId ?: Repository.DEFAULT_ID,
-        )
-        val versions = rawVersions?.let { VersionWithAssetsRepository.filterAndSortVersions(it, branch) }.orEmpty()
-        val installedTags = resolveInstalledTags(device, versions)
-        val matchingSelection = selection.selectedVersion?.takeIf { selected ->
-            val v = selected.versionWithAssets.version
-            v.repositoryId == activeRepoId && v.isBetaRelease == (branch == Branch.BETA)
+        val branch = state.branch ?: if (device?.device?.branch == Branch.BETA) Branch.BETA else Branch.STABLE
+        val versions = VersionWithAssetsRepository.filterAndSortVersions(versionsForRepo, branch)
+        val installedRepoId = device?.device?.repositoryId
+        val installedVersion = device?.stateInfo?.info?.version
+        val installedTags = if (installedRepoId != null && installedVersion != null) {
+            versions
+                .asSequence()
+                .filter { it.matchesInstalledVersion(installedVersion, installedRepoId) }
+                .map { it.version.tagName }
+                .toSet()
+        } else {
+            emptySet()
         }
-        val resolvedVersion = resolveSelectedVersionAsset(matchingSelection, device)
-        val isRefreshingRepo = activeRepoId != null && activeRepoId in selection.loadingRepositoryIds
         return FirmwareBrowserUiState(
             device = device,
             repositories = repositories,
@@ -237,21 +217,11 @@ class FirmwareBrowserViewModel(
             selectedBranch = branch,
             versions = versions,
             installedTags = installedTags,
-            isLoadingVersions = rawVersions == null || isRefreshingRepo,
-            loadError = activeRepoId != null && activeRepoId in selection.failedRepositoryIds,
-            selectedVersion = resolvedVersion,
-            dialog = selection.dialog,
+            isLoadingVersions = state.isRefreshing,
+            loadError = state.loadError,
+            selectedVersion = resolveSelectedVersionAsset(state.selectedVersion, device),
+            dialog = state.dialog,
         )
-    }
-
-    private fun resolveInstalledTags(device: DeviceWithState?, versions: List<VersionWithAssets>): Set<String> {
-        val deviceRepoId = device?.device?.repositoryId ?: return emptySet()
-        val installedVersion = device.stateInfo?.info?.version ?: return emptySet()
-        return versions
-            .asSequence()
-            .filter { it.matchesInstalledVersion(installedVersion, deviceRepoId) }
-            .map { it.version.tagName }
-            .toSet()
     }
 
     private fun resolveSelectedVersionAsset(
