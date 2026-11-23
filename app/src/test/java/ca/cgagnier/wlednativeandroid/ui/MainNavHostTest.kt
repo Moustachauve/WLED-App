@@ -78,4 +78,19 @@ class MainNavHostTest {
             assertEquals(listOf(DeviceListDetailKey, SoundSyncKey), backStack.toList())
         }
     }
+
+    @Test
+    fun `navigateToFirmwareBrowser places FirmwareBrowserKey at top without duplicating`() {
+        val targetKey = FirmwareBrowserKey("AA:BB:CC:DD:EE:01")
+        listOf(
+            listOf<NavKey>(DeviceListDetailKey),
+            listOf<NavKey>(DeviceListDetailKey, targetKey),
+        ).forEach { initialKeys ->
+            val backStack = NavBackStack(*initialKeys.toTypedArray())
+
+            backStack.navigateToFirmwareBrowser("AA:BB:CC:DD:EE:01")
+
+            assertEquals(listOf(DeviceListDetailKey, targetKey), backStack.toList())
+        }
+    }
 }

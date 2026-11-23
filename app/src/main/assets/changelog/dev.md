@@ -4,6 +4,9 @@ Turn your phone into a live audio-reactive controller for your WLED devices. Cap
 ### Compact 1x1 Widgets & Easy Reconfiguration
 Shrink your home screen widgets all the way down to a compact 1x1 tile for a quick power toggle and device label right alongside your app icons. Changed your mind about which strip a widget controls? Long-press any placed widget and tap the edit button to reassign it to a different WLED device without removing and re-adding it.
 
+### Firmware Version Browser
+Want full control over what runs on your strips? Open Edit Device and tap Other Versions & Sources to explore every available Stable and Beta release, switch update sources between Official WLED, QuinLED, and MoonModules, read release notes, pick the exact firmware binary for your board, and install any version (including downgrades or cross-fork switches).
+
 ### Other Improvements & Fixes
 - Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates, and streamlined the update confirmation message.
 - Fixed the home screen widget's power and refresh buttons not working while Battery Saver is on.

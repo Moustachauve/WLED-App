@@ -10,6 +10,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.DeviceListDetail
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.DeviceListDetailActions
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.firmwareBrowser.FirmwareBrowserScreen
 import ca.cgagnier.wlednativeandroid.ui.settingsScreen.Settings
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncScreen
 import kotlinx.serialization.Serializable
@@ -23,9 +24,23 @@ data object SettingsKey : NavKey
 @Serializable
 data object SoundSyncKey : NavKey
 
-fun NavBackStack<NavKey>.navigateToSoundSync() {
-    if (lastOrNull() != SoundSyncKey) {
-        add(SoundSyncKey)
+@Serializable
+data class FirmwareBrowserKey(val macAddress: String) : NavKey
+
+fun NavBackStack<NavKey>.navigateToSoundSync() = navigateSingleTop(SoundSyncKey)
+
+fun NavBackStack<NavKey>.navigateToFirmwareBrowser(macAddress: String) =
+    navigateSingleTop(FirmwareBrowserKey(macAddress))
+
+private fun NavBackStack<NavKey>.navigateSingleTop(key: NavKey) {
+    if (lastOrNull() != key) {
+        add(key)
+    }
+}
+
+private fun NavBackStack<NavKey>.popIfPossible() {
+    if (size > 1) {
+        removeAt(lastIndex)
     }
 }
 
@@ -37,11 +52,7 @@ fun MainNavHost(
 ) {
     NavDisplay(
         backStack = backStack,
-        onBack = {
-            if (backStack.size > 1) {
-                backStack.removeAt(backStack.lastIndex)
-            }
-        },
+        onBack = { backStack.popIfPossible() },
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
@@ -51,33 +62,26 @@ fun MainNavHost(
                 DeviceListDetail(
                     initialDeviceMacAddress = startDeviceAddress,
                     actions = DeviceListDetailActions(
-                        openSettings = {
-                            backStack.add(SettingsKey)
-                        },
-                        openSoundSync = {
-                            backStack.navigateToSoundSync()
-                        },
+                        openSettings = { backStack.add(SettingsKey) },
+                        openSoundSync = { backStack.navigateToSoundSync() },
                         openChangelogs = openChangelogs,
+                        openFirmwareBrowser = { macAddress ->
+                            backStack.navigateToFirmwareBrowser(macAddress)
+                        },
                     ),
                 )
             }
-            entry<SettingsKey> {
-                Settings(
-                    navigateUp = {
-                        if (backStack.size > 1) {
-                            backStack.removeAt(backStack.lastIndex)
-                        }
-                    },
+            entry<FirmwareBrowserKey> { key ->
+                FirmwareBrowserScreen(
+                    macAddress = key.macAddress,
+                    navigateUp = { backStack.popIfPossible() },
                 )
             }
+            entry<SettingsKey> {
+                Settings(navigateUp = { backStack.popIfPossible() })
+            }
             entry<SoundSyncKey> {
-                SoundSyncScreen(
-                    navigateUp = {
-                        if (backStack.size > 1) {
-                            backStack.removeAt(backStack.lastIndex)
-                        }
-                    },
-                )
+                SoundSyncScreen(navigateUp = { backStack.popIfPossible() })
             }
         },
     )

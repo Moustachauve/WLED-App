@@ -188,4 +188,23 @@
     <string name="ignore_validation_warning">Ignorer la validation du micrologiciel peut rendre votre appareil inaccessible par Wi-Fi si ce fichier ne correspond pas à votre matériel.</string>
     <string name="install_anyway">Installer quand même</string>
 
+    <!-- Firmware Browser -->
+    <string name="browse_versions">Autres versions et sources</string>
+    <string name="reinstall">Réinstaller</string>
+    <string name="firmware_versions">Versions du micrologiciel</string>
+    <string name="firmware_binary">Fichier de micrologiciel</string>
+    <string name="select_firmware_binary">Sélectionner un fichier de micrologiciel</string>
+    <string name="installed_badge">Installé</string>
+    <string name="official_badge">Officiel</string>
+    <string name="switching_source_warning">Vous consultez des versions provenant de %1$s plutôt que de votre source de mise à jour actuelle. Assurez-vous que le fichier sélectionné correspond exactement au matériel de votre contrôleur avant l\'installation.</string>
+    <string name="switching_source_disclaimer">Vous changez la source de mise à jour vers %1$s. Installer un fichier de micrologiciel incompatible peut rendre votre appareil inaccessible par Wi-Fi jusqu\'à une réinstallation par USB.</string>
+    <string name="no_versions_available">Aucune version trouvée pour cette variante</string>
+    <string name="loading_versions">Chargement des versions…</string>
+    <string name="failed_to_load_versions">Impossible de charger les versions depuis GitHub</string>
+    <string name="retry">Réessayer</string>
+    <string name="ota_disabled_notice">Les mises à jour OTA sont désactivées sur cet appareil</string>
+    <string name="device_offline_install_notice">Connectez-vous à cet appareil pour installer un micrologiciel</string>
+    <string name="no_installable_binaries">Aucun fichier de micrologiciel installable dans cette version</string>
+    <string name="select_a_version_from_the_list">Sélectionnez une version du micrologiciel dans la liste</string>
+
 </resources>

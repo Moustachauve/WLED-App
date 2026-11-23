@@ -16,6 +16,7 @@ import ca.cgagnier.wlednativeandroid.ui.MainViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.DeviceListDetailViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceAdd.DeviceAddViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit.DeviceEditViewModel
+import ca.cgagnier.wlednativeandroid.ui.homeScreen.firmwareBrowser.FirmwareBrowserViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.list.DeviceWebsocketListViewModel
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingViewModel
 import ca.cgagnier.wlednativeandroid.ui.settingsScreen.SettingsViewModel
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 import org.koin.test.KoinTest
 import org.koin.test.get
@@ -74,6 +76,7 @@ class KoinModuleTest : KoinTest {
         assertNotNull(get<ThemeViewModel>())
         assertNotNull(get<UpdateInstallingViewModel>())
         assertNotNull(get<DeviceEditViewModel>())
+        assertNotNull(get<FirmwareBrowserViewModel> { parametersOf("AA:BB:CC:DD:EE:01") })
         assertNotNull(get<DeviceListDetailViewModel>())
         assertNotNull(get<DeviceWebsocketListViewModel>())
         assertNotNull(get<DeviceAddViewModel>())
