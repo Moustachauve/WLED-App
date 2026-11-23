@@ -37,6 +37,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
@@ -48,7 +49,8 @@ import org.koin.androidx.compose.koinViewModel
 fun UpdateInstallingDialog(
     device: DeviceWithState,
     version: VersionWithAssets,
-    onDismiss: () -> Unit,
+    onDismiss: (wasSuccessful: Boolean) -> Unit,
+    selectedAsset: Asset? = null,
     viewModel: UpdateInstallingViewModel = koinViewModel(
         key = "UpdateInstalling:${device.device.macAddress}",
     ),
@@ -65,16 +67,22 @@ fun UpdateInstallingDialog(
         }
     }
 
-    LaunchedEffect(device.device.macAddress, version.version.tagName) {
-        viewModel.startUpdate(device, version, context.cacheDir)
+    LaunchedEffect(
+        device.device.macAddress,
+        version.version.repositoryId,
+        version.version.tagName,
+        selectedAsset?.name,
+    ) {
+        viewModel.startUpdate(device, version, context.cacheDir, selectedAsset)
     }
 
     UpdateInstallingDialog(
         state = state,
         device = device,
         onDismiss = {
+            val wasSuccessful = state.step is UpdateInstallingStep.Done
             viewModel.resetState()
-            onDismiss()
+            onDismiss(wasSuccessful)
         },
         onToggleErrorMessage = {
             viewModel.toggleErrorMessage()

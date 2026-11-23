@@ -189,4 +189,23 @@
     <string name="ignore_validation_warning">Bypassing firmware validation can make your device unreachable over Wi-Fi if this binary does not match your hardware.</string>
     <string name="install_anyway">Install Anyway</string>
 
+    <!-- Firmware Browser -->
+    <string name="browse_versions">Other Versions &amp; Sources</string>
+    <string name="reinstall">Reinstall</string>
+    <string name="firmware_versions">Firmware Versions</string>
+    <string name="firmware_binary">Firmware Binary</string>
+    <string name="select_firmware_binary">Select a firmware binary</string>
+    <string name="installed_badge">Installed</string>
+    <string name="official_badge">Official</string>
+    <string name="switching_source_warning">You are viewing firmware from %1$s instead of your current update source. Make sure the binary you select matches your exact controller hardware before installing.</string>
+    <string name="switching_source_disclaimer">You are switching update sources to %1$s. Installing an incompatible firmware binary can make your device unreachable over Wi-Fi until reflashed via USB.</string>
+    <string name="no_versions_available">No releases found for this channel</string>
+    <string name="loading_versions">Loading versions…</string>
+    <string name="failed_to_load_versions">Could not load versions from GitHub</string>
+    <string name="retry">Retry</string>
+    <string name="ota_disabled_notice">OTA updates are disabled on this device</string>
+    <string name="device_offline_install_notice">Connect to this device to install firmware</string>
+    <string name="no_installable_binaries">No installable firmware binaries in this release</string>
+    <string name="select_a_version_from_the_list">Select a firmware version from the list</string>
+
 </resources>

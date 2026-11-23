@@ -1,10 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -13,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +30,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,6 +81,7 @@ fun DeviceEdit(
     device: DeviceWithState,
     canNavigateBack: Boolean,
     navigateUp: () -> Unit,
+    onBrowseVersions: () -> Unit = {},
     viewModel: DeviceEditViewModel = koinViewModel(key = "DeviceEdit:${device.device.macAddress}"),
 ) {
     val vmState by viewModel.uiState.collectAsState()
@@ -100,6 +98,7 @@ fun DeviceEdit(
         onDeviceHiddenChange = { viewModel.updateDeviceHidden(device.device, it) },
         onBranchChange = { viewModel.updateDeviceBranch(device.device, it) },
         onCheckForUpdates = { viewModel.checkForUpdates(device.device) },
+        onBrowseVersions = onBrowseVersions,
         onSeeUpdateDetails = { tag ->
             if (tag.isNotEmpty()) {
                 viewModel.showUpdateDetails(device.device.repositoryId, tag)
@@ -195,6 +194,7 @@ fun DeviceEditContent(
                     device = device,
                     uiState = uiState,
                     onCheckForUpdates = actions.onCheckForUpdates,
+                    onBrowseVersions = actions.onBrowseVersions,
                     onSeeUpdateDetails = actions.onSeeUpdateDetails,
                 )
                 Spacer(Modifier.height(24.dp))
@@ -229,7 +229,7 @@ fun DeviceEditContent(
         UpdateInstallingDialog(
             device = device,
             version = version,
-            onDismiss = actions.onInstallFinished,
+            onDismiss = { _ -> actions.onInstallFinished() },
         )
     }
 }
@@ -310,6 +310,7 @@ private fun UpdateStatusCard(
     device: DeviceWithState,
     uiState: DeviceEditUiState,
     onCheckForUpdates: () -> Unit,
+    onBrowseVersions: () -> Unit,
     onSeeUpdateDetails: (String) -> Unit,
 ) {
     val isOfflineNoState = !device.isOnline && device.stateInfo == null
@@ -341,34 +342,50 @@ private fun UpdateStatusCard(
                         checkForUpdate = onCheckForUpdates,
                     )
                 }
-            }
-            uiState.repository?.let { repo ->
-                HorizontalDivider(
-                    modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
+                TextButton(
+                    onClick = onBrowseVersions,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.update_source),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(
-                        text = repo.ownerAndRepo,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        text = stringResource(R.string.browse_versions),
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
+            uiState.repository?.let { repo ->
+                UpdateSourceFooter(repo)
+            }
         }
+    }
+}
+
+@Composable
+private fun UpdateSourceFooter(repo: Repository) {
+    HorizontalDivider(
+        modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = stringResource(R.string.update_source),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Text(
+            text = repo.ownerAndRepo,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -427,7 +444,7 @@ private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit)
     }
 }
 
-/** Shows the current version and a "check for update" button. */
+/** Shows the current version and a button to check for updates. */
 @Composable
 private fun NoUpdateAvailable(device: DeviceWithState, isCheckingUpdates: Boolean, checkForUpdate: () -> Unit) {
     Text(
@@ -441,29 +458,31 @@ private fun NoUpdateAvailable(device: DeviceWithState, isCheckingUpdates: Boolea
         ),
         style = MaterialTheme.typography.bodyMedium,
     )
-    OutlinedButton(onClick = checkForUpdate) {
-        val buttonText = if (isCheckingUpdates) {
-            stringResource(R.string.checking_progress_update)
-        } else {
-            stringResource(R.string.check_for_update)
-        }
-        AnimatedContent(
-            targetState = buttonText,
-            transitionSpec = { scaleIn() togetherWith fadeOut() },
-            label = "check_for_update_label",
-        ) {
-            Text(it)
-        }
-        AnimatedVisibility(visible = isCheckingUpdates) {
-            val size = MaterialTheme.typography.titleSmall.lineHeight.value - 4
+    OutlinedButton(
+        onClick = checkForUpdate,
+        enabled = !isCheckingUpdates,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        if (isCheckingUpdates) {
             CircularProgressIndicator(
                 modifier = Modifier
-                    .padding(start = 10.dp)
-                    .padding(bottom = 2.dp)
-                    .width(size.dp)
-                    .height(size.dp),
+                    .padding(end = 8.dp)
+                    .size(16.dp),
+                strokeWidth = 2.dp,
             )
         }
+        Text(
+            text = stringResource(
+                if (isCheckingUpdates) {
+                    R.string.checking_progress_update
+                } else {
+                    R.string.check_for_update
+                },
+            ),
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -491,13 +510,18 @@ private fun UpdateAvailable(device: DeviceWithState, updateTag: String, seeUpdat
                 ),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Button(
-                modifier = Modifier.padding(top = 6.dp),
-                onClick = seeUpdateDetails,
-            ) {
-                Text(stringResource(R.string.see_update_details))
-            }
         }
+    }
+    Button(
+        onClick = seeUpdateDetails,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.see_update_details),
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

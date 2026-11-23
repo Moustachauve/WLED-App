@@ -145,6 +145,7 @@ class UpdateInstallingViewModelTest {
     )
 
     private fun createViewModel(
+        assetPath: String = "/repos/wled/WLED/releases/assets/42",
         onDownload: () -> Unit = {},
         onUpload: () -> Unit = {},
         downloadResponder: (suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData)? = null,
@@ -155,7 +156,7 @@ class UpdateInstallingViewModelTest {
                 dispatcher = testDispatcher
                 addHandler { request ->
                     when (request.url.encodedPath) {
-                        "/repos/wled/WLED/releases/assets/42" -> {
+                        assetPath -> {
                             onDownload()
                             downloadResponder?.invoke(this, request) ?: respondWithExpectedBinary()
                         }
@@ -492,5 +493,29 @@ class UpdateInstallingViewModelTest {
     @Test
     fun `startUpdate awaits original download job after chained resetState`() = runTest(testDispatcher) {
         assertStartUpdateAwaitsCancelledJobCleanup(extraCancelledAttempts = 1)
+    }
+
+    @Test
+    fun `startUpdate downloads explicit selectedAsset instead of default board asset`() = runTest(testDispatcher) {
+        val customAsset = Asset(
+            versionId = 1L,
+            name = "WLED_0.15.0_ESP32_S3.bin",
+            size = expectedBinary.size.toLong(),
+            downloadUrl = "https://github.com/wled/WLED/releases/download/v0.15.0/WLED_0.15.0_ESP32_S3.bin",
+            assetId = 99,
+        )
+        val versionWithTwoAssets = sampleVersion.copy(assets = sampleVersion.assets + customAsset)
+        var downloadedCustomAsset = 0
+        val viewModel = createViewModel(
+            assetPath = "/repos/wled/WLED/releases/assets/99",
+            onDownload = { downloadedCustomAsset++ },
+        )
+
+        viewModel.startUpdate(sampleDevice, versionWithTwoAssets, tempDir, selectedAsset = customAsset)
+        advanceUntilIdle()
+
+        assertEquals(1, downloadedCustomAsset)
+        assertEquals(customAsset.name, viewModel.state.value.assetName)
+        assertEquals(UpdateInstallingStep.Done, viewModel.state.value.step)
     }
 }

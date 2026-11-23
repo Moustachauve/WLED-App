@@ -188,4 +188,23 @@
     <string name="ignore_validation_warning">Das Überspringen der Firmware-Prüfung kann dazu führen, dass dein Gerät über WLAN nicht mehr erreichbar ist, wenn diese Datei nicht zu deiner Hardware passt.</string>
     <string name="install_anyway">Trotzdem installieren</string>
 
+    <!-- Firmware Browser -->
+    <string name="browse_versions">Andere Versionen &amp; Quellen</string>
+    <string name="reinstall">Neu installieren</string>
+    <string name="firmware_versions">Firmware-Versionen</string>
+    <string name="firmware_binary">Firmware-Datei</string>
+    <string name="select_firmware_binary">Firmware-Datei auswählen</string>
+    <string name="installed_badge">Installiert</string>
+    <string name="official_badge">Offiziell</string>
+    <string name="switching_source_warning">Du siehst dir Firmware von %1$s anstelle deiner aktuellen Update-Quelle an. Stelle vor der Installation sicher, dass die ausgewählte Datei genau zu deiner Controller-Hardware passt.</string>
+    <string name="switching_source_disclaimer">Du wechselst die Update-Quelle zu %1$s. Die Installation einer inkompatiblen Firmware-Datei kann dazu führen, dass dein Gerät über WLAN nicht mehr erreichbar ist, bis es per USB neu geflasht wird.</string>
+    <string name="no_versions_available">Keine Versionen für diesen Kanal gefunden</string>
+    <string name="loading_versions">Versionen werden geladen…</string>
+    <string name="failed_to_load_versions">Versionen konnten nicht von GitHub geladen werden</string>
+    <string name="retry">Erneut versuchen</string>
+    <string name="ota_disabled_notice">OTA-Updates sind auf diesem Gerät deaktiviert</string>
+    <string name="device_offline_install_notice">Verbinde dich mit diesem Gerät, um Firmware zu installieren</string>
+    <string name="no_installable_binaries">Keine installierbaren Firmware-Dateien in dieser Version</string>
+    <string name="select_a_version_from_the_list">Wähle eine Firmware-Version aus der Liste</string>
+
 </resources>

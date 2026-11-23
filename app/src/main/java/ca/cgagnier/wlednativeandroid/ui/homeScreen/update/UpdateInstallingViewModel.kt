@@ -3,6 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.repository.RepositoryDao
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
@@ -73,7 +74,12 @@ class UpdateInstallingViewModel(
         activeJob?.cancel()
     }
 
-    fun startUpdate(device: DeviceWithState, version: VersionWithAssets, cacheDir: File) {
+    fun startUpdate(
+        device: DeviceWithState,
+        version: VersionWithAssets,
+        cacheDir: File,
+        selectedAsset: Asset? = null,
+    ) {
         synchronized(stateLock) {
             if (updateStarted) {
                 Log.w(
@@ -93,6 +99,7 @@ class UpdateInstallingViewModel(
                 deviceApiFactory = deviceApiFactory,
                 githubApi = githubApi,
                 ioDispatcher = ioDispatcher,
+                selectedAsset = selectedAsset,
             )
             if (!updateService.couldDetermineAsset()) {
                 activeUpdateService = null
