@@ -26,7 +26,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -73,6 +72,7 @@ import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Branch
 import ca.cgagnier.wlednativeandroid.model.Repository
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
+import ca.cgagnier.wlednativeandroid.ui.components.SelectableDropdownMenuItem
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsContent
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsMode
@@ -387,27 +387,31 @@ private fun RepositoryDropdown(uiState: FirmwareBrowserUiState, installedRepoId:
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             uiState.repositories.forEach { repo ->
                 val isInstalled = repo.id == installedRepoId
-                DropdownMenuItem(
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = repo.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = if (isInstalled) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                            Text(
-                                text = repositoryStatusSubtitle(repo, isInstalled),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
+                val isSelected = repo.id == uiState.selectedRepositoryId
+                SelectableDropdownMenuItem(
+                    selected = isSelected,
                     onClick = {
                         onSelect(repo.id)
                         expanded = false
                     },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                )
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = repo.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                        Text(
+                            text = repositoryStatusSubtitle(repo, isInstalled),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
             }
         }
     }

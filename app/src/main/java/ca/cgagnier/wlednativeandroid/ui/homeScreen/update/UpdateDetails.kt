@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -35,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -43,6 +43,7 @@ import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.model.wledapi.isOtaEnabled
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.ui.components.SelectableDropdownMenuItem
 import ca.cgagnier.wlednativeandroid.ui.components.WledMarkdown
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 
@@ -202,14 +203,19 @@ private fun BinaryDropdown(
             matchAnchorWidth = false,
         ) {
             installableAssets.forEach { asset ->
-                DropdownMenuItem(
-                    text = { Text(text = asset.name) },
+                val isSelected = asset.name == selectedAsset?.name
+                SelectableDropdownMenuItem(
+                    selected = isSelected,
                     onClick = {
                         onSelectAsset(asset)
                         expanded = false
                     },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                )
+                ) {
+                    Text(
+                        text = asset.name,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
             }
         }
     }
