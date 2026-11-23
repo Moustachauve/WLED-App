@@ -1,17 +1,14 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.firmwareBrowser
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +29,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,7 +40,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -61,6 +59,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -155,39 +154,34 @@ private fun FirmwareBrowserListPane(
     navigateUp: () -> Unit,
     onOpenDetail: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            FirmwareBrowserListTopBar(
-                deviceTitle = uiState.device?.let { deviceName(it.device) },
-                isLoading = uiState.isLoadingVersions,
-                navigateUp = navigateUp,
-                onRefresh = viewModel::refreshSelectedRepository,
-            )
-        },
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            val installedRepoId = uiState.device?.device?.repositoryId
-            val selectedRepo = uiState.selectedRepository
-            RepositoryDropdown(
-                uiState = uiState,
-                installedRepoId = installedRepoId,
-                onSelect = viewModel::selectRepository,
-            )
-            if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
-                SourceSwitchWarningBanner(selectedRepo.name)
-            }
-            BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
-            VersionListSection(
-                uiState = uiState,
-                highlightSelection = highlightSelection,
-                onRefresh = viewModel::refreshSelectedRepository,
-                onVersionClick = { item ->
-                    viewModel.selectVersion(item)
-                    onOpenDetail()
-                },
-                modifier = Modifier.weight(1f),
-            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        val installedRepoId = uiState.device?.device?.repositoryId
+        val selectedRepo = uiState.selectedRepository
+        FirmwareBrowserListTopBar(
+            deviceTitle = uiState.device?.let { deviceName(it.device) },
+            isLoading = uiState.isLoadingVersions,
+            navigateUp = navigateUp,
+            onRefresh = viewModel::refreshSelectedRepository,
+        )
+        RepositoryDropdown(
+            uiState = uiState,
+            installedRepoId = installedRepoId,
+            onSelect = viewModel::selectRepository,
+        )
+        if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
+            SourceSwitchWarningBanner(selectedRepo.name)
         }
+        BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
+        VersionListSection(
+            uiState = uiState,
+            highlightSelection = highlightSelection,
+            onRefresh = viewModel::refreshSelectedRepository,
+            onVersionClick = { item ->
+                viewModel.selectVersion(item)
+                onOpenDetail()
+            },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -200,25 +194,29 @@ private fun FirmwareBrowserDetailPane(
 ) {
     val selected = uiState.selectedVersion
     if (selected == null) {
-        SelectVersionPlaceholder()
+        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text = stringResource(R.string.select_a_version_from_the_list),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         return
     }
 
-    Scaffold(
-        topBar = {
-            DetailPaneTopBar(
-                version = selected.versionWithAssets,
-                repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
-                canNavigateBack = canNavigateBack,
-                navigateBack = navigateBack,
-            )
-        },
-    ) { innerPadding ->
+    Column(modifier = Modifier.fillMaxSize()) {
+        DetailPaneTopBar(
+            version = selected.versionWithAssets,
+            repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
+            canNavigateBack = canNavigateBack,
+            navigateBack = navigateBack,
+        )
         Card(
             modifier = Modifier
-                .padding(innerPadding)
-                .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)
-                .fillMaxSize(),
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         ) {
             UpdateDetailsContent(
@@ -263,33 +261,13 @@ private fun DetailPaneTopBar(
             }
         },
         navigationIcon = {
-            AnimatedVisibility(visible = canNavigateBack) {
+            if (canNavigateBack) {
                 IconButton(onClick = navigateBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.description_back_button))
                 }
             }
         },
     )
-}
-
-@Composable
-private fun SelectVersionPlaceholder() {
-    Card(
-        modifier = Modifier
-            .padding(top = TopAppBarDefaults.MediumAppBarCollapsedHeight)
-            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)
-            .fillMaxSize(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(
-                text = stringResource(R.string.select_a_version_from_the_list),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
 }
 
 @Composable
@@ -301,7 +279,7 @@ private fun FirmwareBrowserDialogs(
     val device = uiState.device
     when (val dialog = uiState.dialog) {
         is FirmwareBrowserDialog.Disclaimer -> UpdateDisclaimerDialog(
-            onDismiss = viewModel::dismissDisclaimer,
+            onDismiss = viewModel::dismissDialog,
             onAccept = viewModel::confirmDisclaimer,
             switchingToSourceName = dialog.switchingToSourceName,
         )
@@ -312,7 +290,7 @@ private fun FirmwareBrowserDialogs(
                 version = dialog.versionWithAssets,
                 selectedAsset = dialog.selectedAsset,
                 onDismiss = { wasSuccessful ->
-                    viewModel.onInstallFinished()
+                    viewModel.dismissDialog()
                     if (wasSuccessful) navigateUp()
                 },
             )
@@ -430,23 +408,22 @@ private fun SourceSwitchWarningBanner(sourceName: String) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                text = stringResource(R.string.switching_source_warning, sourceName),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
-        }
+        ListItem(
+            colors = ListItemDefaults.colors(
+                containerColor = Color.Transparent,
+                leadingIconColor = MaterialTheme.colorScheme.onErrorContainer,
+                headlineColor = MaterialTheme.colorScheme.onErrorContainer,
+            ),
+            leadingContent = {
+                Icon(Icons.Filled.Warning, contentDescription = null, modifier = Modifier.size(20.dp))
+            },
+            headlineContent = {
+                Text(
+                    text = stringResource(R.string.switching_source_warning, sourceName),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
+        )
     }
 }
 
@@ -469,54 +446,19 @@ private fun VersionListSection(
     onVersionClick: (VersionWithAssets) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
-        when {
-            uiState.isLoadingVersions && uiState.versions.isEmpty() -> CenteredStatusColumn {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.loading_versions),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            uiState.loadError && uiState.versions.isEmpty() -> CenteredStatusColumn {
-                Text(
-                    text = stringResource(R.string.failed_to_load_versions),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(onClick = onRefresh) { Text(stringResource(R.string.retry)) }
-            }
-
-            uiState.versions.isEmpty() -> Text(
-                text = stringResource(R.string.no_versions_available),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
-            )
-
-            else -> VersionListContent(
-                uiState = uiState,
-                highlightSelection = highlightSelection,
-                onVersionClick = onVersionClick,
-            )
-        }
+    if (uiState.versions.isEmpty()) {
+        EmptyVersionsPlaceholder(
+            isLoading = uiState.isLoadingVersions,
+            loadError = uiState.loadError,
+            onRefresh = onRefresh,
+            modifier = modifier,
+        )
+        return
     }
-}
 
-@Composable
-private fun VersionListContent(
-    uiState: FirmwareBrowserUiState,
-    highlightSelection: Boolean,
-    onVersionClick: (VersionWithAssets) -> Unit,
-) {
     val listState = key(uiState.selectedRepositoryId, uiState.selectedBranch) { rememberLazyListState() }
     val selectedVersion = uiState.selectedVersion?.versionWithAssets?.version
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         if (uiState.isLoadingVersions) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         LazyColumn(
             state = listState,
@@ -544,9 +486,44 @@ private fun VersionListContent(
 }
 
 @Composable
-private fun CenteredStatusColumn(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) { content() }
+private fun EmptyVersionsPlaceholder(
+    isLoading: Boolean,
+    loadError: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when {
+                isLoading -> {
+                    CircularProgressIndicator()
+                    Text(
+                        text = stringResource(R.string.loading_versions),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                loadError -> {
+                    Text(
+                        text = stringResource(R.string.failed_to_load_versions),
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = onRefresh) { Text(stringResource(R.string.retry)) }
+                }
+
+                else -> Text(
+                    text = stringResource(R.string.no_versions_available),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
 
@@ -557,39 +534,30 @@ private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, isSele
     } else {
         MaterialTheme.colorScheme.surfaceContainer
     }
-    val border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        border = border,
+        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = {
                 Text(
                     text = item.version.tagName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 )
-                val subtitle = item.version.displaySubtitle
-                if (subtitle.isNotEmpty()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (isInstalled) {
-                InstalledBadge()
-            }
-        }
+            },
+            supportingContent = item.version.displaySubtitle.takeIf { it.isNotEmpty() }?.let { subtitle ->
+                { Text(text = subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            },
+            trailingContent = if (isInstalled) {
+                { InstalledBadge() }
+            } else {
+                null
+            },
+        )
     }
 }
 

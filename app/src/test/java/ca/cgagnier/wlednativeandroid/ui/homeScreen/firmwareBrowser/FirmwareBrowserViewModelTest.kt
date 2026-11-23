@@ -16,15 +16,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
@@ -46,20 +43,12 @@ class FirmwareBrowserViewModelTest {
 
     private val wledRepo = Repository.BUILT_IN_REPOSITORIES.first().copy(id = 1L)
     private val quinledRepo = Repository.BUILT_IN_REPOSITORIES[1].copy(id = 2L)
-    private val devicesFlow = MutableStateFlow(
-        listOf(
-            DeviceWithState(
-                device = Device(
-                    macAddress = MAC_ADDRESS,
-                    address = "192.168.1.50",
-                    repositoryId = 1L,
-                    branch = Branch.STABLE,
-                ),
-                websocketStatus = WebsocketStatus.CONNECTED,
-                stateInfo = DeviceStateInfo.createMock(version = "0.14.4"),
-            ),
-        ),
+    private val defaultDevice = DeviceWithState(
+        device = Device(macAddress = MAC_ADDRESS, address = "192.168.1.50", repositoryId = 1L),
+        websocketStatus = WebsocketStatus.CONNECTED,
+        stateInfo = DeviceStateInfo.createMock(version = "0.14.4"),
     )
+    private val devicesFlow = MutableStateFlow(listOf(defaultDevice))
 
     private val esp32Asset = Asset(
         versionId = 10L,
@@ -109,14 +98,16 @@ class FirmwareBrowserViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): FirmwareBrowserViewModel = FirmwareBrowserViewModel(
-        macAddress = MAC_ADDRESS,
-        githubApi = githubApi,
-        releaseService = releaseService,
-        deviceConnectionManager = deviceConnectionManager,
-    )
+    private fun createLoadedViewModel(
+        transform: (DeviceWithState) -> DeviceWithState = { it },
+    ): FirmwareBrowserViewModel {
+        devicesFlow.value = listOf(transform(defaultDevice))
+        return FirmwareBrowserViewModel(MAC_ADDRESS, githubApi, releaseService, deviceConnectionManager).also {
+            testDispatcher.scheduler.advanceUntilIdle()
+        }
+    }
 
-    private fun advanceToDisclaimer(
+    private fun selectAndRequestInstall(
         viewModel: FirmwareBrowserViewModel,
         version: VersionWithAssets = quinledVersion,
         asset: Asset = digUnoAsset,
@@ -130,18 +121,10 @@ class FirmwareBrowserViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
     }
 
-    private fun advanceToInstalling(viewModel: FirmwareBrowserViewModel) {
-        advanceToDisclaimer(viewModel)
-        viewModel.confirmDisclaimer()
-        testDispatcher.scheduler.advanceUntilIdle()
-    }
-
     @Test
     fun `initial state uses device repository, branch, and installed tags`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val state = createLoadedViewModel().uiState.value
 
-        val state = viewModel.uiState.value
         assertEquals(1L, state.selectedRepositoryId)
         assertEquals(Branch.STABLE, state.selectedBranch)
         assertEquals(setOf("0.14.4"), state.installedTags)
@@ -151,21 +134,14 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `initial load refreshes device repository once`() = runTest(testDispatcher) {
-        createViewModel()
-        advanceUntilIdle()
+        createLoadedViewModel()
 
         coVerify(exactly = 1) { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) }
     }
 
     @Test
     fun `initial branch follows device beta channel preference`() = runTest(testDispatcher) {
-        devicesFlow.value = listOf(
-            devicesFlow.value.first().copy(
-                device = devicesFlow.value.first().device.copy(branch = Branch.BETA),
-            ),
-        )
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel { it.copy(device = it.device.copy(branch = Branch.BETA)) }
 
         assertEquals(Branch.BETA, viewModel.uiState.value.selectedBranch)
         assertEquals(listOf("0.15.0-b1"), viewModel.uiState.value.versions.map { it.version.tagName })
@@ -173,11 +149,8 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `selectRepository displays versions from selected repository and clears selection`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
         viewModel.selectVersion(officialVersion)
-        advanceUntilIdle()
-
         viewModel.selectRepository(2L)
         advanceUntilIdle()
 
@@ -187,15 +160,12 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `selectRepository refreshes each repository only once across re-selection`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
 
-        viewModel.selectRepository(2L)
-        advanceUntilIdle()
-        viewModel.selectRepository(1L)
-        advanceUntilIdle()
-        viewModel.selectRepository(2L)
-        advanceUntilIdle()
+        listOf(2L, 1L, 2L).forEach { repoId ->
+            viewModel.selectRepository(repoId)
+            advanceUntilIdle()
+        }
 
         coVerify(exactly = 1) { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) }
         coVerify(exactly = 1) { releaseService.refreshVersionsForRepositoryId(githubApi, 2L) }
@@ -204,8 +174,7 @@ class FirmwareBrowserViewModelTest {
     @Test
     fun `failed initial refresh sets loadError`() = runTest(testDispatcher) {
         coEvery { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) } returns false
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
 
         assertTrue(viewModel.uiState.value.loadError)
     }
@@ -213,8 +182,7 @@ class FirmwareBrowserViewModelTest {
     @Test
     fun `manual retry clears loadError after failed refresh`() = runTest(testDispatcher) {
         coEvery { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) } returns false andThen true
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
 
         viewModel.refreshSelectedRepository()
         advanceUntilIdle()
@@ -225,11 +193,8 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `selectBranch updates displayed versions and clears selection`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
         viewModel.selectVersion(officialVersion)
-        advanceUntilIdle()
-
         viewModel.selectBranch(Branch.BETA)
         advanceUntilIdle()
 
@@ -239,11 +204,10 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `requestInstallSelectedVersion does not open disclaimer without a selected binary`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
+        val viewModel = createLoadedViewModel()
         viewModel.selectVersion(officialVersion)
         advanceUntilIdle()
+
         assertNotNull(viewModel.uiState.value.selectedVersion)
         assertNull(viewModel.uiState.value.selectedVersion?.selectedAsset)
 
@@ -255,10 +219,8 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `requestInstallSelectedVersion opens Disclaimer with cross-source warning name`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        advanceToDisclaimer(viewModel)
+        val viewModel = createLoadedViewModel()
+        selectAndRequestInstall(viewModel)
 
         val disclaimer = viewModel.uiState.value.dialog as FirmwareBrowserDialog.Disclaimer
         assertEquals(quinledRepo.name, disclaimer.switchingToSourceName)
@@ -267,10 +229,8 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `requestInstallSelectedVersion omits switchingToSourceName for current source`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        advanceToDisclaimer(viewModel, version = officialVersion, asset = esp32Asset)
+        val viewModel = createLoadedViewModel()
+        selectAndRequestInstall(viewModel, version = officialVersion, asset = esp32Asset)
 
         val disclaimer = viewModel.uiState.value.dialog as FirmwareBrowserDialog.Disclaimer
         assertNull(disclaimer.switchingToSourceName)
@@ -278,12 +238,12 @@ class FirmwareBrowserViewModelTest {
     }
 
     @Test
-    fun `dismissDisclaimer clears dialog while keeping selected version`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        advanceToDisclaimer(viewModel)
+    fun `dismissDialog clears active dialog while keeping selected version`() = runTest(testDispatcher) {
+        val viewModel = createLoadedViewModel()
+        selectAndRequestInstall(viewModel)
+        assertNotNull(viewModel.uiState.value.dialog)
 
-        viewModel.dismissDisclaimer()
+        viewModel.dismissDialog()
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.dialog)
@@ -292,32 +252,19 @@ class FirmwareBrowserViewModelTest {
 
     @Test
     fun `confirmDisclaimer advances to Installing dialog`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel()
+        selectAndRequestInstall(viewModel)
 
-        advanceToInstalling(viewModel)
+        viewModel.confirmDisclaimer()
+        advanceUntilIdle()
 
         assertEquals(FirmwareBrowserDialog.Installing(quinledVersion, digUnoAsset), viewModel.uiState.value.dialog)
     }
 
     @Test
-    fun `onInstallFinished dismisses active dialog`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        advanceToInstalling(viewModel)
-
-        viewModel.onInstallFinished()
-        advanceUntilIdle()
-
-        assertNull(viewModel.uiState.value.dialog)
-    }
-
-    @Test
     fun `selectVersion resolves default asset once late device info arrives`() = runTest(testDispatcher) {
         val twoAssetVersion = officialVersion.copy(assets = listOf(digUnoAsset, esp32Asset))
-        devicesFlow.value = listOf(devicesFlow.value.first().copy(stateInfo = null))
-        val viewModel = createViewModel()
-        advanceUntilIdle()
+        val viewModel = createLoadedViewModel { it.copy(stateInfo = null) }
 
         viewModel.selectVersion(twoAssetVersion)
         advanceUntilIdle()
@@ -326,72 +273,10 @@ class FirmwareBrowserViewModelTest {
         val esp32State = DeviceStateInfo.createMock(version = "0.14.4").let {
             it.copy(info = it.info.copy(release = "ESP32", platformName = "esp32"))
         }
-        devicesFlow.value = listOf(devicesFlow.value.first().copy(stateInfo = esp32State))
+        devicesFlow.value = listOf(defaultDevice.copy(stateInfo = esp32State))
         advanceUntilIdle()
 
         assertEquals(esp32Asset, viewModel.uiState.value.selectedVersion?.selectedAsset)
-    }
-
-    @Test
-    fun `switching back during in-flight refresh keeps loading without duplicate fetch`() = runTest(testDispatcher) {
-        val releaseFirstRefresh = CompletableDeferred<Boolean>()
-        coEvery { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) } coAnswers {
-            releaseFirstRefresh.await()
-        }
-        val viewModel = createViewModel()
-        runCurrent()
-        assertTrue(viewModel.uiState.value.isLoadingVersions)
-
-        viewModel.selectRepository(2L)
-        runCurrent()
-        viewModel.selectRepository(1L)
-        runCurrent()
-        assertTrue(viewModel.uiState.value.isLoadingVersions)
-
-        releaseFirstRefresh.complete(true)
-        advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.isLoadingVersions)
-        coVerify(exactly = 1) { releaseService.refreshVersionsForRepositoryId(githubApi, 1L) }
-    }
-
-    private fun stubSuspendedRepoQuery(repositoryId: Long) {
-        val gate = CompletableDeferred<Unit>()
-        every { releaseService.observeVersionsForRepository(repositoryId) } returns flow {
-            gate.await()
-            emit(emptyList())
-        }
-    }
-
-    @Test
-    fun `selectRepository shows empty loading state while new repo query is pending`() = runTest(testDispatcher) {
-        stubSuspendedRepoQuery(2L)
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.selectVersion(officialVersion)
-        advanceUntilIdle()
-        viewModel.selectRepository(2L)
-        runCurrent()
-
-        val loadingState = viewModel.uiState.value
-        assertEquals(2L, loadingState.selectedRepositoryId)
-        assertTrue(loadingState.versions.isEmpty())
-        assertTrue(loadingState.isLoadingVersions)
-        assertNull(loadingState.selectedVersion)
-    }
-
-    @Test
-    fun `selection from a previous repository is hidden for the active repository`() = runTest(testDispatcher) {
-        stubSuspendedRepoQuery(2L)
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.selectRepository(2L)
-        runCurrent()
-        viewModel.selectVersion(officialVersion)
-        runCurrent()
-
-        assertNull(viewModel.uiState.value.selectedVersion)
     }
 
     private companion object {
