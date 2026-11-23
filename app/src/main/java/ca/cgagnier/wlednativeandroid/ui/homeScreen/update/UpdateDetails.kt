@@ -1,11 +1,14 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,7 +24,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,8 +36,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -50,7 +56,6 @@ import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 private const val DIALOG_WIDTH_FRACTION = 0.92f
 private const val DIALOG_HEIGHT_FRACTION = 0.88f
 private val DIALOG_MAX_WIDTH = 640.dp
-private const val SELECTED_BINARY_MAX_LINES = 2
 
 sealed interface UpdateDetailsMode {
     data class Standard(val onSkip: () -> Unit) : UpdateDetailsMode
@@ -183,16 +188,9 @@ private fun BinaryDropdown(
         onExpandedChange = { expanded = it },
         modifier = modifier,
     ) {
-        OutlinedTextField(
+        BinaryDropdownAnchor(
             value = selectedAsset?.name.orEmpty(),
-            onValueChange = {},
-            readOnly = true,
-            textStyle = MaterialTheme.typography.bodyMedium,
-            maxLines = SELECTED_BINARY_MAX_LINES,
-            label = { Text(stringResource(R.string.firmware_binary)) },
-            placeholder = { Text(stringResource(R.string.select_firmware_binary)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            expanded = expanded,
             modifier = Modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth(),
@@ -218,6 +216,53 @@ private fun BinaryDropdown(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BinaryDropdownAnchor(value: String, expanded: Boolean, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .semantics(mergeDescendants = true) {}
+            .padding(top = 8.dp)
+            .defaultMinSize(minHeight = OutlinedTextFieldDefaults.MinHeight)
+            .focusable(interactionSource = interactionSource),
+        contentAlignment = Alignment.CenterStart,
+        propagateMinConstraints = true,
+    ) {
+        OutlinedTextFieldDefaults.DecorationBox(
+            value = value,
+            innerTextField = {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            enabled = true,
+            singleLine = true,
+            visualTransformation = VisualTransformation.None,
+            interactionSource = interactionSource,
+            label = {
+                Text(
+                    text = stringResource(R.string.firmware_binary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            placeholder = {
+                Text(
+                    text = stringResource(R.string.select_firmware_binary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+        )
     }
 }
 

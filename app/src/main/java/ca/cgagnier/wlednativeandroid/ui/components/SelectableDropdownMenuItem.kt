@@ -1,6 +1,8 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenuItem
@@ -9,6 +11,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -22,6 +26,10 @@ fun SelectableDropdownMenuItem(
     modifier: Modifier = Modifier,
     text: @Composable () -> Unit,
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(selected) {
+        if (selected) bringIntoViewRequester.bringIntoView()
+    }
     val colors = if (selected) {
         MenuDefaults.itemColors(
             textColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -34,6 +42,7 @@ fun SelectableDropdownMenuItem(
         text = text,
         onClick = onClick,
         modifier = modifier
+            .bringIntoViewRequester(bringIntoViewRequester)
             .then(if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
             .semantics { this.selected = selected },
         trailingIcon = if (selected) {
