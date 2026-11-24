@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -29,7 +29,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -367,7 +369,7 @@ private fun RepositoryDropdown(uiState: FirmwareBrowserUiState, installedRepoId:
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            uiState.repositories.forEach { repo ->
+            uiState.repositories.forEachIndexed { index, repo ->
                 val isInstalled = repo.id == installedRepoId
                 val isSelected = repo.id == uiState.selectedRepositoryId
                 SelectableDropdownMenuItem(
@@ -376,23 +378,15 @@ private fun RepositoryDropdown(uiState: FirmwareBrowserUiState, installedRepoId:
                         onSelect(repo.id)
                         expanded = false
                     },
+                    shapes = MenuDefaults.itemShape(index, uiState.repositories.size),
+                    supportingText = {
+                        Text(text = repositoryStatusSubtitle(repo, isInstalled))
+                    },
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = repo.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                        Text(
-                            text = repositoryStatusSubtitle(repo, isInstalled),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isSelected) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
+                    Text(
+                        text = repo.name,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    )
                 }
             }
         }
@@ -493,6 +487,7 @@ private fun VersionListSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EmptyVersionsPlaceholder(
     isLoading: Boolean,
@@ -507,7 +502,7 @@ private fun EmptyVersionsPlaceholder(
         ) {
             when {
                 isLoading -> {
-                    CircularProgressIndicator()
+                    LoadingIndicator()
                     Text(
                         text = stringResource(R.string.loading_versions),
                         style = MaterialTheme.typography.bodyMedium,

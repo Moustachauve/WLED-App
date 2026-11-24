@@ -13,7 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.rememberNavBackStack
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.ui.components.ChangelogBottomSheet
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.theme.ThemeViewModel
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -134,10 +136,12 @@ private fun DeepLinkStateHandler(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DeepLinkLoadingDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = blurredDialogProperties(),
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
@@ -151,7 +155,7 @@ private fun DeepLinkLoadingDialog(onDismiss: () -> Unit) {
                     .fillMaxWidth()
                     .padding(vertical = 24.dp),
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                LoadingIndicator(modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(stringResource(R.string.deep_link_loading))
             }
@@ -163,6 +167,7 @@ private fun DeepLinkLoadingDialog(onDismiss: () -> Unit) {
 private fun DeepLinkErrorDialog(message: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = blurredDialogProperties(),
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.dismiss))

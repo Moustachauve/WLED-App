@@ -1,56 +1,42 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.MenuItemShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import ca.cgagnier.wlednativeandroid.R
+import androidx.compose.material3.SelectableDropdownMenuItem as MaterialSelectableDropdownMenuItem
 
-// TODO: Migrate to Material 3 1.5.0+'s selectable DropdownMenuItem(selected = ...) and
-//  MenuDefaults.selectableItemColors() once Compose Material 3 is upgraded from 1.4.0.
 @Composable
 fun SelectableDropdownMenuItem(
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    shapes: MenuItemShapes = MenuDefaults.itemShapes(),
+    supportingText: (@Composable () -> Unit)? = null,
     text: @Composable () -> Unit,
 ) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(selected) {
         if (selected) bringIntoViewRequester.bringIntoView()
     }
-    val colors = if (selected) {
-        MenuDefaults.itemColors(
-            textColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            trailingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    } else {
-        MenuDefaults.itemColors()
-    }
-    DropdownMenuItem(
-        text = text,
+    MaterialSelectableDropdownMenuItem(
+        selected = selected,
         onClick = onClick,
-        modifier = modifier
-            .bringIntoViewRequester(bringIntoViewRequester)
-            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
-            .semantics { this.selected = selected },
-        trailingIcon = if (selected) {
+        text = text,
+        shapes = shapes,
+        modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester),
+        supportingText = supportingText,
+        trailingContent = if (selected) {
             { Icon(painter = painterResource(R.drawable.baseline_check_24), contentDescription = null) }
         } else {
             null
         },
-        colors = colors,
-        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+        colors = MenuDefaults.selectableItemColors(),
     )
 }

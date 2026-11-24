@@ -17,11 +17,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CornerRounding
-import androidx.compose.foundation.shape.MorphPolygonShape
-import androidx.compose.foundation.shape.PolygonShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
@@ -29,8 +28,10 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults.rememberTooltipPositionProvider
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.toPath
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.geometry.center
+import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -49,6 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.AP_MODE_MAC_ADDRESS
 import ca.cgagnier.wlednativeandroid.model.Device
@@ -156,16 +161,46 @@ fun WebsocketStatusIndicator(websocketState: WebsocketStatus) {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun getWebsocketShape(status: WebsocketStatus): RoundedPolygon = when (status) {
+    WebsocketStatus.CONNECTED -> MaterialShapes.Circle
+    WebsocketStatus.CONNECTING -> MaterialShapes.Cookie7Sided
+    WebsocketStatus.DISCONNECTED -> MaterialShapes.Square
+}
+
+@Composable
+private fun rememberWebsocketShapeMorph(websocketState: WebsocketStatus): Pair<Morph, State<Float>> {
+    var startShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
+    var endShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
+    val progress = remember { Animatable(1f) }
+
+    LaunchedEffect(websocketState) {
+        val targetShape = getWebsocketShape(websocketState)
+        if (targetShape != endShape) {
+            startShape = endShape
+            endShape = targetShape
+            progress.snapTo(0f)
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            )
+        }
+    }
+    val morph = remember(startShape, endShape) { Morph(startShape, endShape) }
+    val progressState = remember { progress.asState() }
+    return morph to progressState
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WebsocketStatusShape(websocketState: WebsocketStatus) {
-    val connectedColor = MaterialTheme.colorScheme.primary
-    val connectingColor = MaterialTheme.colorScheme.tertiary
-    val disconnectedColor = MaterialTheme.colorScheme.error
-
     val targetColor = when (websocketState) {
-        WebsocketStatus.CONNECTED -> connectedColor
-        WebsocketStatus.CONNECTING -> connectingColor
-        WebsocketStatus.DISCONNECTED -> disconnectedColor
+        WebsocketStatus.CONNECTED -> MaterialTheme.colorScheme.primary
+        WebsocketStatus.CONNECTING -> MaterialTheme.colorScheme.tertiary
+        WebsocketStatus.DISCONNECTED -> MaterialTheme.colorScheme.error
     }
     val animatedColor by animateColorAsState(
         targetValue = targetColor,
@@ -173,7 +208,6 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
         label = "ColorAnimation",
     )
 
-    // Infinite Rotation for "Connecting" state
     val infiniteTransition = rememberInfiniteTransition(label = "Spin")
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -185,49 +219,9 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
         label = "Rotation",
     )
 
-    // TODO: Replace those PolygonShape with MaterialShapes (cookies) when available
-    fun getWebsocketShape(status: WebsocketStatus): PolygonShape = when (status) {
-        // Circle = Stable, Connected
-        WebsocketStatus.CONNECTED -> PolygonShape.circle()
-
-        // Scalloped/Star shape = Active, Gear-like
-        WebsocketStatus.CONNECTING -> PolygonShape.star(
-            numPoints = 8,
-            innerRadiusRatio = 0.7f,
-            outerRounding = CornerRounding.fraction(0.1f),
-        )
-
-        // Square/Diamond = Stopped, Error
-        WebsocketStatus.DISCONNECTED -> PolygonShape.regularPolygon(
-            numVertices = 4,
-            rounding = CornerRounding.fraction(0.25f),
-        )
-    }
-
-    // State to hold the transition shapes
-    // We initialize both to the current state so it starts static
-    var startShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
-    var endShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
-    val progress = remember { Animatable(1f) }
-
-    // When the state changes, shift the shapes and trigger animation
-    LaunchedEffect(websocketState) {
-        startShape = endShape // The old 'end' becomes the new 'start'
-        endShape = getWebsocketShape(websocketState) // Create the new target
-
-        // Reset progress to 0 and animate to 1
-        progress.snapTo(0f)
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium,
-            ),
-        )
-    }
-    val morphShape = remember(startShape, endShape) {
-        MorphPolygonShape(startShape, endShape) { progress.value }
-    }
+    val (morph, progressState) = rememberWebsocketShapeMorph(websocketState)
+    val path = remember { Path() }
+    val matrix = remember { Matrix() }
 
     Box(
         modifier = Modifier
@@ -239,13 +233,20 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
                 }
             }
             .drawBehind {
+                path.rewind()
+                morph.toPath(progress = progressState.value, path = path)
+                matrix.reset()
+                matrix.scale(x = size.width, y = size.height)
+                path.transform(matrix)
+                path.translate(size.center - path.getBounds().center)
+
                 val style = if (websocketState == WebsocketStatus.DISCONNECTED) {
                     Stroke(1.7.dp.toPx())
                 } else {
                     Fill
                 }
-                drawOutline(
-                    outline = morphShape.createOutline(size, layoutDirection, this),
+                drawPath(
+                    path = path,
                     color = animatedColor,
                     style = style,
                 )
