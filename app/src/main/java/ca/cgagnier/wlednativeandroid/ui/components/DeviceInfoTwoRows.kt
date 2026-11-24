@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CornerRounding
+import androidx.compose.foundation.shape.MorphPolygonShape
+import androidx.compose.foundation.shape.PolygonShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,11 +37,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Matrix
-import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -46,12 +49,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.CornerRounding
-import androidx.graphics.shapes.Morph
-import androidx.graphics.shapes.RoundedPolygon
-import androidx.graphics.shapes.circle
-import androidx.graphics.shapes.star
-import androidx.graphics.shapes.toPath
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.AP_MODE_MAC_ADDRESS
 import ca.cgagnier.wlednativeandroid.model.Device
@@ -188,20 +185,23 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
         label = "Rotation",
     )
 
-    // TODO: Replace those RoundedPolygon with MaterialShapes (cookies) when available
-    fun getWebsocketShape(status: WebsocketStatus): RoundedPolygon = when (status) {
+    // TODO: Replace those PolygonShape with MaterialShapes (cookies) when available
+    fun getWebsocketShape(status: WebsocketStatus): PolygonShape = when (status) {
         // Circle = Stable, Connected
-        WebsocketStatus.CONNECTED -> RoundedPolygon.circle()
+        WebsocketStatus.CONNECTED -> PolygonShape.circle()
 
         // Scalloped/Star shape = Active, Gear-like
-        WebsocketStatus.CONNECTING -> RoundedPolygon.star(
-            8,
-            innerRadius = 0.7f,
-            rounding = CornerRounding(0.1f),
+        WebsocketStatus.CONNECTING -> PolygonShape.star(
+            numPoints = 8,
+            innerRadiusRatio = 0.7f,
+            outerRounding = CornerRounding.fraction(0.1f),
         )
 
         // Square/Diamond = Stopped, Error
-        WebsocketStatus.DISCONNECTED -> RoundedPolygon(4, rounding = CornerRounding(0.25f))
+        WebsocketStatus.DISCONNECTED -> PolygonShape.regularPolygon(
+            numVertices = 4,
+            rounding = CornerRounding.fraction(0.25f),
+        )
     }
 
     // State to hold the transition shapes
@@ -225,40 +225,31 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
             ),
         )
     }
-    val morph = remember(startShape, endShape) {
-        Morph(startShape, endShape)
+    val morphShape = remember(startShape, endShape) {
+        MorphPolygonShape(startShape, endShape) { progress.value }
     }
 
     Box(
         modifier = Modifier
             .padding(end = 4.dp)
             .size(12.dp)
-            .drawWithCache {
-                val matrix = Matrix()
-                matrix.translate(size.width / 2f, size.height / 2f)
-                matrix.scale(size.width / 2f, size.height / 2f)
-
-                // Apply rotation ONLY if connecting
+            .graphicsLayer {
                 if (websocketState == WebsocketStatus.CONNECTING) {
-                    matrix.rotateZ(rotation)
+                    rotationZ = rotation
                 }
-                val path = morph.toPath(progress = progress.value).asComposePath()
-                path.transform(matrix)
-
-                onDrawBehind {
-                    val style = if (websocketState == WebsocketStatus.DISCONNECTED) {
-                        Stroke(1.7.dp.toPx())
-                    } else {
-                        Fill
-                    }
-                    drawPath(
-                        path,
-                        color = animatedColor,
-                        style = style,
-                    )
+            }
+            .drawBehind {
+                val style = if (websocketState == WebsocketStatus.DISCONNECTED) {
+                    Stroke(1.7.dp.toPx())
+                } else {
+                    Fill
                 }
+                drawOutline(
+                    outline = morphShape.createOutline(size, layoutDirection, this),
+                    color = animatedColor,
+                    style = style,
+                )
             },
-
     )
 }
 

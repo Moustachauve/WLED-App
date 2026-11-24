@@ -34,9 +34,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -207,7 +204,7 @@ private fun SoundSyncTopBar(navigateUp: () -> Unit) {
         navigationIcon = {
             IconButton(onClick = navigateUp) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    painter = painterResource(R.drawable.baseline_arrow_back_24),
                     contentDescription = stringResource(R.string.description_back_button),
                 )
             }
@@ -530,7 +527,7 @@ private fun SquelchSection(
             enabled = squelch < SoundSyncProcessor.MAX_SQUELCH,
         ) {
             Icon(
-                imageVector = Icons.Filled.Add,
+                painter = painterResource(R.drawable.baseline_add_24),
                 contentDescription = stringResource(R.string.sound_sync_squelch_increase),
             )
         }

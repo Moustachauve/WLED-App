@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.update
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.CapturedAnimatedVisibility
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -190,9 +191,9 @@ fun UpdateDialogContent(state: UpdateInstallingState) {
         AnimatedVisibility(state.step is UpdateInstallingStep.NoCompatibleVersion) {
             ErrorMessageCard(stringResource(R.string.no_compatible_version_found_details))
         }
-        AnimatedVisibility(state.step is UpdateInstallingStep.Error && state.step.showError) {
-            val step = state.step as? UpdateInstallingStep.Error
-            ErrorMessageCard(step?.error ?: "Unknown error")
+        val errorStep = state.step as? UpdateInstallingStep.Error
+        CapturedAnimatedVisibility(errorStep != null && errorStep.showError) {
+            ErrorMessageCard(errorStep?.error ?: "Unknown error")
         }
         AnimatedVisibility(
             state.step is UpdateInstallingStep.Error && state.step.canRetryWithoutValidation,

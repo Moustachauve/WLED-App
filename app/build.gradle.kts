@@ -119,7 +119,6 @@ android {
 
 dependencies {
     implementation(project(":shared"))
-    implementation(libs.androidx.graphics.shapes)
     implementation(libs.androidx.compose.ui.geometry)
     implementation(libs.androidx.compose.runtime)
     val composeBom = platform(libs.androidx.compose.bom)
@@ -178,7 +177,6 @@ dependencies {
     implementation(libs.protobuf.javalite)
     implementation(libs.semver)
     implementation(libs.kermit)
-    implementation(libs.compose.material.icons)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.selfie.runner.junit5)
     testImplementation(libs.mockk)

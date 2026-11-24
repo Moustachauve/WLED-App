@@ -3,8 +3,6 @@ package ca.cgagnier.wlednativeandroid.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -14,8 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import ca.cgagnier.wlednativeandroid.R
 
 // TODO: Migrate to Material 3 1.5.0+'s selectable DropdownMenuItem(selected = ...) and
 //  MenuDefaults.selectableItemColors() once Compose Material 3 is upgraded from 1.4.0.
@@ -46,7 +46,7 @@ fun SelectableDropdownMenuItem(
             .then(if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
             .semantics { this.selected = selected },
         trailingIcon = if (selected) {
-            { Icon(imageVector = Icons.Filled.Check, contentDescription = null) }
+            { Icon(painter = painterResource(R.drawable.baseline_check_24), contentDescription = null) }
         } else {
             null
         },

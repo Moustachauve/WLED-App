@@ -10,10 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +66,7 @@ private fun DrawerMainActions(showHiddenDevices: Boolean, showSoundSync: Boolean
         label = { Text(text = stringResource(R.string.add_a_device)) },
         icon = {
             Icon(
-                imageVector = Icons.Filled.Add,
+                painter = painterResource(R.drawable.baseline_add_24),
                 contentDescription = stringResource(R.string.add_a_device),
             )
         },
@@ -83,7 +79,7 @@ private fun DrawerMainActions(showHiddenDevices: Boolean, showSoundSync: Boolean
         label = { Text(text = stringResource(R.string.show_changelog)) },
         icon = {
             Icon(
-                imageVector = Icons.Filled.Info,
+                painter = painterResource(R.drawable.baseline_info_24),
                 contentDescription = stringResource(R.string.show_changelog),
             )
         },
@@ -95,7 +91,7 @@ private fun DrawerMainActions(showHiddenDevices: Boolean, showSoundSync: Boolean
         label = { Text(text = stringResource(R.string.settings)) },
         icon = {
             Icon(
-                imageVector = Icons.Filled.Settings,
+                painter = painterResource(R.drawable.baseline_settings_24),
                 contentDescription = stringResource(R.string.settings),
             )
         },
