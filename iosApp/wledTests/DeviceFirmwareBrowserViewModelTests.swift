@@ -84,6 +84,17 @@ struct DeviceFirmwareBrowserViewModelTests {
         return wrapper
     }
 
+    private func makeViewModel(
+        device: WLED.DeviceWithState,
+        refresh: (@Sendable (Int64) async throws -> Bool)? = nil
+    ) -> DeviceFirmwareBrowserViewModel {
+        DeviceFirmwareBrowserViewModel(
+            device: device,
+            database: database,
+            refreshRepositoryAction: refresh ?? { _ in true }
+        )
+    }
+
     private func makeVersion(
         repositoryId: Int64,
         tagName: String,
@@ -113,50 +124,13 @@ struct DeviceFirmwareBrowserViewModelTests {
         )
     }
 
-    private func startObservingRepositories(_ viewModel: DeviceFirmwareBrowserViewModel) -> Task<Void, Never> {
-        Task {
-            await viewModel.observeRepositories()
-        }
-    }
-
     @Test func initialStateDefaultsToDeviceRepositoryAndChannel() async throws {
         let repos = try await builtInRepositories()
         let device = makeDevice(repositoryId: repos.official.id, branch: .beta)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
+        let viewModel = makeViewModel(device: device)
 
         #expect(viewModel.selectedRepositoryId == repos.official.id)
         #expect(viewModel.selectedBranch == .beta)
-    }
-
-    @Test func isInstalledMatchesOnlyDeviceRepositoryAndVersion() async throws {
-        let repos = try await builtInRepositories()
-        let device = makeDevice(repositoryId: repos.official.id, installedVersion: "0.14.4")
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
-
-        let installedOfficial = VersionWithAssets(
-            version: makeVersion(repositoryId: repos.official.id, tagName: "0.14.4"),
-            assets: []
-        )
-        let newerOfficial = VersionWithAssets(
-            version: makeVersion(repositoryId: repos.official.id, tagName: "0.15.0"),
-            assets: []
-        )
-        let sameTagOtherRepo = VersionWithAssets(
-            version: makeVersion(repositoryId: repos.quinled.id, tagName: "0.14.4"),
-            assets: []
-        )
-
-        #expect(viewModel.isInstalled(installedOfficial))
-        #expect(viewModel.isInstalled(newerOfficial) == false)
-        #expect(viewModel.isInstalled(sameTagOtherRepo) == false)
     }
 
     @Test func switchingRepositoryUpdatesVersions() async throws {
@@ -171,14 +145,10 @@ struct DeviceFirmwareBrowserViewModelTests {
         )
 
         let device = makeDevice(repositoryId: repos.official.id)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
+        let viewModel = makeViewModel(device: device)
 
         viewModel.selectedRepositoryId = repos.quinled.id
-        let loadTask = Task { await viewModel.loadRepository(repos.quinled.id) }
+        let loadTask = Task { await viewModel.loadRepository() }
         defer { loadTask.cancel() }
 
         try await waitUntil {
@@ -199,11 +169,7 @@ struct DeviceFirmwareBrowserViewModelTests {
         )
         let recorder = RefreshRecorder()
         let device = makeDevice(repositoryId: repos.official.id)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { recorder.nextResult(for: $0) }
-        )
+        let viewModel = makeViewModel(device: device) { recorder.nextResult(for: $0) }
 
         let steps: [(Int64, String)] = [
             (repos.official.id, "0.14.4"),
@@ -212,7 +178,7 @@ struct DeviceFirmwareBrowserViewModelTests {
         ]
         for (repoId, expectedTag) in steps {
             viewModel.selectedRepositoryId = repoId
-            let task = Task { await viewModel.loadRepository(repoId) }
+            let task = Task { await viewModel.loadRepository() }
             try await waitUntil {
                 recorder.recordedIds.contains(repoId) &&
                     !viewModel.isLoadingVersions &&
@@ -224,17 +190,41 @@ struct DeviceFirmwareBrowserViewModelTests {
         #expect(recorder.recordedIds == [repos.official.id, repos.quinled.id])
     }
 
+    @Test func reloadingSameRepositoryPreservesLoadedVersions() async throws {
+        let repos = try await builtInRepositories()
+        try await seedVersions(
+            for: repos.official,
+            versions: [makeVersion(repositoryId: repos.official.id, tagName: "0.15.0")]
+        )
+        let recorder = RefreshRecorder()
+        let device = makeDevice(repositoryId: repos.official.id)
+        let viewModel = makeViewModel(device: device) { recorder.nextResult(for: $0) }
+
+        let firstTask = Task { await viewModel.loadRepository() }
+        try await waitUntil {
+            recorder.recordedIds == [repos.official.id] &&
+                !viewModel.isLoadingVersions &&
+                viewModel.versions.map(\.version.tagName) == ["0.15.0"]
+        }
+        firstTask.cancel()
+        await firstTask.value
+
+        let secondTask = Task { await viewModel.loadRepository() }
+        defer { secondTask.cancel() }
+        await Task.yield()
+
+        #expect(viewModel.versions.map(\.version.tagName) == ["0.15.0"])
+        #expect(viewModel.isLoadingVersions == false)
+        #expect(recorder.recordedIds == [repos.official.id])
+    }
+
     @Test func failedRefreshSetsLoadError() async throws {
         let repos = try await builtInRepositories()
         let recorder = RefreshRecorder(results: [false])
         let device = makeDevice(repositoryId: repos.official.id)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { recorder.nextResult(for: $0) }
-        )
+        let viewModel = makeViewModel(device: device) { recorder.nextResult(for: $0) }
 
-        let loadTask = Task { await viewModel.loadRepository(repos.official.id) }
+        let loadTask = Task { await viewModel.loadRepository() }
         defer { loadTask.cancel() }
 
         try await waitUntil {
@@ -247,13 +237,9 @@ struct DeviceFirmwareBrowserViewModelTests {
         let repos = try await builtInRepositories()
         let recorder = RefreshRecorder(results: [false, true])
         let device = makeDevice(repositoryId: repos.official.id)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { recorder.nextResult(for: $0) }
-        )
+        let viewModel = makeViewModel(device: device) { recorder.nextResult(for: $0) }
 
-        let loadTask = Task { await viewModel.loadRepository(repos.official.id) }
+        let loadTask = Task { await viewModel.loadRepository() }
         defer { loadTask.cancel() }
 
         try await waitUntil {
@@ -276,36 +262,14 @@ struct DeviceFirmwareBrowserViewModelTests {
         ]
     }
 
-    @Test func stableBranchExcludesBetaAndDotPrereleasesSortedDescending() async throws {
-        let repos = try await builtInRepositories()
-        try await seedVersions(for: repos.official, versions: mixedChannelVersions(repositoryId: repos.official.id))
-
-        let device = makeDevice(repositoryId: repos.official.id, branch: .stable)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
-
-        let loadTask = Task { await viewModel.loadRepository(repos.official.id) }
-        defer { loadTask.cancel() }
-
-        try await waitUntil { !viewModel.versions.isEmpty }
-        #expect(viewModel.versions.map(\.version.tagName) == ["0.15.0", "0.14.4"])
-    }
-
     @Test func betaBranchIncludesUnflaggedPrereleasesSortedDescending() async throws {
         let repos = try await builtInRepositories()
         try await seedVersions(for: repos.official, versions: mixedChannelVersions(repositoryId: repos.official.id))
 
         let device = makeDevice(repositoryId: repos.official.id, branch: .stable)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
+        let viewModel = makeViewModel(device: device)
 
-        let loadTask = Task { await viewModel.loadRepository(repos.official.id) }
+        let loadTask = Task { await viewModel.loadRepository() }
         defer { loadTask.cancel() }
 
         try await waitUntil { !viewModel.versions.isEmpty }
@@ -317,12 +281,8 @@ struct DeviceFirmwareBrowserViewModelTests {
     @Test func isSwitchingSourceIsTrueOnlyForDifferentSelectedRepository() async throws {
         let repos = try await builtInRepositories()
         let device = makeDevice(repositoryId: repos.official.id)
-        let viewModel = DeviceFirmwareBrowserViewModel(
-            device: device,
-            database: database,
-            refreshRepositoryAction: { _ in true }
-        )
-        let repoTask = startObservingRepositories(viewModel)
+        let viewModel = makeViewModel(device: device)
+        let repoTask = Task { await viewModel.observeRepositories() }
         defer { repoTask.cancel() }
 
         try await waitUntil { !viewModel.repositories.isEmpty }

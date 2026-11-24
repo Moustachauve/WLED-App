@@ -29,13 +29,14 @@ final class DeviceFirmwareBrowserViewModel {
 
     @ObservationIgnored private var rawVersions: [VersionWithAssets] = []
     @ObservationIgnored private var refreshedRepositoryIds: Set<Int64> = []
+    @ObservationIgnored private var loadedRepositoryId: Int64?
 
     var selectedRepository: Repository? {
         repositories.first { $0.id == selectedRepositoryId }
     }
 
     var isSwitchingSource: Bool {
-        repositories.contains { $0.id == selectedRepositoryId } && selectedRepositoryId != device.device.repositoryId
+        selectedRepositoryId != device.device.repositoryId
     }
 
     init(
@@ -79,12 +80,17 @@ final class DeviceFirmwareBrowserViewModel {
         }
     }
 
-    func loadRepository(_ repositoryId: Int64) async {
+    func loadRepository() async {
+        let repositoryId = selectedRepositoryId
         await database.waitUntilReady()
         guard !Task.isCancelled, selectedRepositoryId == repositoryId else { return }
-        loadError = false
-        rawVersions = []
-        versions = []
+
+        if loadedRepositoryId != repositoryId {
+            loadedRepositoryId = repositoryId
+            loadError = false
+            rawVersions = []
+            versions = []
+        }
         isLoadingVersions = false
 
         await withTaskGroup(of: Void.self) { group in

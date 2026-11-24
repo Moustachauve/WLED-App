@@ -5,19 +5,19 @@ import OSLog
 
 private typealias State = SwiftUI.State
 
+private struct InstallRequest: Identifiable {
+    let version: VersionWithAssets
+    let asset: Asset?
+
+    var id: String {
+        "\(version.version.repositoryId):\(version.version.tagName):\(asset?.name ?? "")"
+    }
+}
+
 struct DeviceUpdateDetails: View {
     enum Target: Hashable {
         case availableUpdate
         case specificVersion(repositoryId: Int64, tagName: String)
-    }
-
-    private struct InstallRequest: Identifiable {
-        let version: VersionWithAssets
-        let asset: Asset?
-
-        var id: String {
-            "\(version.version.repositoryId):\(version.version.tagName):\(asset?.name ?? "")"
-        }
     }
 
     private static let logger = Logger(
@@ -273,6 +273,11 @@ struct DeviceUpdateDetails: View {
 
     private func loadVersion() async {
         guard activeInstall == nil && !didCompleteInstall else { return }
+        if let loaded = versionWithAssets?.version,
+           loaded.repositoryId == targetRepositoryId,
+           loaded.tagName == targetTagName {
+            return
+        }
         isLoadingVersion = true
         selectedAsset = nil
         defer { isLoadingVersion = false }
@@ -330,7 +335,7 @@ struct DeviceUpdateDetails: View {
         guard let versionWithAssets else { return }
         activeInstall = InstallRequest(
             version: versionWithAssets,
-            asset: isBinaryPickerMode ? selectedAsset : nil
+            asset: selectedAsset
         )
     }
 }
