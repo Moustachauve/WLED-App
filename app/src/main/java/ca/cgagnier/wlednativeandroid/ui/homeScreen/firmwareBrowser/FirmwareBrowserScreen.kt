@@ -16,9 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -264,7 +261,10 @@ private fun DetailPaneTopBar(
         navigationIcon = {
             if (canNavigateBack) {
                 IconButton(onClick = navigateBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.description_back_button))
+                    Icon(
+                        painterResource(R.drawable.baseline_arrow_back_24),
+                        stringResource(R.string.description_back_button),
+                    )
                 }
             }
         },
@@ -325,7 +325,10 @@ private fun FirmwareBrowserListTopBar(
         },
         navigationIcon = {
             IconButton(onClick = navigateUp) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.description_back_button))
+                Icon(
+                    painterResource(R.drawable.baseline_arrow_back_24),
+                    stringResource(R.string.description_back_button),
+                )
             }
         },
         actions = {
@@ -416,7 +419,11 @@ private fun SourceSwitchWarningBanner(sourceName: String) {
                 headlineColor = MaterialTheme.colorScheme.onErrorContainer,
             ),
             leadingContent = {
-                Icon(Icons.Filled.Warning, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(
+                    painterResource(R.drawable.baseline_warning_24),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
             },
             headlineContent = {
                 Text(

@@ -12,9 +12,6 @@ import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -436,7 +433,7 @@ fun DeviceListAppBar(state: DeviceListState, actions: DeviceListActions, modifie
     }, navigationIcon = {
         IconButton(onClick = actions.onOpenDrawer) {
             Icon(
-                imageVector = Icons.Filled.Menu,
+                painter = painterResource(R.drawable.baseline_menu_24),
                 contentDescription = stringResource(R.string.description_menu_button),
             )
         }
@@ -451,7 +448,7 @@ fun DeviceListAppBar(state: DeviceListState, actions: DeviceListActions, modifie
         }
         IconButton(onClick = actions.onAddDevice) {
             Icon(
-                imageVector = Icons.Filled.Add,
+                painter = painterResource(R.drawable.baseline_add_24),
                 contentDescription = stringResource(R.string.add_a_device),
             )
         }

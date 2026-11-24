@@ -19,11 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
@@ -50,6 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
@@ -196,9 +192,9 @@ private fun SwipeBox(
                             if (swipeToDismissBoxState.targetValue ==
                                 SwipeToDismissBoxValue.StartToEnd
                             ) {
-                                Icons.Filled.Edit
+                                R.drawable.baseline_edit_24
                             } else {
-                                Icons.Outlined.Edit
+                                R.drawable.outline_edit_24
                             }
                         Crossfade(
                             modifier = Modifier.padding(end = 16.dp),
@@ -206,7 +202,7 @@ private fun SwipeBox(
                             label = "pen icon",
                         ) {
                             Icon(
-                                imageVector = it,
+                                painter = painterResource(it),
                                 contentDescription = stringResource(R.string.description_back_button),
                             )
                         }
@@ -220,9 +216,9 @@ private fun SwipeBox(
                             if (swipeToDismissBoxState.targetValue ==
                                 SwipeToDismissBoxValue.EndToStart
                             ) {
-                                Icons.Filled.Delete
+                                R.drawable.baseline_delete_24
                             } else {
-                                Icons.Outlined.Delete
+                                R.drawable.outline_delete_24
                             }
                         Crossfade(
                             modifier = Modifier.padding(start = 16.dp),
@@ -230,7 +226,7 @@ private fun SwipeBox(
                             label = "delete icon",
                         ) {
                             Icon(
-                                imageVector = it,
+                                painter = painterResource(it),
                                 contentDescription = stringResource(R.string.description_back_button),
                             )
                         }

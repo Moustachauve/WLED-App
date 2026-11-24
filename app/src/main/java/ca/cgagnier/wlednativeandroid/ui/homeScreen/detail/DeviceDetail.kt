@@ -6,10 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -20,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
@@ -94,7 +91,7 @@ fun DeviceDetailAppBar(
             AnimatedVisibility(visible = canNavigateBack) {
                 IconButton(onClick = navigateUp) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        painter = painterResource(R.drawable.baseline_arrow_back_24),
                         contentDescription = stringResource(R.string.description_back_button),
                     )
                 }
@@ -103,14 +100,14 @@ fun DeviceDetailAppBar(
         actions = {
             IconButton(onClick = refreshPage) {
                 Icon(
-                    imageVector = Icons.Filled.Refresh,
+                    painter = painterResource(R.drawable.baseline_refresh_24),
                     contentDescription = stringResource(R.string.refresh_page),
                 )
             }
             if (!device.isAPMode) {
                 IconButton(onClick = editItem) {
                     Icon(
-                        imageVector = Icons.Filled.Edit,
+                        painter = painterResource(R.drawable.baseline_edit_24),
                         contentDescription = stringResource(R.string.edit_device),
                     )
                 }

@@ -21,9 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -165,7 +163,7 @@ fun ConfigurationScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            painter = painterResource(R.drawable.baseline_arrow_back_24),
                             contentDescription = stringResource(R.string.description_back_button),
                         )
                     }
@@ -253,7 +251,7 @@ fun DeviceItem(device: Device, isSelected: Boolean = false, onClick: () -> Unit)
         if (isSelected) {
             Spacer(modifier = Modifier.width(12.dp))
             Icon(
-                imageVector = Icons.Filled.Check,
+                painter = painterResource(R.drawable.baseline_check_24),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
             )
