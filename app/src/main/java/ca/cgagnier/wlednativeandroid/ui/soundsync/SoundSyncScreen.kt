@@ -51,6 +51,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -386,6 +387,11 @@ private fun GainSection(
         label = "agcGainSlider",
     )
     val sliderGain = if (agcEnabled) animatedAgcGain else displayedGain
+    val gainRange = 0f..GainControl.MAX_MANUAL_GAIN
+    val sliderState = remember(gainRange) {
+        SliderState(value = sliderGain, trackRange = gainRange)
+    }
+    sliderState.value = sliderGain
     val gainLabel = stringResource(R.string.sound_sync_gain)
     val gainValueText = stringResource(R.string.sound_sync_gain_value, displayedGain)
 
@@ -396,10 +402,9 @@ private fun GainSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Slider(
-            value = sliderGain,
+            state = sliderState,
             onValueChange = onGainChanged,
             onValueChangeFinished = onGainChangeFinished,
-            valueRange = 0f..GainControl.MAX_MANUAL_GAIN,
             modifier = Modifier
                 .weight(1f)
                 .semantics {
@@ -490,6 +495,11 @@ private fun SquelchSection(
     onSquelchStepped: (Int) -> Unit,
 ) {
     val squelchLabel = stringResource(R.string.sound_sync_squelch)
+    val squelchRange = SoundSyncProcessor.MIN_SQUELCH.toFloat()..SoundSyncProcessor.MAX_SQUELCH.toFloat()
+    val squelchSliderState = remember(squelchRange) {
+        SliderState(value = squelch.toFloat(), trackRange = squelchRange)
+    }
+    squelchSliderState.value = squelch.toFloat()
     SectionTitle(squelchLabel)
     Spacer(modifier = Modifier.height(4.dp))
     Row(
@@ -506,10 +516,9 @@ private fun SquelchSection(
             )
         }
         Slider(
-            value = squelch.toFloat(),
+            state = squelchSliderState,
             onValueChange = { onSquelchChanged(it.roundToInt()) },
             onValueChangeFinished = onSquelchChangeFinished,
-            valueRange = SoundSyncProcessor.MIN_SQUELCH.toFloat()..SoundSyncProcessor.MAX_SQUELCH.toFloat(),
             modifier = Modifier
                 .weight(1f)
                 .semantics {

@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,11 +41,15 @@ fun SliderWithLabel(
     )
     val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
     val isDragging by interactionSource.collectIsDraggedAsState()
+    val sliderPosition = if (isDragging) value else animatedSliderPosition
+    val sliderState = remember(valueRange) {
+        SliderState(value = sliderPosition, trackRange = valueRange)
+    }
+    sliderState.value = sliderPosition
     Slider(
-        value = if (isDragging) value else animatedSliderPosition,
+        state = sliderState,
         enabled = enabled,
         onValueChange = onValueChange,
-        valueRange = valueRange,
         onValueChangeFinished = onValueChangeFinished,
         interactionSource = interactionSource,
         thumb = {
