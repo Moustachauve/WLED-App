@@ -17,7 +17,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +43,7 @@ import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.preview.getPreviewDevice
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
@@ -104,6 +107,10 @@ fun UpdateInstallingDialog(
     val canRetryWithoutValidation = errorStep?.canRetryWithoutValidation == true
 
     AlertDialog(
+        properties = blurredDialogProperties(
+            dismissOnBackPress = state.canDismiss,
+            dismissOnClickOutside = state.canDismiss,
+        ),
         title = {
             Text(
                 stringResource(
@@ -121,27 +128,13 @@ fun UpdateInstallingDialog(
             }
         },
         confirmButton = {
-            if (canRetryWithoutValidation) {
-                TextButton(
-                    onClick = onRetryWithoutValidation,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text(stringResource(R.string.install_anyway))
-                }
-            } else {
-                TextButton(
-                    onClick = onDismiss,
-                    enabled = state.canDismiss,
-                ) {
-                    if (state.step is UpdateInstallingStep.Done || errorStep != null) {
-                        Text(stringResource(R.string.done))
-                    } else {
-                        Text(stringResource(R.string.cancel))
-                    }
-                }
-            }
+            UpdateInstallingConfirmButton(
+                state = state,
+                errorStep = errorStep,
+                canRetryWithoutValidation = canRetryWithoutValidation,
+                onRetryWithoutValidation = onRetryWithoutValidation,
+                onDismiss = onDismiss,
+            )
         },
         dismissButton = {
             if (canRetryWithoutValidation) {
@@ -157,6 +150,38 @@ fun UpdateInstallingDialog(
         },
         icon = {},
     )
+}
+
+@Composable
+private fun UpdateInstallingConfirmButton(
+    state: UpdateInstallingState,
+    errorStep: UpdateInstallingStep.Error?,
+    canRetryWithoutValidation: Boolean,
+    onRetryWithoutValidation: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (canRetryWithoutValidation) {
+        TextButton(
+            onClick = onRetryWithoutValidation,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.error,
+            ),
+        ) {
+            Text(stringResource(R.string.install_anyway))
+        }
+    } else {
+        TextButton(
+            onClick = onDismiss,
+            enabled = state.canDismiss,
+        ) {
+            val labelRes = if (state.step is UpdateInstallingStep.Done || errorStep != null) {
+                R.string.done
+            } else {
+                R.string.cancel
+            }
+            Text(stringResource(labelRes))
+        }
+    }
 }
 
 @Composable
@@ -209,17 +234,18 @@ fun UpdateDialogContent(state: UpdateInstallingState) {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun UpdateInstallingStatus(modifier: Modifier = Modifier, step: UpdateInstallingStep) {
     when (step) {
-        is UpdateInstallingStep.Starting -> CircularProgressIndicator(modifier)
+        is UpdateInstallingStep.Starting -> LoadingIndicator(modifier = modifier)
 
         is UpdateInstallingStep.Downloading -> CircularProgressIndicator(
             modifier = modifier,
             progress = { step.progress / 100f },
         )
 
-        is UpdateInstallingStep.Installing -> CircularProgressIndicator(modifier)
+        is UpdateInstallingStep.Installing -> LoadingIndicator(modifier = modifier)
 
         is UpdateInstallingStep.Error, is UpdateInstallingStep.NoCompatibleVersion -> Icon(
             modifier = modifier,

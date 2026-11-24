@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 
 @Composable
@@ -27,6 +28,7 @@ fun UpdateDisclaimerDialog(
     switchingToSourceName: String? = null,
 ) {
     AlertDialog(
+        properties = blurredDialogProperties(),
         title = {
             Text(stringResource(R.string.are_you_sure))
         },

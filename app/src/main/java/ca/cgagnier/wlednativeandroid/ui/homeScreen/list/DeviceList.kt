@@ -48,6 +48,7 @@ import ca.cgagnier.wlednativeandroid.service.websocket.PartitionedDevices
 import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncToolbarIcon
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
 import kotlinx.coroutines.delay
@@ -458,38 +459,45 @@ fun DeviceListAppBar(state: DeviceListState, actions: DeviceListActions, modifie
 @Composable
 fun ConfirmDeleteDialog(device: DeviceWithState? = null, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     device?.let {
-        AlertDialog(title = {
-            Text(text = stringResource(R.string.deleting_device))
-        }, text = {
-            DeviceTheme(device) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    DeviceInfoTwoRows(
-                        modifier = Modifier.padding(16.dp),
-                        device = device,
+        AlertDialog(
+            properties = blurredDialogProperties(),
+            title = {
+                Text(text = stringResource(R.string.deleting_device))
+            },
+            text = {
+                DeviceTheme(device) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        DeviceInfoTwoRows(
+                            modifier = Modifier.padding(16.dp),
+                            device = device,
+                        )
+                    }
+                }
+            },
+            onDismissRequest = {
+                onDismiss()
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onConfirm()
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.delete),
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
-            }
-        }, onDismissRequest = {
-            onDismiss()
-        }, confirmButton = {
-            TextButton(
-                onClick = {
-                    onConfirm()
-                },
-            ) {
-                Text(
-                    stringResource(R.string.delete),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }, dismissButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                },
-            ) {
-                Text(stringResource(R.string.cancel))
-            }
-        })
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onDismiss()
+                    },
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }

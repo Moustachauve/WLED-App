@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,8 +18,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import org.koin.androidx.compose.koinViewModel
 
@@ -59,6 +62,7 @@ fun DeviceAdd(
 
     Dialog(
         onDismissRequest = dismissRequest,
+        properties = blurredDialogProperties(),
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -166,13 +170,11 @@ private fun step1AddressForm(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun step2Loading(state: DeviceAddState) {
-    // TODO: Replace this by a `LoadingIndicator` once it is available/out of experimental
-    CircularProgressIndicator(
-        modifier = Modifier
-            .height(48.dp)
-            .width(48.dp),
+    LoadingIndicator(
+        modifier = Modifier.size(48.dp),
     )
     Text(
         stringResource(R.string.add_adding_device, state.address),

@@ -25,6 +25,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,7 +45,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Asset
 import ca.cgagnier.wlednativeandroid.model.VersionWithAssets
@@ -52,6 +52,7 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.isOtaEnabled
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.SelectableDropdownMenuItem
 import ca.cgagnier.wlednativeandroid.ui.components.WledMarkdown
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 
 private const val DIALOG_WIDTH_FRACTION = 0.92f
@@ -78,7 +79,7 @@ fun UpdateDetailsDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = blurredDialogProperties(usePlatformDefaultWidth = false),
     ) {
         Card(
             modifier = Modifier
@@ -201,7 +202,7 @@ private fun BinaryDropdown(
             onDismissRequest = { expanded = false },
             matchAnchorWidth = false,
         ) {
-            installableAssets.forEach { asset ->
+            installableAssets.forEachIndexed { index, asset ->
                 val isSelected = asset.name == selectedAsset?.name
                 SelectableDropdownMenuItem(
                     selected = isSelected,
@@ -209,6 +210,7 @@ private fun BinaryDropdown(
                         onSelectAsset(asset)
                         expanded = false
                     },
+                    shapes = MenuDefaults.itemShape(index, installableAssets.size),
                 ) {
                     Text(
                         text = asset.name,
