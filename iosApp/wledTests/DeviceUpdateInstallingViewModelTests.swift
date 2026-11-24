@@ -201,4 +201,44 @@ struct DeviceUpdateInstallingViewModelTests {
             )
         )
     }
+
+    @Test func explicitSelectedAssetOverridesDefaultBoardMatch() async throws {
+        let fixture = try await stageUpdateFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.cacheDirectoryURL) }
+
+        let customAsset = Asset(
+            id: 2,
+            versionId: fixture.targetVersion.version.id,
+            name: "WLED_0.15.0_CustomBoard.bin",
+            size: 4,
+            downloadUrl: "https://example.com/WLED_0.15.0_CustomBoard.bin",
+            assetId: 78
+        )
+        let binaryDirectory = fixture.cacheDirectoryURL
+            .appendingPathComponent("\(fixture.quinledRepo.id)", isDirectory: true)
+            .appendingPathComponent(fixture.targetVersion.version.tagName, isDirectory: true)
+        try Data([0x05, 0x06, 0x07, 0x08]).write(to: binaryDirectory.appendingPathComponent(customAsset.name))
+        let multiAssetVersion = VersionWithAssets(
+            version: fixture.targetVersion.version,
+            assets: [fixture.asset, customAsset]
+        )
+
+        StubURLProtocol.register(.http(statusCode: 200, body: "Update successful!"), for: host)
+
+        let installingVM = DeviceUpdateInstallingViewModel()
+        await installingVM.startUpdateProcess(
+            device: fixture.wrapper,
+            version: multiAssetVersion,
+            selectedAsset: customAsset,
+            skipValidation: false,
+            database: database,
+            cacheDirPath: fixture.cacheDirectoryURL.path
+        )
+
+        #expect(installingVM.status == .completed)
+        let requests = StubURLProtocol.requests(for: host)
+        #expect(requests.count == 1)
+        let bodyString = requests.first?.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        #expect(bodyString.contains("filename=\"\(customAsset.name)\""))
+    }
 }

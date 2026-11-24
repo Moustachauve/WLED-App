@@ -35,9 +35,69 @@ struct PreviewData {
                 size: 1_048_576,
                 downloadUrl: "https://github.com/wled/WLED/releases/download/v0.15.0/WLED_0.15.0_ESP32.bin",
                 assetId: 1
+            ),
+            Asset(
+                id: 4,
+                versionId: 1,
+                name: "WLED_0.15.0_ESP8266.bin",
+                size: 786_432,
+                downloadUrl: "https://github.com/wled/WLED/releases/download/v0.15.0/WLED_0.15.0_ESP8266.bin",
+                assetId: 4
             )
         ]
     )
+
+    static let previewVersionLatest = VersionWithAssets(
+        version: Version(
+            id: 2,
+            repositoryId: Repository.companion.DEFAULT_ID,
+            tagName: "0.15.1",
+            name: "v0.15.1",
+            description: "## What's Changed\n\n* Bug fixes and stability improvements",
+            isPrerelease: false,
+            publishedDate: "2025-03-01T00:00:00Z",
+            htmlUrl: "https://github.com/wled/WLED/releases/tag/v0.15.1"
+        ),
+        assets: [
+            Asset(
+                id: 2,
+                versionId: 2,
+                name: "WLED_0.15.1_ESP32.bin",
+                size: 1_048_576,
+                downloadUrl: "https://github.com/wled/WLED/releases/download/v0.15.1/WLED_0.15.1_ESP32.bin",
+                assetId: 2
+            )
+        ]
+    )
+
+    static let previewBetaVersion = VersionWithAssets(
+        version: Version(
+            id: 3,
+            repositoryId: Repository.companion.DEFAULT_ID,
+            tagName: "0.15.2-b1",
+            name: "v0.15.2-b1 Beta",
+            description: "## Beta Release\n\n* Preview features for testing",
+            isPrerelease: true,
+            publishedDate: "2025-04-01T00:00:00Z",
+            htmlUrl: "https://github.com/wled/WLED/releases/tag/v0.15.2-b1"
+        ),
+        assets: [
+            Asset(
+                id: 3,
+                versionId: 3,
+                name: "WLED_0.15.2-b1_ESP32.bin",
+                size: 1_048_576,
+                downloadUrl: "https://github.com/wled/WLED/releases/download/v0.15.2-b1/WLED_0.15.2-b1_ESP32.bin",
+                assetId: 3
+            )
+        ]
+    )
+
+    static let previewVersions: [VersionWithAssets] = [
+        previewVersionLatest,
+        previewVersion,
+        previewBetaVersion
+    ]
 
     // MARK: - Devices
 
@@ -95,20 +155,23 @@ struct PreviewData {
         return deviceWithState
     }
 
+    static func seedVersions() async {
+        await database.waitUntilReady()
+        guard let repo = try? await database.repositoryDao.getRepositoryByOwnerAndRepo(
+            ownerAndRepo: Repository.companion.DEFAULT_OWNER_REPO
+        ) else {
+            return
+        }
+        let versionMap = Dictionary(uniqueKeysWithValues: previewVersions.map { ($0.version, $0.assets) })
+        try? await database.versionWithAssetsRepository.updateRepository(
+            repository: repo,
+            versionToAssetsMap: versionMap
+        )
+    }
+
     private static func ensureVersionsExist() {
-        let version = previewVersion.version
-        let assets = previewVersion.assets
         Task {
-            await database.waitUntilReady()
-            guard let repo = try? await database.repositoryDao.getRepositoryByOwnerAndRepo(
-                ownerAndRepo: Repository.companion.DEFAULT_OWNER_REPO
-            ) else {
-                return
-            }
-            try? await database.versionWithAssetsRepository.updateRepository(
-                repository: repo,
-                versionToAssetsMap: [version: assets]
-            )
+            await seedVersions()
         }
     }
 }

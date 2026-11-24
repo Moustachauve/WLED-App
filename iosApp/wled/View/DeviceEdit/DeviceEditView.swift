@@ -69,17 +69,37 @@ struct DeviceEditView: View {
                         DeviceUpdateAvailable(device: device)
                     }
 
-                    if let repository = viewModel.repository {
+                    VStack(spacing: 0) {
                         Divider()
-                        HStack {
-                            Text("Update Source")
-                            Spacer()
-                            Text(repository.ownerAndRepo)
-                                .lineLimit(1)
+                        NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: device.id)) {
+                            HStack {
+                                Text("Other Versions & Sources")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .accessibilityHidden(true)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+
+                        if let repository = viewModel.repository {
+                            Divider()
+                            HStack {
+                                Text("Update Source")
+                                Spacer()
+                                Text(repository.ownerAndRepo)
+                                    .lineLimit(1)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+                        }
                     }
+                    .padding(.top, 4)
                 }
                 .animation(.default, value: device.availableUpdateVersion)
                 .animation(.default, value: viewModel.isCheckingForUpdates)
@@ -130,27 +150,33 @@ struct DeviceNoUpdateAvailable: View {
     let onCheckForUpdate: () async -> Void
 
     var body: some View {
-        Text("Your device is up to date")
-        Text(
-            "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
-        )
-        HStack {
-            Button(
-                action: {
-                    Task {
-                        await onCheckForUpdate()
-                    }
-                },
-                label: {
-                    Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Your device is up to date")
+                .font(.headline)
+            Text(
+                "Version \(device.stateInfo?.info.version ?? String(localized: "unknown_version"))"
             )
-            .buttonStyle(.bordered)
-            .padding(.trailing)
-            .disabled(isCheckingForUpdates)
-            ProgressView()
-                .opacity(isCheckingForUpdates ? 1 : 0)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
+        Button {
+            Task {
+                await onCheckForUpdate()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if isCheckingForUpdates {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .disabled(isCheckingForUpdates)
+        .padding(.top, 4)
     }
 }
 

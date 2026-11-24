@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
@@ -34,7 +35,10 @@ kotlin {
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "Shared"
-            isStatic = true
+            // Dynamic in Debug so Xcode's XOJIT preview engine loads Shared via dyld instead of
+            // JIT-linking static Kotlin/Native code (which breaks C++ exception unwinding and hits
+            // PROT_NONE pages in Xcode Previews, KT-77872). Keep Release static for App Store builds.
+            isStatic = buildType == NativeBuildType.RELEASE
             binaryOption("bundleId", "ca.cgagnier.wlednativeandroid.shared")
             xcframework.add(this)
         }

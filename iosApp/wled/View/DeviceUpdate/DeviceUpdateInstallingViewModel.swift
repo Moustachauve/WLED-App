@@ -31,6 +31,7 @@ final class DeviceUpdateInstallingViewModel {
     func startUpdateProcess(
         device: DeviceWithState,
         version: VersionWithAssets,
+        selectedAsset: Asset? = nil,
         skipValidation: Bool = false,
         database: AppDatabase = .shared,
         cacheDirPath: String? = nil
@@ -42,7 +43,7 @@ final class DeviceUpdateInstallingViewModel {
             versionWithAssets: version,
             deviceApiFactory: database.deviceApiFactory,
             githubApi: database.githubApi,
-            selectedAsset: nil,
+            selectedAsset: selectedAsset,
             cacheDirPath: cacheDirPath
         )
         let assetName = updateService.getAssetName()
