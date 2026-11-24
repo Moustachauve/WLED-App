@@ -47,7 +47,7 @@ struct DeviceFirmwareBrowserView: View {
             await viewModel.observeRepositories()
         }
         .task(id: viewModel.selectedRepositoryId) {
-            await viewModel.loadRepository(viewModel.selectedRepositoryId)
+            await viewModel.loadRepository()
         }
     }
 
