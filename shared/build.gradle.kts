@@ -17,7 +17,12 @@ val iosSimulatorOnly = providers.gradleProperty("wled.ios.simulatorOnly").orNull
 kotlin {
     android {
         namespace = "ca.cgagnier.wlednativeandroid.shared"
-        compileSdk = 37
+        compileSdk {
+            version =
+                release(37) {
+                    minorApiLevel = 1
+                }
+        }
         minSdk = 24
 
         withHostTest {}
