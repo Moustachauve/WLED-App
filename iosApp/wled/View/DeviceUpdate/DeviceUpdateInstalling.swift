@@ -10,6 +10,7 @@ struct DeviceUpdateInstalling: View {
     @State private var retryWithoutValidation = false
     var device: DeviceWithState
     let version: VersionWithAssets
+    var selectedAsset: Asset?
     var database: AppDatabase = .shared
     var onInstallCompleted: () -> Void = {}
 
@@ -61,6 +62,7 @@ struct DeviceUpdateInstalling: View {
                 await viewModel.startUpdateProcess(
                     device: device,
                     version: version,
+                    selectedAsset: selectedAsset,
                     skipValidation: retryWithoutValidation,
                     database: database
                 )

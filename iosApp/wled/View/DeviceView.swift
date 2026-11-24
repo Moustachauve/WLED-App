@@ -8,6 +8,8 @@ private typealias State = SwiftUI.State
 enum DeviceDetailRoute: Hashable {
     case edit(deviceId: String)
     case updateDetails(deviceId: String)
+    case firmwareBrowser(deviceId: String)
+    case firmwareVersionDetails(deviceId: String, repositoryId: Int64, tagName: String)
 }
 
 struct DeviceView: View {
@@ -74,6 +76,15 @@ struct DeviceView: View {
             case .updateDetails:
                 DeviceUpdateDetails(device: device)
                     .id(device.id)
+            case .firmwareBrowser:
+                DeviceFirmwareBrowserView(device: device)
+                    .id(device.id)
+            case .firmwareVersionDetails(_, let repositoryId, let tagName):
+                DeviceUpdateDetails(
+                    device: device,
+                    target: .specificVersion(repositoryId: repositoryId, tagName: tagName)
+                )
+                .id("\(device.id):\(repositoryId):\(tagName)")
             }
         }
         .onChange(of: device.device.address) {
