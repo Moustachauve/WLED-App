@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.Icon
@@ -32,10 +33,12 @@ fun SelectableDropdownMenuItem(
         shapes = shapes,
         modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester),
         supportingText = supportingText,
-        trailingContent = if (selected) {
-            { Icon(painter = painterResource(R.drawable.baseline_check_24), contentDescription = null) }
-        } else {
-            null
+        selectedLeadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.baseline_check_24),
+                contentDescription = null,
+                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+            )
         },
         colors = MenuDefaults.selectableItemColors(),
     )

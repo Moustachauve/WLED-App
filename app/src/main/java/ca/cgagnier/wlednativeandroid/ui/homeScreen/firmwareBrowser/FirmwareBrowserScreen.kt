@@ -368,7 +368,12 @@ private fun RepositoryDropdown(uiState: FirmwareBrowserUiState, installedRepoId:
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = MenuDefaults.standaloneGroupShape,
+            containerColor = MenuDefaults.groupStandardContainerColor,
+        ) {
             uiState.repositories.forEachIndexed { index, repo ->
                 val isInstalled = repo.id == installedRepoId
                 val isSelected = repo.id == uiState.selectedRepositoryId

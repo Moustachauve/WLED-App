@@ -201,6 +201,8 @@ private fun BinaryDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             matchAnchorWidth = false,
+            shape = MenuDefaults.standaloneGroupShape,
+            containerColor = MenuDefaults.groupStandardContainerColor,
         ) {
             installableAssets.forEachIndexed { index, asset ->
                 val isSelected = asset.name == selectedAsset?.name
