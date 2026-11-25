@@ -42,6 +42,7 @@ class SettingsScreenshotTest {
                     theme = ThemeSettings.Dark,
                 ),
                 navigateUp = {},
+                appVersionText = "8.0.0 (1)",
             )
         }
     }

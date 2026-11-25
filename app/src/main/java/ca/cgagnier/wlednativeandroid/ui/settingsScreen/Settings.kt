@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.cgagnier.wlednativeandroid.BuildConfig
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import org.koin.androidx.compose.koinViewModel
@@ -67,12 +68,18 @@ data class SettingsActions(
     val setTheme: (ThemeSettings) -> Unit = {},
 )
 
+private fun defaultAppVersionText(): String {
+    val debugString = if (BuildConfig.BUILD_TYPE != "release") " - ${BuildConfig.BUILD_TYPE}" else ""
+    return "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})$debugString"
+}
+
 @Composable
 fun SettingsContent(
     settingsState: SettingsState,
     navigateUp: () -> Unit,
     modifier: Modifier = Modifier,
     actions: SettingsActions = SettingsActions(),
+    appVersionText: String = defaultAppVersionText(),
 ) {
     Scaffold(
         modifier = modifier,
@@ -106,6 +113,12 @@ fun SettingsContent(
                     )
                 },
                 secondColumn = {},
+            )
+            Text(
+                text = stringResource(R.string.version_v_num, appVersionText),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp),
             )
         }
     }

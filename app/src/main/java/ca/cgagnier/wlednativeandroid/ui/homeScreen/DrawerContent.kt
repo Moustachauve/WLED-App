@@ -4,9 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,19 +13,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import ca.cgagnier.wlednativeandroid.BuildConfig
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.util.openUriSafely
 
@@ -48,8 +43,6 @@ internal fun DrawerContent(
         DrawerMainActions(addDevice, showHiddenDevices, toggleShowHiddenDevices, openSettings)
         HorizontalDivider(modifier = Modifier.padding(12.dp))
         DrawerExternalLinks(uriHandler)
-        Spacer(Modifier.height(24.dp))
-        DrawerVersionInfo()
     }
 }
 
@@ -129,27 +122,6 @@ private fun DrawerExternalLinks(uriHandler: UriHandler) {
         onClick = { uriHandler.openUriSafely(helpUrl) },
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
     )
-}
-
-@Composable
-private fun DrawerVersionInfo() {
-    Column(
-        modifier = Modifier
-            .padding(16.dp)
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        val debugString =
-            if (BuildConfig.BUILD_TYPE != "release") " - ${BuildConfig.BUILD_TYPE}" else ""
-        Text(
-            "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})$debugString",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            BuildConfig.APPLICATION_ID,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
 }
 
 @Composable
