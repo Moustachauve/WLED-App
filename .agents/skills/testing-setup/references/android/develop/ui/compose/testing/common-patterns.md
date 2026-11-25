@@ -23,29 +23,36 @@ the activity already calls it.
 A common pattern to achieve this is to create an `AndroidComposeTestRule` using
 an empty activity such as [`ComponentActivity`](https://developer.android.com/reference/androidx/activity/ComponentActivity).
 
-    class MyComposeTest {
 
-        @get:Rule
-        val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+```kotlin
+class MyComposeTest {
 
-        @Test
-        fun myTest() {
-            // Start the app
-            composeTestRule.setContent {
-                MyAppTheme {
-                    MainScreen(uiState = exampleUiState, /*...*/)
-                }
+    @get:Rule
+    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun myTest() {
+        // Start the app.
+        composeTestRule.setContent {
+            MyAppTheme {
+                MainScreen(uiState = exampleUiState, /*...*/)
             }
-            val continueLabel = composeTestRule.activity.getString(R.string.next)
-            composeTestRule.onNodeWithText(continueLabel).performClick()
         }
+        val continueLabel = composeTestRule.activity.getString(R.string.next)
+        composeTestRule.onNodeWithText(continueLabel).performClick()
     }
+}
+```
+
+<br />
 
 Note that `ComponentActivity` needs to be added to your app's
 `AndroidManifest.xml` file. Enable that by adding this dependency to your
 module:
 
-    debugImplementation("androidx.compose.ui:ui-test-manifest:$compose_version")
+```kotlin
+debugImplementation("androidx.compose.ui:ui-test-manifest:$compose_version")
+```
 
 ## Custom semantics properties
 
@@ -53,23 +60,38 @@ You can create custom [semantics](https://developer.android.com/develop/ui/compo
 To do this, define a new `SemanticsPropertyKey` and make it available using the
 `SemanticsPropertyReceiver`.
 
-    // Creates a semantics property of type Long.
-    val PickedDateKey = SemanticsPropertyKey<Long>("PickedDate")
-    var SemanticsPropertyReceiver.pickedDate by PickedDateKey
+
+```kotlin
+// Creates a semantics property of type Long.
+val PickedDateKey = SemanticsPropertyKey<Long>("PickedDate")
+var SemanticsPropertyReceiver.pickedDate by PickedDateKey
+```
+
+<br />
 
 Now use that property in the `semantics` modifier:
 
-    val datePickerValue by remember { mutableStateOf(0L) }
-    MyCustomDatePicker(
-        modifier = Modifier.semantics { pickedDate = datePickerValue }
-    )
+
+```kotlin
+val datePickerValue by remember { mutableStateOf(0L) }
+MyCustomDatePicker(
+    modifier = Modifier.semantics { pickedDate = datePickerValue }
+)
+```
+
+<br />
 
 From tests, use `SemanticsMatcher.expectValue` to assert the value of the
 property:
 
-    composeTestRule
-        .onNode(SemanticsMatcher.expectValue(PickedDateKey, 1445378400)) // 2015-10-21
-        .assertExists()
+
+```kotlin
+composeTestRule
+    .onNode(SemanticsMatcher.expectValue(PickedDateKey, 1445378400)) // 2015-10-21
+    .assertExists()
+```
+
+<br />
 
 > [!WARNING]
 > **Warning:** You should only use custom Semantics properties when it's hard to match a specific item using the given finders and matchers. Using custom Semantics properties to expose visual properties such as colors, font size or rounded corner radius is not recommended, as it can pollute production code and wrong implementations can lead to bugs that are hard to find.
@@ -84,25 +106,29 @@ This class lets you simulate the recreation of a composable. It's especially
 useful to verify the implementation of [`rememberSaveable`](https://developer.android.com/reference/kotlin/androidx/compose/runtime/saveable/rememberSaveable.composable#rememberSaveable(kotlin.Array,androidx.compose.runtime.saveable.Saver,kotlin.String,kotlin.Function0)).
 
 
-    class MyStateRestorationTests {
+```kotlin
+class MyStateRestorationTests {
 
-        @get:Rule
-        val composeTestRule = createComposeRule()
+    @get:Rule
+    val composeTestRule = createComposeRule()
 
-        @Test
-        fun onRecreation_stateIsRestored() {
-            val restorationTester = StateRestorationTester(composeTestRule)
+    @Test
+    fun onRecreation_stateIsRestored() {
+        val restorationTester = StateRestorationTester(composeTestRule)
 
-            restorationTester.setContent { MainScreen() }
+        restorationTester.setContent { MainScreen() }
 
-            // TODO: Run actions that modify the state
+        // TODO: Run actions that modify the state
 
-            // Trigger a recreation
-            restorationTester.emulateSavedInstanceStateRestore()
+        // Trigger a recreation.
+        restorationTester.emulateSavedInstanceStateRestore()
 
-            // TODO: Verify that state has been correctly restored.
-        }
+        // TODO: Verify that state has been correctly restored.
     }
+}
+```
+
+<br />
 
 ## Test different device configurations
 
@@ -251,14 +277,16 @@ You can enable failure artifact captures for an entire test suite by passing
 instrumentation runner arguments in your module's `build.gradle` file. This
 eliminates the need to update individual test files.
 
-    // build.gradle.kts
-    android {
-        defaultConfig {
-            // ...
-            testInstrumentationRunnerArguments["androidx.compose.ui.test.failure.isUiHierarchyCaptureEnabled"] = "true"
-            testInstrumentationRunnerArguments["androidx.compose.ui.test.failure.isScreenshotCaptureEnabled"] = "true"
-        }
+```kotlin
+// build.gradle.kts
+android {
+    defaultConfig {
+        // ...
+        testInstrumentationRunnerArguments["androidx.compose.ui.test.failure.isUiHierarchyCaptureEnabled"] = "true"
+        testInstrumentationRunnerArguments["androidx.compose.ui.test.failure.isScreenshotCaptureEnabled"] = "true"
     }
+}
+```
 
 #### Configuration precedence
 

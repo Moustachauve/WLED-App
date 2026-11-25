@@ -5,17 +5,23 @@ This page describes how to implement basic `FlexBox` layouts.
 1. Add the [`androidx.compose.foundation.layout`](https://developer.android.com/jetpack/androidx/versions) library to your project's
    `lib.versions.toml`.
 
-       [versions]
-       compose = "1.13.0-beta01"
+   ```kotlin
+   [versions]
+   compose = "1.14.0-alpha01"
 
-       [libraries]
-       androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "compose" }
-
+   [libraries]
+   androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "compose" }
+   ```
 2. Add the library dependency to your app's `build.gradle.kts`.
 
-       dependencies {
-           implementation(libs.androidx.compose.foundation.layout)
-       }
+   ```kotlin
+   dependencies {
+       implementation(libs.androidx.compose.foundation.layout)
+   }
+   ```
+
+> [!NOTE]
+> **Note:** `FlexBox` is stable starting in Compose 1.13 (`foundation-layout` 1.13.0). If your project uses the [Compose BOM](https://developer.android.com/develop/ui/compose/bom/bom-mapping) version `2026.11.01` or later, you can omit the explicit `foundation-layout` version.
 
 ## Create basic FlexBox layouts
 
