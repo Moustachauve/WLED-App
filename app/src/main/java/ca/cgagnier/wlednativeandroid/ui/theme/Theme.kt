@@ -3,7 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -308,9 +308,8 @@ fun WLEDNativeTheme(
     }
 
     CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
-        MaterialTheme(
+        MaterialExpressiveTheme(
             colorScheme = colorScheme,
-            typography = appTypography,
             content = content,
         )
     }
