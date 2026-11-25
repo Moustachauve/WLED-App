@@ -54,6 +54,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.transformed
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.AP_MODE_MAC_ADDRESS
 import ca.cgagnier.wlednativeandroid.model.Device
@@ -65,6 +66,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import android.graphics.Matrix as AndroidMatrix
 
 @Composable
 fun DeviceInfoTwoRows(
@@ -161,11 +163,28 @@ fun WebsocketStatusIndicator(websocketState: WebsocketStatus) {
     }
 }
 
+private const val DISCONNECTED_ROTATION_DEGREES = 45f
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private val DisconnectedDiamondShape: RoundedPolygon by lazy {
+    MaterialShapes.Square
+        .transformed(
+            AndroidMatrix().apply {
+                setRotate(
+                    DISCONNECTED_ROTATION_DEGREES,
+                    MaterialShapes.Square.centerX,
+                    MaterialShapes.Square.centerY,
+                )
+            },
+        )
+        .normalized()
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun getWebsocketShape(status: WebsocketStatus): RoundedPolygon = when (status) {
     WebsocketStatus.CONNECTED -> MaterialShapes.Circle
-    WebsocketStatus.CONNECTING -> MaterialShapes.Cookie7Sided
-    WebsocketStatus.DISCONNECTED -> MaterialShapes.Square
+    WebsocketStatus.CONNECTING -> MaterialShapes.VerySunny
+    WebsocketStatus.DISCONNECTED -> DisconnectedDiamondShape
 }
 
 @Composable
