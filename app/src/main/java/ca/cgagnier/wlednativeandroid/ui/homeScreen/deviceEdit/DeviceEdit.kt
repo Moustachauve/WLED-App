@@ -223,15 +223,8 @@ fun DeviceEditContent(
                     onCheckForUpdates = actions.onCheckForUpdates,
                     onSeeUpdateDetails = actions.onSeeUpdateDetails,
                 )
-                uiState.latestBetaVersion?.let { betaVersion ->
-                    if (ReleaseService.isBetaUpdateAvailable(device.stateInfo?.info, betaVersion.version.tagName)) {
-                        BetaUpdateAvailableCard(
-                            betaVersion = betaVersion,
-                            enabled = device.isOnline,
-                            onTryBeta = { actions.onTryBeta(betaVersion) },
-                        )
-                    }
-                }
+                // IllumiDEL: the "Try the new beta version" card (move to the cloud app) is hidden in this app.
+                // To bring it back, call BetaUpdateAvailableCard here again with uiState.latestBetaVersion.
                 Spacer(Modifier.height(24.dp))
                 Text(
                     stringResource(

@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            InAppReview.recordLaunch(this)
+        }
 
         viewModel.handleIntent(intent)
 

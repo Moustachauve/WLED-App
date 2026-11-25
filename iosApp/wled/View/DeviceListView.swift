@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 import Shared
 
@@ -10,6 +11,7 @@ struct DeviceListView: View {
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
     @State private var navigation: DeviceListNavigation
 
     @State private var addDeviceButtonActive: Bool = false
@@ -17,6 +19,8 @@ struct DeviceListView: View {
     @State private var devicePendingDeletion: DeviceWithState?
     @State private var pendingDeepLinkMac: String?
     @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
+    @State private var updatePrompt: UpdatePrompt.Prompt?
+    @State private var showUpdatePrompt = false
 
     @AppStorage("lastSelectedDeviceMac") private var lastSelectedDeviceMac: String = ""
 
@@ -24,15 +28,26 @@ struct DeviceListView: View {
         viewModel.allDevicesWithState.contains { $0.device.isHidden }
     }
 
-    private var illumidelGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 11 / 255, green: 15 / 255, blue: 25 / 255),
-                Color(red: 0, green: 55 / 255, blue: 101 / 255),
-                Color(uiColor: .systemBackground)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+    private var updatePromptKey: [String] {
+        viewModel.allDevicesWithState.compactMap { device in
+            guard device.isOnline,
+                  !device.device.isHidden,
+                  let tag = device.availableUpdateVersion,
+                  !tag.isEmpty
+            else {
+                return nil
+            }
+            return "\(device.id):\(tag)"
+        }
+    }
+
+    // Same navy as the V1 controller page (#12305A -> #0A1222 -> #070B14)
+    private var illumidelGradient: RadialGradient {
+        RadialGradient(
+            colors: [IL.navyTop, IL.navyMid, IL.navyBottom],
+            center: UnitPoint(x: 0.5, y: -0.1),
+            startRadius: 0,
+            endRadius: 700
         )
     }
 
@@ -100,7 +115,35 @@ struct DeviceListView: View {
         .task {
             await viewModel.observe()
         }
+        .task {
+            // Native "Rate this app" sheet, a few seconds after the list is shown (rules in ReviewPrompt)
+            try? await Task.sleep(for: .seconds(4))
+            // Never stack the rating sheet on top of the update popup
+            if !UpdatePrompt.shownThisSession,
+               ReviewPrompt.shouldAsk(deviceCount: viewModel.allDevicesWithState.count) {
+                ReviewPrompt.markAsked()
+                requestReview()
+            }
+        }
         .onAppear(perform: appearAction)
+        .alert(
+            Text("Update \(updatePrompt?.tag ?? "") available"),
+            isPresented: $showUpdatePrompt,
+            presenting: updatePrompt
+        ) { prompt in
+            Button("See update") {
+                if let device = prompt.devices.first {
+                    openEditDevice(device)
+                }
+            }
+            Button("Later", role: .cancel) {}
+        } message: { prompt in
+            if prompt.devices.count == 1, let device = prompt.devices.first {
+                Text("\(device.device.displayName) can be updated.")
+            } else {
+                Text("\(prompt.devices.count) controllers can be updated. Open each one to install it.")
+            }
+        }
         .onOpenURL { url in
             handleOpenURL(url)
         }
@@ -115,6 +158,9 @@ struct DeviceListView: View {
             @unknown default:
                 break
             }
+        }
+        .onChange(of: updatePromptKey) { _, _ in
+            checkUpdatePrompt(viewModel.allDevicesWithState)
         }
         .onChange(of: viewModel.allDevicesWithState) { _, devices in
             if let pendingMac = pendingDeepLinkMac, !devices.isEmpty {
@@ -154,6 +200,13 @@ struct DeviceListView: View {
                     }
                 }
 
+                if !viewModel.visibleDevices.isEmpty {
+                    summaryBar
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 6, trailing: 20))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+
                 if viewModel.showOfflineDevicesLast {
                     if !viewModel.onlineDevices.isEmpty {
                         deviceRows(for: viewModel.onlineDevices)
@@ -161,7 +214,11 @@ struct DeviceListView: View {
 
                     // Offline Devices
                     if !viewModel.offlineDevices.isEmpty {
-                        Section(header: Text("Offline Devices")) {
+                        Section(header:
+                            Text("Offline Devices")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(IL.summary)
+                        ) {
                             deviceRows(for: viewModel.offlineDevices)
                         }
                     }
@@ -184,6 +241,7 @@ struct DeviceListView: View {
             }
         }
         .background(illumidelGradient.ignoresSafeArea())
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .animation(.default, value: viewModel.visibleDevices)
         .animation(.default, value: viewModel.onlineDevices)
         .animation(.default, value: viewModel.offlineDevices)
@@ -211,7 +269,7 @@ struct DeviceListView: View {
                 }
             }
             .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             .listRowSeparator(.hidden)
             .buttonStyle(.plain)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -264,9 +322,40 @@ struct DeviceListView: View {
     }
 }
 
-// MARK: - Toolbar & Actions
+// MARK: - Subviews, Toolbar & Actions
 
 private extension DeviceListView {
+    // "6 controllers · 5 on"   [ Turn all off ]
+    var summaryBar: some View {
+        let devices = viewModel.visibleDevices
+        let onlineDevices = devices.filter { $0.isOnline }
+        let onCount = onlineDevices.filter { $0.stateInfo?.state.isOn?.boolValue ?? false }.count
+        let anyOn = onCount > 0
+        return HStack {
+            Text("\(devices.count) controllers · \(onCount) on")
+                .font(.system(size: 13))
+                .foregroundStyle(IL.summary)
+            Spacer()
+            Button {
+                for device in onlineDevices {
+                    viewModel.setDevicePower(for: device, isOn: !anyOn)
+                }
+            } label: {
+                Label(
+                    anyOn ? LocalizedStringKey("Turn all off") : LocalizedStringKey("Turn all on"),
+                    systemImage: "power"
+                )
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(Color.white.opacity(0.05), in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(onlineDevices.isEmpty)
+        }
+    }
     @ToolbarContentBuilder
     var toolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
@@ -323,6 +412,13 @@ private extension DeviceListView {
             navigation.select(matchingDevice)
         }
         return true
+    }
+
+    func checkUpdatePrompt(_ devices: [DeviceWithState]) {
+        guard !showUpdatePrompt, let prompt = UpdatePrompt.check(devices) else { return }
+        UpdatePrompt.markShown(prompt.tag)
+        updatePrompt = prompt
+        showUpdatePrompt = true
     }
 
     func openEditDevice(_ device: DeviceWithState) {

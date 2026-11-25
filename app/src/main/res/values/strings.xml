@@ -142,4 +142,16 @@
     <string name="local_network_instructions">Go to Settings → Apps → Illumidel → Permissions → Nearby devices</string>
     <string name="local_network_allow_access">Allow Access</string>
 
+    <!-- IllumiDEL: controller list -->
+    <string name="il_update_badge">Update</string>
+    <string name="il_status_on">On</string>
+    <string name="il_status_off">Off</string>
+    <string name="il_status_offline">Offline</string>
+    <string name="il_summary">%1$d controllers · %2$d on</string>
+    <string name="il_turn_all_off">Turn all off</string>
+    <string name="il_turn_all_on">Turn all on</string>
+    <string name="il_update_prompt_title">Update <xliff:g example="v1.6.0" id="version">%1$s</xliff:g> available</string>
+    <string name="il_update_prompt_one"><xliff:g example="Kitchen" id="device_name">%1$s</xliff:g> can be updated.</string>
+    <string name="il_update_prompt_many"><xliff:g example="3" id="count">%1$d</xliff:g> controllers can be updated. Open each one to install it.</string>
+    <string name="il_update_prompt_see">See update</string>
 </resources>

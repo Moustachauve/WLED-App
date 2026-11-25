@@ -175,6 +175,7 @@ dependencies {
     implementation(libs.semver)
     implementation(libs.kermit)
     implementation(libs.compose.material.icons)
+    implementation(libs.play.review.ktx)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.selfie.runner.junit5)
     testImplementation(libs.mockk)

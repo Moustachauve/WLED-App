@@ -1893,6 +1893,176 @@
           }
         }
       }
+    },
+    "Update" : {
+      "comment" : "IllumiDEL controller list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mise à jour"
+          }
+        }
+      }
+    },
+    "Brightness" : {
+      "comment" : "IllumiDEL controller list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brightness"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luminosité"
+          }
+        }
+      }
+    },
+    "%lld controllers · %lld on" : {
+      "comment" : "IllumiDEL controller list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld controllers · %lld on"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld contrôleurs · %lld allumés"
+          }
+        }
+      }
+    },
+    "Turn all off" : {
+      "comment" : "IllumiDEL controller list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn all off"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout éteindre"
+          }
+        }
+      }
+    },
+    "Turn all on" : {
+      "comment" : "IllumiDEL controller list",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn all on"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout allumer"
+          }
+        }
+      }
+    },
+    "Update %@ available" : {
+      "comment" : "IllumiDEL update popup",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update %@ available"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mise à jour %@ disponible"
+          }
+        }
+      }
+    },
+    "See update" : {
+      "comment" : "IllumiDEL update popup",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See update"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voir la mise à jour"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "comment" : "IllumiDEL update popup",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus tard"
+          }
+        }
+      }
+    },
+    "%@ can be updated." : {
+      "comment" : "IllumiDEL update popup",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ can be updated."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ peut être mis à jour."
+          }
+        }
+      }
+    },
+    "%lld controllers can be updated. Open each one to install it." : {
+      "comment" : "IllumiDEL update popup",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld controllers can be updated. Open each one to install it."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld contrôleurs peuvent être mis à jour. Ouvrez-les un à la fois pour l'installer."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

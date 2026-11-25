@@ -1,17 +1,24 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.list
 
 import android.util.Log
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
@@ -39,13 +46,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Device
@@ -53,7 +64,10 @@ import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.PartitionedDevices
 import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
+import ca.cgagnier.wlednativeandroid.ui.InAppReview
+import ca.cgagnier.wlednativeandroid.ui.UpdatePrompt
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
+import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
 import ca.cgagnier.wlednativeandroid.util.openUriSafely
 import kotlinx.coroutines.delay
@@ -61,6 +75,9 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private const val TAG = "screen_DeviceList"
+private const val REVIEW_PROMPT_DELAY_MS = 4000L
+private const val IL_SUMMARY_COLOR_HEX = 0xFF8FA3BF
+private val IlSummaryColor = Color(IL_SUMMARY_COLOR_HEX)
 
 data class DeviceListState(
     val allDevices: List<DeviceWithState>,
@@ -118,6 +135,12 @@ fun DeviceList(
             currentTime = System.currentTimeMillis()
         }
     }
+
+    DeviceListPrompts(
+        allDevices = allDevices,
+        isInitialLoading = isInitialLoading,
+        onEditDevice = actions.onItemEdit,
+    )
 
     DeviceListContent(
         state = DeviceListState(
@@ -185,8 +208,7 @@ fun DeviceListContent(state: DeviceListState, actions: DeviceListActions = Devic
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 6.dp)
-                    .clip(shape = MaterialTheme.shapes.large),
+                    .padding(horizontal = 16.dp),
             ) {
                 deviceListItems(
                     state = state,
@@ -276,6 +298,15 @@ private fun LazyListScope.populatedDeviceListItems(
             )
         }
     }
+    item(key = "il_summary") {
+        val online = partitioned.visible.filter { it.isOnline }
+        SummaryBar(
+            total = partitioned.visible.size,
+            onCount = online.count { it.stateInfo?.state?.isOn == true },
+            hasOnlineDevices = online.isNotEmpty(),
+            onAllPower = { isOn -> online.forEach { actions.onPowerSwitchToggle(it, isOn) } },
+        )
+    }
     if (state.showOfflineDevicesLast) {
         onlineOfflineDevicesList(
             onlineDevices = partitioned.online,
@@ -341,7 +372,12 @@ fun LazyListScope.onlineOfflineDevicesList(
     }
     if (offlineDevices.isNotEmpty()) {
         item(key = "offline_label") {
-            Text(stringResource(R.string.offline_devices))
+            Text(
+                stringResource(R.string.offline_devices),
+                color = IlSummaryColor,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 10.dp),
+            )
         }
         itemsIndexed(
             offlineDevices,
@@ -496,4 +532,112 @@ fun ConfirmDeleteDialog(device: DeviceWithState? = null, onConfirm: () -> Unit, 
             }
         })
     }
+}
+
+@Composable
+private fun DeviceListPrompts(
+    allDevices: List<DeviceWithState>,
+    isInitialLoading: Boolean,
+    onEditDevice: (DeviceWithState) -> Unit,
+) {
+    // Popup when a controller can get a new IllumiDEL firmware (see UpdatePrompt for the rules)
+    val context = LocalContext.current
+    var updatePrompt by remember { mutableStateOf<UpdatePrompt.Prompt?>(null) }
+    LaunchedEffect(allDevices) {
+        if (updatePrompt == null) {
+            UpdatePrompt.check(context, allDevices)?.let {
+                UpdatePrompt.markShown(context, it.tag)
+                updatePrompt = it
+            }
+        }
+    }
+    updatePrompt?.let { prompt ->
+        UpdatePromptDialog(
+            prompt = prompt,
+            onSeeUpdate = {
+                updatePrompt = null
+                prompt.devices.firstOrNull()?.let(onEditDevice)
+            },
+            onDismiss = { updatePrompt = null },
+        )
+    }
+
+    // Ask for a Play Store rating a few seconds after the list is shown (see InAppReview for the rules)
+    val activity = LocalActivity.current
+    LaunchedEffect(isInitialLoading) {
+        if (!isInitialLoading && activity != null) {
+            delay(REVIEW_PROMPT_DELAY_MS)
+            // Never stack the rating sheet on top of the update popup
+            if (!UpdatePrompt.shownThisSession) {
+                InAppReview.maybeAsk(activity, allDevices.size)
+            }
+        }
+    }
+}
+
+// "6 controllers · 5 on"   [ Turn all off ]
+@Composable
+private fun SummaryBar(total: Int, onCount: Int, hasOnlineDevices: Boolean, onAllPower: (isOn: Boolean) -> Unit) {
+    val anyOn = onCount > 0
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 10.dp),
+    ) {
+        Text(
+            stringResource(R.string.il_summary, total, onCount),
+            color = IlSummaryColor,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .height(36.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                .clickable(enabled = hasOnlineDevices) { onAllPower(!anyOn) }
+                .padding(horizontal = 14.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.il_ic_power),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                stringResource(if (anyOn) R.string.il_turn_all_off else R.string.il_turn_all_on),
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdatePromptDialog(prompt: UpdatePrompt.Prompt, onSeeUpdate: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.il_update_prompt_title, prompt.tag)) },
+        text = {
+            val single = prompt.devices.singleOrNull()
+            Text(
+                if (single != null) {
+                    stringResource(R.string.il_update_prompt_one, deviceName(single.device))
+                } else {
+                    stringResource(R.string.il_update_prompt_many, prompt.devices.size)
+                },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onSeeUpdate) { Text(stringResource(R.string.il_update_prompt_see)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.later)) }
+        },
+    )
 }

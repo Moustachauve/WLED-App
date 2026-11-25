@@ -140,4 +140,16 @@
     <string name="local_network_instructions">Aller dans Paramètres → Applications → Illumidel → Autorisations → Appareils à proximité</string>
     <string name="local_network_allow_access">Autoriser l\'accès</string>
 
+    <!-- IllumiDEL : liste des contrôleurs -->
+    <string name="il_update_badge">Mise à jour</string>
+    <string name="il_status_on">Allumé</string>
+    <string name="il_status_off">Éteint</string>
+    <string name="il_status_offline">Hors ligne</string>
+    <string name="il_summary">%1$d contrôleurs · %2$d allumés</string>
+    <string name="il_turn_all_off">Tout éteindre</string>
+    <string name="il_turn_all_on">Tout allumer</string>
+    <string name="il_update_prompt_title">Mise à jour <xliff:g example="v1.6.0" id="version">%1$s</xliff:g> disponible</string>
+    <string name="il_update_prompt_one"><xliff:g example="Cuisine" id="device_name">%1$s</xliff:g> peut être mis à jour.</string>
+    <string name="il_update_prompt_many"><xliff:g example="3" id="count">%1$d</xliff:g> contrôleurs peuvent être mis à jour. Ouvrez-les un à la fois pour l\'installer.</string>
+    <string name="il_update_prompt_see">Voir la mise à jour</string>
 </resources>

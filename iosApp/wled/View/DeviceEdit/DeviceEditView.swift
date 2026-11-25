@@ -132,16 +132,8 @@ struct DeviceEditView: View {
                 .animation(.default, value: device.availableUpdateVersion)
                 .animation(.default, value: viewModel.isCheckingForUpdates)
 
-                if let betaVersion = viewModel.availableBetaVersion {
-                    BetaUpdateAvailableCard(
-                        betaVersion: betaVersion,
-                        isOnline: device.isOnline,
-                        onTryBeta: {
-                            viewModel.showBetaDisclaimerSheet = true
-                        }
-                    )
-                    .padding(.top, 4)
-                }
+                // IllumiDEL: the "Try the new beta version" card (move to the cloud app) is hidden in this app.
+                // To bring it back, show BetaUpdateAvailableCard here again with viewModel.availableBetaVersion.
 
                 Text("Mac Address: \(device.device.macAddress)")
                     .font(.caption)

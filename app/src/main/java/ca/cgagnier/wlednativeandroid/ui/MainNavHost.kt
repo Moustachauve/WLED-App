@@ -3,7 +3,6 @@ package ca.cgagnier.wlednativeandroid.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -20,8 +19,13 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.DeviceListDetailActions
 import ca.cgagnier.wlednativeandroid.ui.settingsScreen.Settings
 import kotlinx.serialization.Serializable
 
-private const val ILLUMIDEL_GRADIENT_MID_HEX = 0xFF003765
-private val IllumidelGradientMidColor = Color(ILLUMIDEL_GRADIENT_MID_HEX)
+// IllumiDEL navy background (same as the iOS list and the V1 web page)
+private const val ILLUMIDEL_NAVY_TOP_HEX = 0xFF12305A
+private const val ILLUMIDEL_NAVY_MID_HEX = 0xFF0A1222
+private const val ILLUMIDEL_NAVY_BOTTOM_HEX = 0xFF070B14
+private val IllumidelNavyTop = Color(ILLUMIDEL_NAVY_TOP_HEX)
+private val IllumidelNavyMid = Color(ILLUMIDEL_NAVY_MID_HEX)
+private val IllumidelNavyBottom = Color(ILLUMIDEL_NAVY_BOTTOM_HEX)
 
 @Serializable
 data object DeviceListDetailKey : NavKey
@@ -38,11 +42,7 @@ fun MainNavHost(
         modifier = Modifier
             .background(
                 brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.surface,
-                        IllumidelGradientMidColor,
-                        MaterialTheme.colorScheme.surface,
-                    ),
+                    colors = listOf(IllumidelNavyTop, IllumidelNavyMid, IllumidelNavyBottom),
                 ),
             )
             .fillMaxSize(),

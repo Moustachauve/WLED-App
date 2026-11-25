@@ -3,6 +3,12 @@ import SwiftUI
 
 @main
 struct WLEDNativeApp: App {
+    init() {
+        if !Self.isRunningUnitTests {
+            ReviewPrompt.recordLaunch()
+        }
+    }
+
     /// Set by xcodebuild when the app is launched as a unit test host. In that case the real UI is skipped so
     /// tests don't open live device connections, run discovery, or fetch releases from GitHub.
     private static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
