@@ -6,7 +6,7 @@ description: Diagnose and optimize Android Jetpack Compose UI code. Use this ski
 license: Complete terms in LICENSE.txt
 metadata:
   author: Google LLC
-  last-updated: '2026-10-13'
+  last-updated: '2026-11-18'
   keywords:
   - Jetpack Compose
   - performance
@@ -75,7 +75,7 @@ place:
   - **When to Leave Untouched** : For all other existing `@Stable`, `@Immutable`, or `ImmutableList` usages in a codebase---such as non-lazy UI models, standalone components, or models with small/bounded collections (e.g., a card with a few badges, thumbnails, or metadata rows) where dataset size is small or unknown---**leave the existing
     annotations untouched and do not flag them** . Never blindly grep and flag all `@Stable`/`@Immutable` classes across a codebase without verifying they feed a lazy layout with a large dataset.
 - **When to Add `@Stable` / `@Immutable` Under Strong Skipping Mode** : Flat `data class`es with `val` primitive/`String` properties in Compose modules are **already inferred as stable** by the compiler and use `.equals()` automatically---do not add redundant `@Immutable` annotations to them. Only add `@Stable` or `@Immutable` when the compiler cannot infer stability (e.g. classes from non-Compose modules or interfaces) **and** a data source (such as Room or MVI reducers) allocates new object instances for unchanged items on every emission, **provided** the class is small, flat, has no collections (`List`, `Set`, `Map`), and its `.equals()` check is trivial `O(1)`.
-- **Make Composables Cheaper Instead of Forcing Skipping**: Do not overindex on recomposition counts. Skipping one composable during an active recomposition pass saves little time once composition is scheduled (leaving the house is the bulk of the cost). Focus on making composables cheap to execute, deferring state reads to Layout/Draw, and verifying with benchmarks rather than assuming skipping improves performance.
+- **Make Composables Cheaper Instead of Forcing Skipping**: Do not overindex on recomposition counts. Skipping one composable during an active recomposition pass saves little time once composition is scheduled (scheduling and starting the recomposition pass is the bulk of the cost). Focus on making composables cheap to execute, deferring state reads to Layout/Draw, and verifying with benchmarks rather than assuming skipping improves performance.
 
 ## 2. Layouts and measurement optimization ([references/layouts.md](references/layouts.md))
 
@@ -95,7 +95,7 @@ place:
 **MUST** read [references/lazy-layouts.md](references/lazy-layouts.md).
 
 - **Lazy Layout Scope Guard** : Directives for `key` and `contentType` apply **strictly** to Lazy containers (`LazyColumn`, `LazyRow`, `LazyGrid`). Never flag standard non-lazy containers (`Column`, `Row`, `Box`) iterating over collections.
-- **Mandatory `contentType` and Primitive `key`** : Always specify both primitive `key`s (`Int`, `Long`, `String`) **and** `contentType`s for all items in lazy layouts (`LazyColumn`, `LazyRow`, `LazyGrid`). When using `items` or `itemsIndexed`, never omit `contentType`: `contentType = { _, item -> item.type }`. Omitting `contentType` prevents Compose from reusing composition slots during scrolling.
+- **Mandatory `contentType` and Primitive `key`** : Always specify both primitive `key`s (`Int`, `Long`, `String`) **and** `contentType`s for all items in lazy layouts (`LazyColumn`, `LazyRow`, `LazyGrid`). Never omit `contentType`: use `contentType = { item -> item.type }` with `items` and `contentType = { _, item -> item.type }` with `itemsIndexed`. Omitting `contentType` prevents Compose from reusing composition slots during scrolling.
 - **In-Item Index Lookups** : Replace `list.indexOf(item)` with `itemsIndexed` to eliminate `O(N²)` lookups during layout passes.
 - **Observable Selection \& State Queries** : Convert selection tracking from `mutableStateListOf` to an immutable `Set` in `MutableState` (`mutableStateOf(emptySet<String>())`), `mutableStateSetOf()`, or Map for `O(1)` lookups. Pass lambda providers (`isSelected: () -> Boolean`) to leaf composables to isolate recomposition from parent `items` scopes.
 - **Propagate CompositionLocals in Lazy Items** : Avoid querying `CompositionLocal`s (`LocalContext.current`, `LocalDensity.current`, `LocalSharedTransitionScope.current`, scopes, etc.) inside individual lazy item composables; resolve them once in the parent container or screen and propagate the resolved values down as parameters.
@@ -117,7 +117,7 @@ place:
 - **Lambda Providers** : Pass lambda providers (`() -> Float`) instead of raw animated values to child composables to keep state reads deferred to Draw or Layout.
 - **Persistent `Animatable` in Nodes** : Store `Animatable` as a persistent member property on `Modifier.Node` and launch in `onAttach()` using `coroutineScope.launch`.
 
-## 5. Effects, lifecycle, and threading ([effects-and-threading.md](references/effects-and-threading.md))
+## 5. Effects, lifecycle, and threading ([references/effects-and-threading.md](references/effects-and-threading.md))
 
 **MANDATORY** : Before flagging or fixing any issue in this category, you
 **MUST** read [references/effects-and-threading.md](references/effects-and-threading.md).
@@ -127,7 +127,7 @@ place:
   1.12`, `SideEffect` takes no arguments, so check the project's Compose version and track key changes with a `remember`ed holder inside `SideEffect { ... }`).
 - **Cache Allocations in Body** : Wrap heavy object allocations (such as date formatters or complex paths) and expensive computations in `remember`.
 - **Combine Related `LaunchedEffect`s** : Combine multiple `LaunchedEffect(Unit)` calls into a single `LaunchedEffect` with nested `launch { ... }` blocks to reduce effect node allocations and coroutine launcher overhead.
-- **Effect Ordering \& Teardown Costs** : Respect effect execution order (`DisposableEffect` \> `SideEffect` \> Layout and Draw \> `LaunchedEffect` after frame). Note that canceling a `LaunchedEffect` incurs coroutine cancellation and teardown overhead; avoid cycling `LaunchedEffect` keys frequently during animations or scrolling.
+- **Effect Ordering \& Teardown Costs** : Understand effect execution order when composition changes are applied (`DisposableEffect` runs first, then `SideEffect`, while `LaunchedEffect` launches a coroutine on the composition's `CoroutineContext` that is dispatched asynchronously and is not guaranteed to wait until after Draw). Note that canceling a `LaunchedEffect` incurs coroutine cancellation and teardown overhead; avoid cycling `LaunchedEffect` keys frequently during animations or scrolling.
 - **Main Thread Offloading** : Offload blocking I/O, heavy file parsing, and database operations to `withContext(Dispatchers.IO)` using `produceState`.
 - **No Item-Level Impression Effects in Lazy Layouts** : Never use `LaunchedEffect` or `DisposableEffect` inside lazy items for impression logging. Lazy items are pre-composed before entering the viewport, causing premature or false impressions. Use `Modifier.onVisibilityChanged` with dwell thresholds instead.
 - **Lifecycle-Aware Flow Collection** : Use `collectAsStateWithLifecycle()` for UI Flow collections that actively produce background work on Android, and `collectAsState()` for lightweight in-memory StateFlows or non-Android scopes.
