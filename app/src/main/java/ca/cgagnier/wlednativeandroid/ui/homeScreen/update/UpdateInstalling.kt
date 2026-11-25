@@ -16,7 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -240,7 +240,7 @@ private fun UpdateInstallingStatus(modifier: Modifier = Modifier, step: UpdateIn
     when (step) {
         is UpdateInstallingStep.Starting -> LoadingIndicator(modifier = modifier)
 
-        is UpdateInstallingStep.Downloading -> CircularProgressIndicator(
+        is UpdateInstallingStep.Downloading -> CircularWavyProgressIndicator(
             modifier = modifier,
             progress = { step.progress / 100f },
         )

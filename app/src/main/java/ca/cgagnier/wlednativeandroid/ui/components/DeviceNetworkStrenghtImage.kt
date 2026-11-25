@@ -1,9 +1,9 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
@@ -30,7 +30,7 @@ internal fun WifiSignalLevel.toIconRes(): Int = when (this) {
 }
 
 @Composable
-fun deviceNetworkStrengthImage(device: DeviceWithState) {
+fun deviceNetworkStrengthImage(device: DeviceWithState, modifier: Modifier = Modifier) {
     val stateInfo = device.stateInfo
     val rssi = stateInfo?.info?.wifi?.rssi ?: -101
     val signalLevel = WifiSignalLevel.fromRssi(
@@ -55,13 +55,14 @@ fun deviceNetworkStrengthImage(device: DeviceWithState) {
             }
         },
         state = rememberTooltipState(),
+        modifier = modifier,
     ) {
         Icon(
             painter = painterResource(signalLevel.toIconRes()),
             contentDescription = stringResource(R.string.network_status),
             modifier = Modifier
                 .padding(start = 4.dp)
-                .height(16.dp)
+                .size(16.dp)
                 .offset(y = (-2).dp),
         )
     }

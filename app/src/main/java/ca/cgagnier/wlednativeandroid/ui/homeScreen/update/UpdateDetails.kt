@@ -6,7 +6,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlexAlignItems
+import androidx.compose.foundation.layout.FlexBox
+import androidx.compose.foundation.layout.FlexJustifyContent
+import androidx.compose.foundation.layout.FlexWrap
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -41,7 +46,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -227,6 +231,7 @@ private fun BinaryDropdown(
 @Composable
 private fun BinaryDropdownAnchor(value: String, expanded: Boolean, modifier: Modifier = Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
+    val textFieldState = remember(value) { TextFieldState(value) }
     Box(
         modifier = modifier
             .semantics(mergeDescendants = true) {}
@@ -236,20 +241,11 @@ private fun BinaryDropdownAnchor(value: String, expanded: Boolean, modifier: Mod
         contentAlignment = Alignment.CenterStart,
         propagateMinConstraints = true,
     ) {
-        OutlinedTextFieldDefaults.DecorationBox(
-            value = value,
-            innerTextField = {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
+        val decorator = OutlinedTextFieldDefaults.decorator(
+            state = textFieldState,
             enabled = true,
-            singleLine = true,
-            visualTransformation = VisualTransformation.None,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            outputTransformation = null,
             interactionSource = interactionSource,
             label = {
                 Text(
@@ -268,6 +264,15 @@ private fun BinaryDropdownAnchor(value: String, expanded: Boolean, modifier: Mod
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
         )
+        decorator.Decoration {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -294,15 +299,23 @@ private fun ReleaseNotesContent(markdown: String, modifier: Modifier = Modifier)
 
 @Composable
 private fun StandardDetailsFooter(mode: UpdateDetailsMode.Standard, onDismiss: (() -> Unit)?, onInstall: () -> Unit) {
-    FlowRow(
+    FlexBox(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
+        config = {
+            wrap(FlexWrap.Wrap)
+            gap(row = 4.dp, column = 8.dp)
+            justifyContent(FlexJustifyContent.End)
+            alignItems(FlexAlignItems.Center)
+        },
     ) {
-        Box(modifier = Modifier.weight(1f)) {
+        Box(
+            modifier = Modifier.flex {
+                grow(1f)
+                shrink(0f)
+            },
+        ) {
             TextButton(onClick = mode.onSkip) {
                 Text(
                     text = stringResource(R.string.skip_this_version),
@@ -311,14 +324,20 @@ private fun StandardDetailsFooter(mode: UpdateDetailsMode.Standard, onDismiss: (
             }
         }
         if (onDismiss != null) {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.flex { shrink(0f) },
+            ) {
                 Text(
                     text = stringResource(R.string.later),
                     maxLines = 1,
                 )
             }
         }
-        Button(onClick = onInstall) {
+        Button(
+            onClick = onInstall,
+            modifier = Modifier.flex { shrink(0f) },
+        ) {
             Text(
                 text = stringResource(R.string.install),
                 maxLines = 1,

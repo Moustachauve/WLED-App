@@ -1,7 +1,7 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -23,15 +23,15 @@ private fun getBatteryImage(batteryPercentage: Double): Int = when {
 }
 
 @Composable
-fun deviceBatteryPercentageImage(device: DeviceWithState) {
+fun deviceBatteryPercentageImage(device: DeviceWithState, modifier: Modifier = Modifier) {
     val stateInfo = device.stateInfo
     val batteryPercentage = stateInfo?.info?.userMods?.batteryPercentage
     if (batteryPercentage != null) {
         Icon(
             painter = painterResource(getBatteryImage(batteryPercentage)),
             contentDescription = stringResource(R.string.battery_percentage),
-            modifier = Modifier
-                .height(16.dp)
+            modifier = modifier
+                .size(16.dp)
                 .offset(y = (-1).dp),
         )
     }
