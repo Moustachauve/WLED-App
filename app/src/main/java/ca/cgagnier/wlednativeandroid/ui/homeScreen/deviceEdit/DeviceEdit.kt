@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -11,9 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,25 +30,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,6 +73,7 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import org.koin.androidx.compose.koinViewModel
 
 /**
@@ -169,12 +177,12 @@ fun DeviceEditContent(
                     .verticalScroll(rememberScrollState())
                     .padding(12.dp),
             ) {
+                val addressState = remember(device.device.address) { TextFieldState(device.device.address) }
                 OutlinedTextField(
-                    value = device.device.address,
+                    state = addressState,
                     enabled = false,
-                    onValueChange = {},
                     label = { Text(stringResource(R.string.ip_address_or_url)) },
-                    singleLine = true,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 CustomNameTextField(device.device, actions.onCustomNameChange)
@@ -271,7 +279,7 @@ fun DeviceEditAppBar(
     )
 }
 
-/** Stable / Beta segmented button row. */
+/** Stable / Beta connected toggle button group. */
 @Composable
 private fun BranchSelector(
     options: List<Pair<Branch, String>>,
@@ -285,15 +293,20 @@ private fun BranchSelector(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.titleMedium,
         )
-        SingleChoiceSegmentedButtonRow {
+        Row(
+            modifier = Modifier.selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+        ) {
             options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = options.size,
-                    ),
-                    onClick = { onBranchChange(option.first) },
-                    selected = option.first == selectedBranch,
+                ToggleButton(
+                    checked = option.first == selectedBranch,
+                    onCheckedChange = { checked -> if (checked) onBranchChange(option.first) },
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                    modifier = Modifier.semantics { role = Role.RadioButton },
                 ) {
                     Text(text = option.second)
                 }
@@ -421,24 +434,29 @@ private fun DeviceOfflineStatus() {
 @Composable
 private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit) {
     val deviceName = device.customName
-    var inputText by remember(device.macAddress) { mutableStateOf(TextFieldValue(deviceName)) }
+    val inputState = key(device.macAddress) { rememberTextFieldState(initialText = deviceName) }
+    val currentDeviceName by rememberUpdatedState(deviceName)
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+
     OutlinedTextField(
-        value = inputText,
-        onValueChange = { inputText = it },
+        state = inputState,
         label = { Text(stringResource(R.string.custom_name)) },
         supportingText = {
             Text(stringResource(R.string.leave_this_empty_to_use_the_device_name))
         },
-        singleLine = true,
+        lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 4.dp),
     )
-    LaunchedEffect(device.macAddress, inputText.text) {
-        if (deviceName == inputText.text) return@LaunchedEffect
-        delay(800)
-        onValueChange(inputText.text)
+    LaunchedEffect(device.macAddress, inputState) {
+        snapshotFlow { inputState.text.toString() }
+            .collectLatest { text ->
+                if (currentDeviceName == text) return@collectLatest
+                delay(800)
+                currentOnValueChange(text)
+            }
     }
 }
 

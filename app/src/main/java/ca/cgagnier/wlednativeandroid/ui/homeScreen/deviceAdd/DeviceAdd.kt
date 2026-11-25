@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,7 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -114,15 +118,21 @@ private fun step1AddressForm(
         FocusRequester()
     }
     val focusManager = LocalFocusManager.current
+    val addressState = rememberTextFieldState(initialText = state.address)
+    val currentAddress by rememberUpdatedState(state.address)
+    val currentViewModel by rememberUpdatedState(viewModel)
 
     LaunchedEffect("initialFocus") {
         focusRequester.requestFocus()
     }
+    LaunchedEffect(addressState) {
+        snapshotFlow { addressState.text.toString() }
+            .collect { address ->
+                if (address != currentAddress) currentViewModel.setAddress(address)
+            }
+    }
     OutlinedTextField(
-        value = state.address,
-        onValueChange = {
-            viewModel.setAddress(it)
-        },
+        state = addressState,
         label = { Text(stringResource(R.string.ip_address_or_url)) },
         isError = step.addressError != null,
         supportingText = {
@@ -130,37 +140,38 @@ private fun step1AddressForm(
                 Text(stringResource(step.addressError))
             }
         },
-        singleLine = true,
+        lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(
             imeAction = ImeAction.Next,
             keyboardType = KeyboardType.Uri,
         ),
-        keyboardActions = KeyboardActions(
-            onNext = {
-                focusManager.moveFocus(FocusDirection.Down)
-            },
-        ),
+        onKeyboardAction = {
+            focusManager.moveFocus(FocusDirection.Down)
+        },
         modifier = Modifier
             .fillMaxWidth()
             .focusRequester(focusRequester),
     )
 
+    AddressFormActions(
+        onCancel = onDismissRequest,
+        onAdd = {
+            viewModel.setAddress(addressState.text.toString())
+            viewModel.submitCreateDevice()
+        },
+    )
+}
+
+@Composable
+private fun AddressFormActions(onCancel: () -> Unit, onAdd: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
-        TextButton(
-            onClick = {
-                onDismissRequest()
-            },
-        ) {
+        TextButton(onClick = onCancel) {
             Text(stringResource(R.string.cancel))
         }
-        Button(
-            onClick = {
-                viewModel.submitCreateDevice()
-            },
-        ) {
+        Button(onClick = onAdd) {
             Icon(
                 painter = painterResource(R.drawable.baseline_add_24),
                 contentDescription = stringResource(R.string.add_a_device),
