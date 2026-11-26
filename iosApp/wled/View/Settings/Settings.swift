@@ -5,7 +5,7 @@ struct Settings: View {
     @Binding var showOfflineDevicesLast: Bool
     @Binding var autoDiscovery: Bool
     /// Injectable so snapshot tests don't change with every release.
-    var appVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "7.0.0"
+    var appVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "8.0.0"
     var buildNumber: String = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
 
     @Environment(\.dismiss) private var dismiss

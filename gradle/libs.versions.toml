@@ -1,7 +1,7 @@
 [versions]
 # App version - Update these when releasing
-app-versionCode = "46"
-app-versionName = "7.0.0"
+app-versionCode = "47"
+app-versionName = "8.0.0"
 
 agp = "9.5.0"
 activityCompose = "1.13.0"
