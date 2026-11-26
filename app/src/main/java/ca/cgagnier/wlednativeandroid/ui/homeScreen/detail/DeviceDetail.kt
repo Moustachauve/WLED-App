@@ -57,7 +57,7 @@ fun DeviceDetail(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
-                            .offset(y = 2.dp),
+                            .offset(y = 3.dp),
                     )
                 }
             }
