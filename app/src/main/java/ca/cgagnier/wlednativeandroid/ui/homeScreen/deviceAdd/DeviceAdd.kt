@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -85,13 +85,12 @@ fun DeviceAdd(
 
                 when (state.step) {
                     is DeviceAddStep.Form -> step1AddressForm(
-                        state = state,
                         step = state.step,
                         viewModel = viewModel,
                         onDismissRequest = dismissRequest,
                     )
 
-                    is DeviceAddStep.Adding -> step2Loading(state)
+                    is DeviceAddStep.Adding -> step2Loading(address = viewModel.addressState.text.toString())
 
                     is DeviceAddStep.Success -> step3Complete(
                         step = state.step,
@@ -104,12 +103,7 @@ fun DeviceAdd(
 }
 
 @Composable
-private fun step1AddressForm(
-    state: DeviceAddState,
-    step: DeviceAddStep.Form,
-    viewModel: DeviceAddViewModel,
-    onDismissRequest: () -> Unit,
-) {
+private fun step1AddressForm(step: DeviceAddStep.Form, viewModel: DeviceAddViewModel, onDismissRequest: () -> Unit) {
     val focusRequester = remember {
         FocusRequester()
     }
@@ -119,10 +113,7 @@ private fun step1AddressForm(
         focusRequester.requestFocus()
     }
     OutlinedTextField(
-        value = state.address,
-        onValueChange = {
-            viewModel.setAddress(it)
-        },
+        state = viewModel.addressState,
         label = { Text(stringResource(R.string.ip_address_or_url)) },
         isError = step.addressError != null,
         supportingText = {
@@ -130,37 +121,35 @@ private fun step1AddressForm(
                 Text(stringResource(step.addressError))
             }
         },
-        singleLine = true,
+        lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(
             imeAction = ImeAction.Next,
             keyboardType = KeyboardType.Uri,
         ),
-        keyboardActions = KeyboardActions(
-            onNext = {
-                focusManager.moveFocus(FocusDirection.Down)
-            },
-        ),
+        onKeyboardAction = {
+            focusManager.moveFocus(FocusDirection.Down)
+        },
         modifier = Modifier
             .fillMaxWidth()
             .focusRequester(focusRequester),
     )
 
+    AddressFormActions(
+        onCancel = onDismissRequest,
+        onAdd = { viewModel.submitCreateDevice() },
+    )
+}
+
+@Composable
+private fun AddressFormActions(onCancel: () -> Unit, onAdd: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
-        TextButton(
-            onClick = {
-                onDismissRequest()
-            },
-        ) {
+        TextButton(onClick = onCancel) {
             Text(stringResource(R.string.cancel))
         }
-        Button(
-            onClick = {
-                viewModel.submitCreateDevice()
-            },
-        ) {
+        Button(onClick = onAdd) {
             Icon(
                 painter = painterResource(R.drawable.baseline_add_24),
                 contentDescription = stringResource(R.string.add_a_device),
@@ -172,12 +161,12 @@ private fun step1AddressForm(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun step2Loading(state: DeviceAddState) {
+private fun step2Loading(address: String) {
     LoadingIndicator(
         modifier = Modifier.size(48.dp),
     )
     Text(
-        stringResource(R.string.add_adding_device, state.address),
+        stringResource(R.string.add_adding_device, address),
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(12.dp),
         maxLines = 1,
