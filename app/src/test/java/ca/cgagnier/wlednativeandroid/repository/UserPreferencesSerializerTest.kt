@@ -38,7 +38,7 @@ class UserPreferencesSerializerTest {
             showHiddenDevices = true,
             lastChangelogVersionSeen = "1.5.0",
             holidayThemesEnabled = false,
-            holidayThemeOverride = HolidayTheme.Christmas,
+            holidayThemeOverride = HolidayTheme.WinterHolidays,
         )
 
         val buffer = Buffer()

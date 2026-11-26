@@ -5,7 +5,7 @@ import ca.cgagnier.wlednativeandroid.shared.currentLocalDate
 object HolidayThemeResolver {
     val holidays: List<HolidayDefinition> = listOf(
         HolidayDefinition(
-            theme = HolidayTheme.Christmas,
+            theme = HolidayTheme.WinterHolidays,
             dateRange = HolidayDateRange(
                 start = CalendarDate(month = 12, dayOfMonth = 1),
                 end = CalendarDate(month = 12, dayOfMonth = 28),

@@ -178,8 +178,8 @@ class UserPreferencesRepositoryTest {
 
     @Test
     fun updateHolidayThemeOverride_updatesFlow() = withRepository { repo ->
-        repo.updateHolidayThemeOverride(HolidayTheme.Christmas)
-        assertEquals(HolidayTheme.Christmas, repo.holidayThemeOverride.first())
+        repo.updateHolidayThemeOverride(HolidayTheme.WinterHolidays)
+        assertEquals(HolidayTheme.WinterHolidays, repo.holidayThemeOverride.first())
 
         repo.updateHolidayThemeOverride(HolidayTheme.NewYear)
         assertEquals(HolidayTheme.NewYear, repo.holidayThemeOverride.first())
