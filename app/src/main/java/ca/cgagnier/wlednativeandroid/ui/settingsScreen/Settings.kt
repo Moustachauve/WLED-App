@@ -1,10 +1,12 @@
 package ca.cgagnier.wlednativeandroid.ui.settingsScreen
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +34,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -43,6 +49,8 @@ fun Settings(navigateUp: () -> Unit, viewModel: SettingsViewModel = koinViewMode
             setAutoDiscover = { viewModel.setAutoDiscover(it) },
             setShowOfflineDevicesLast = { viewModel.setShowOfflineDevicesLast(it) },
             setTheme = { viewModel.setTheme(it) },
+            setHolidayThemesEnabled = { viewModel.setHolidayThemesEnabled(it) },
+            setHolidayThemeOverride = { viewModel.setHolidayThemeOverride(it) },
             setSoundSyncBetaEnabled = { viewModel.setSoundSyncBetaEnabled(it) },
         )
     }
@@ -63,6 +71,8 @@ data class SettingsActions(
     val setAutoDiscover: (Boolean) -> Unit = {},
     val setShowOfflineDevicesLast: (Boolean) -> Unit = {},
     val setTheme: (ThemeSettings) -> Unit = {},
+    val setHolidayThemesEnabled: (Boolean) -> Unit = {},
+    val setHolidayThemeOverride: (HolidayTheme?) -> Unit = {},
     val setSoundSyncBetaEnabled: (Boolean) -> Unit = {},
 )
 
@@ -76,16 +86,20 @@ fun SettingsContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            DeviceSettingsAppBar(
-                navigateUp = navigateUp,
-            )
+            Column {
+                DeviceSettingsAppBar(
+                    navigateUp = navigateUp,
+                )
+                HolidayStringLightsBar()
+            }
         },
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .fillMaxWidth()
-                .padding(innerPadding),
+                .fillMaxSize()
+                .padding(innerPadding)
+                .holidayParticles()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             OneOrTwoColumnLayout(
@@ -101,15 +115,21 @@ fun SettingsContent(
                         setAutoDiscover = actions.setAutoDiscover,
                         setShowOfflineDevicesLast = actions.setShowOfflineDevicesLast,
                     )
+                    BetaOptions(
+                        isSoundSyncBetaEnabled = settingsState.isSoundSyncBetaEnabled,
+                        setSoundSyncBetaEnabled = actions.setSoundSyncBetaEnabled,
+                    )
                 },
                 secondColumn = {
                     ThemeOptions(
                         currentTheme = settingsState.theme,
                         setTheme = actions.setTheme,
                     )
-                    BetaOptions(
-                        isSoundSyncBetaEnabled = settingsState.isSoundSyncBetaEnabled,
-                        setSoundSyncBetaEnabled = actions.setSoundSyncBetaEnabled,
+                    HolidayThemeOptions(
+                        isHolidayThemesEnabled = settingsState.isHolidayThemesEnabled,
+                        holidayThemeOverride = settingsState.holidayThemeOverride,
+                        setHolidayThemesEnabled = actions.setHolidayThemesEnabled,
+                        setHolidayThemeOverride = actions.setHolidayThemeOverride,
                     )
                 },
             )
@@ -141,7 +161,7 @@ fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Uni
         modifier = Modifier.clickable { onCheckedChange(!checked) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 label,
                 style = MaterialTheme.typography.bodyMedium,
@@ -232,6 +252,53 @@ fun ThemeOptions(currentTheme: ThemeSettings, setTheme: (ThemeSettings) -> Unit 
                         setTheme(theme.first)
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun HolidayThemeOptions(
+    isHolidayThemesEnabled: Boolean,
+    holidayThemeOverride: HolidayTheme?,
+    setHolidayThemesEnabled: (Boolean) -> Unit = {},
+    setHolidayThemeOverride: (HolidayTheme?) -> Unit = {},
+) {
+    val overrideOptions = listOf(
+        Pair<HolidayTheme?, String>(null, stringResource(R.string.holiday_theme_automatic)),
+        Pair(HolidayTheme.WinterHolidays, stringResource(R.string.holiday_theme_winter_holidays)),
+        Pair(HolidayTheme.NewYear, stringResource(R.string.holiday_theme_new_year)),
+    )
+    Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                stringResource(R.string.holiday_themes),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            SwitchRow(
+                label = stringResource(R.string.enable_holiday_themes),
+                checked = isHolidayThemesEnabled,
+                onCheckedChange = setHolidayThemesEnabled,
+                description = stringResource(R.string.enable_holiday_themes_description),
+            )
+            AnimatedVisibility(visible = isHolidayThemesEnabled) {
+                Column {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                        stringResource(R.string.holiday_theme_override),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                    overrideOptions.forEach { (themeOption, label) ->
+                        RadioRow(
+                            label = label,
+                            checked = holidayThemeOverride == themeOption,
+                            onSelected = { setHolidayThemeOverride(themeOption) },
+                        )
+                    }
+                }
             }
         }
     }

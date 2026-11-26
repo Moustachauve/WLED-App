@@ -80,6 +80,8 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsContent
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsMode
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -166,25 +168,33 @@ private fun FirmwareBrowserListPane(
             navigateUp = navigateUp,
             onRefresh = viewModel::refreshSelectedRepository,
         )
-        RepositoryDropdown(
-            uiState = uiState,
-            installedRepoId = installedRepoId,
-            onSelect = viewModel::selectRepository,
-        )
-        if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
-            SourceSwitchWarningBanner(selectedRepo.name)
+        HolidayStringLightsBar()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .holidayParticles(),
+        ) {
+            RepositoryDropdown(
+                uiState = uiState,
+                installedRepoId = installedRepoId,
+                onSelect = viewModel::selectRepository,
+            )
+            if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
+                SourceSwitchWarningBanner(selectedRepo.name)
+            }
+            BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
+            VersionListSection(
+                uiState = uiState,
+                highlightSelection = highlightSelection,
+                onRefresh = viewModel::refreshSelectedRepository,
+                onVersionClick = { item ->
+                    viewModel.selectVersion(item)
+                    onOpenDetail()
+                },
+                modifier = Modifier.weight(1f),
+            )
         }
-        BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
-        VersionListSection(
-            uiState = uiState,
-            highlightSelection = highlightSelection,
-            onRefresh = viewModel::refreshSelectedRepository,
-            onVersionClick = { item ->
-                viewModel.selectVersion(item)
-                onOpenDetail()
-            },
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 
@@ -197,7 +207,13 @@ private fun FirmwareBrowserDetailPane(
 ) {
     val selected = uiState.selectedVersion
     if (selected == null) {
-        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .holidayParticles()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = stringResource(R.string.select_a_version_from_the_list),
                 style = MaterialTheme.typography.bodyLarge,
@@ -215,6 +231,7 @@ private fun FirmwareBrowserDetailPane(
             canNavigateBack = canNavigateBack,
             navigateBack = navigateBack,
         )
+        HolidayStringLightsBar()
         Card(
             modifier = Modifier
                 .weight(1f)
@@ -222,16 +239,22 @@ private fun FirmwareBrowserDetailPane(
                 .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         ) {
-            UpdateDetailsContent(
-                device = uiState.device,
-                version = selected.versionWithAssets,
-                mode = UpdateDetailsMode.BinaryPicker(
-                    installableAssets = selected.installableAssets,
-                    selectedAsset = selected.selectedAsset,
-                    onSelectAsset = viewModel::selectBinaryAsset,
-                ),
-                onInstall = { viewModel.requestInstallSelectedVersion() },
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .holidayParticles(),
+            ) {
+                UpdateDetailsContent(
+                    device = uiState.device,
+                    version = selected.versionWithAssets,
+                    mode = UpdateDetailsMode.BinaryPicker(
+                        installableAssets = selected.installableAssets,
+                        selectedAsset = selected.selectedAsset,
+                        onSelectAsset = viewModel::selectBinaryAsset,
+                    ),
+                    onInstall = { viewModel.requestInstallSelectedVersion() },
+                )
+            }
         }
     }
 }

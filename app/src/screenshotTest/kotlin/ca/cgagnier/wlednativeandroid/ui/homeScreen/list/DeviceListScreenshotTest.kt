@@ -3,6 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.list
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.model.wledapi.DeviceStateInfo
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
@@ -27,6 +28,33 @@ class DeviceListScreenshotTest {
     @Composable
     fun DeviceListDarkPreview() {
         WLEDNativeTheme(darkTheme = true, dynamicColor = false) {
+            DeviceListContent(state = createTestDeviceListState())
+        }
+    }
+
+    @PreviewTest
+    @Preview(showBackground = true)
+    @Composable
+    fun DeviceListWinterHolidaysLightPreview() {
+        WLEDNativeTheme(darkTheme = false, dynamicColor = false, holidayTheme = HolidayTheme.WinterHolidays) {
+            DeviceListContent(state = createTestDeviceListState())
+        }
+    }
+
+    @PreviewTest
+    @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+    @Composable
+    fun DeviceListWinterHolidaysDarkPreview() {
+        WLEDNativeTheme(darkTheme = true, dynamicColor = false, holidayTheme = HolidayTheme.WinterHolidays) {
+            DeviceListContent(state = createTestDeviceListState())
+        }
+    }
+
+    @PreviewTest
+    @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+    @Composable
+    fun DeviceListNewYearDarkPreview() {
+        WLEDNativeTheme(darkTheme = true, dynamicColor = false, holidayTheme = HolidayTheme.NewYear) {
             DeviceListContent(state = createTestDeviceListState())
         }
     }

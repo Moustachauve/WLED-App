@@ -53,6 +53,8 @@ import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -155,21 +157,7 @@ fun ConfigurationScreen(
     onDeviceSelected: (Device) -> Unit,
 ) {
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(stringResource(R.string.select_a_device))
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.baseline_arrow_back_24),
-                            contentDescription = stringResource(R.string.description_back_button),
-                        )
-                    }
-                },
-            )
-        },
+        topBar = { ConfigurationTopBar(onNavigateBack = onNavigateBack) },
     ) { padding ->
         when {
             devices == null -> Unit
@@ -179,6 +167,7 @@ fun ConfigurationScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
+                        .holidayParticles()
                         .padding(24.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -195,9 +184,10 @@ fun ConfigurationScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(padding)
+                        .holidayParticles()
                         .consumeWindowInsets(padding)
                         .selectableGroup(),
-                    contentPadding = padding,
                 ) {
                     items(devices, key = { it.macAddress }) { device ->
                         DeviceItem(
@@ -210,6 +200,26 @@ fun ConfigurationScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ConfigurationTopBar(onNavigateBack: () -> Unit) {
+    Column {
+        TopAppBar(
+            title = {
+                Text(stringResource(R.string.select_a_device))
+            },
+            navigationIcon = {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        painter = painterResource(R.drawable.baseline_arrow_back_24),
+                        contentDescription = stringResource(R.string.description_back_button),
+                    )
+                }
+            },
+        )
+        HolidayStringLightsBar()
     }
 }
 

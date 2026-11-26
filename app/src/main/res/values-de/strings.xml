@@ -207,4 +207,13 @@
     <string name="no_installable_binaries">Keine installierbaren Firmware-Dateien in dieser Version</string>
     <string name="select_a_version_from_the_list">Wähle eine Firmware-Version aus der Liste</string>
 
+    <!-- Holiday Themes -->
+    <string name="holiday_themes">Feiertagsthemen</string>
+    <string name="enable_holiday_themes">Feiertagsthemen aktivieren</string>
+    <string name="enable_holiday_themes_description">Saisonale Animationen und festliche Akzente an Feiertagen anzeigen.</string>
+    <string name="holiday_theme_override">Feiertagsthema festlegen</string>
+    <string name="holiday_theme_automatic">Automatisch</string>
+    <string name="holiday_theme_winter_holidays">Winterfeiertage</string>
+    <string name="holiday_theme_new_year">Neujahr</string>
+
 </resources>

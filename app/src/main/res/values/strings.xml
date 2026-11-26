@@ -208,4 +208,13 @@
     <string name="no_installable_binaries">No installable firmware binaries in this release</string>
     <string name="select_a_version_from_the_list">Select a firmware version from the list</string>
 
+    <!-- Holiday Themes -->
+    <string name="holiday_themes">Holiday Themes</string>
+    <string name="enable_holiday_themes">Enable Holiday Themes</string>
+    <string name="enable_holiday_themes_description">Show seasonal animations and festive accents during holidays.</string>
+    <string name="holiday_theme_override">Holiday Theme Override</string>
+    <string name="holiday_theme_automatic">Automatic</string>
+    <string name="holiday_theme_winter_holidays">Winter Holidays</string>
+    <string name="holiday_theme_new_year">New Year</string>
+
 </resources>

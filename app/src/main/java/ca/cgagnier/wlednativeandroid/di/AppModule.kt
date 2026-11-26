@@ -153,7 +153,9 @@ val appModule: Module = module {
         )
     }
     viewModelOf(::ChangelogViewModel)
-    viewModelOf(::ThemeViewModel)
+    viewModel {
+        ThemeViewModel(preferencesRepository = get())
+    }
     viewModel {
         UpdateInstallingViewModel(
             repositoryDao = get(),
