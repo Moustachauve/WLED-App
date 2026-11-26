@@ -17,7 +17,9 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
-  "soundSyncBetaEnabled": false
+  "soundSyncBetaEnabled": false,
+  "holidayThemesEnabled": true,
+  "holidayThemeOverride": null
 }
 ╔═ readFrom_partialJson_usesDefaultValuesForMissingFields ═╗
 {
@@ -38,7 +40,9 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
-  "soundSyncBetaEnabled": false
+  "soundSyncBetaEnabled": false,
+  "holidayThemesEnabled": true,
+  "holidayThemeOverride": null
 }
 ╔═ readFrom_unknownKeys_ignoresThemGracefully ═╗
 {
@@ -59,7 +63,9 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
-  "soundSyncBetaEnabled": false
+  "soundSyncBetaEnabled": false,
+  "holidayThemesEnabled": true,
+  "holidayThemeOverride": null
 }
 ╔═ roundTrip_serializesAndDeserializesCorrectly ═╗
 {
@@ -80,6 +86,8 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
-  "soundSyncBetaEnabled": false
+  "soundSyncBetaEnabled": false,
+  "holidayThemesEnabled": false,
+  "holidayThemeOverride": "Christmas"
 }
 ╔═ [end of file] ═╗

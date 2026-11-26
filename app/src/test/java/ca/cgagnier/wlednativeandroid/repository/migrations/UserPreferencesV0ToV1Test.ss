@@ -17,6 +17,8 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
-  "soundSyncBetaEnabled": false
+  "soundSyncBetaEnabled": false,
+  "holidayThemesEnabled": true,
+  "holidayThemeOverride": null
 }
 ╔═ [end of file] ═╗

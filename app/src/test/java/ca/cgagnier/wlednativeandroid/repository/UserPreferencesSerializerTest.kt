@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.CorruptionException
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.test.TestJson
 import com.diffplug.selfie.Selfie.expectSelfie
@@ -36,6 +37,8 @@ class UserPreferencesSerializerTest {
             dateLastWritten = 1710000010L,
             showHiddenDevices = true,
             lastChangelogVersionSeen = "1.5.0",
+            holidayThemesEnabled = false,
+            holidayThemeOverride = HolidayTheme.Christmas,
         )
 
         val buffer = Buffer()
@@ -103,5 +106,16 @@ class UserPreferencesSerializerTest {
         assertEquals(AgcMode.NORMAL, deserialized.soundSyncAgcMode)
         assertEquals(ThemeSettings.Dark, deserialized.theme)
         assertEquals(false, deserialized.automaticDiscovery)
+    }
+
+    @Test
+    fun readFrom_unknownHolidayThemeOverride_coercesToNullAndPreservesOtherFields() = runTest {
+        val json = """{"theme":"Dark","holidayThemesEnabled":false,"holidayThemeOverride":"HALLOWEEN"}"""
+        val buffer = Buffer().writeUtf8(json)
+        val deserialized = serializer.readFrom(buffer)
+
+        assertEquals(null, deserialized.holidayThemeOverride)
+        assertEquals(false, deserialized.holidayThemesEnabled)
+        assertEquals(ThemeSettings.Dark, deserialized.theme)
     }
 }
