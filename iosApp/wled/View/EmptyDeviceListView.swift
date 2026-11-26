@@ -42,7 +42,7 @@ struct EmptyDeviceListView: View {
                 VStack {
                     Text("Some of your devices are hidden")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Button {
                         withAnimation {
