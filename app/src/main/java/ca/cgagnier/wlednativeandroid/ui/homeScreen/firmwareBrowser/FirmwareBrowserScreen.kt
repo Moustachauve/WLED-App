@@ -1,6 +1,5 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.firmwareBrowser
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +12,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -26,9 +27,10 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
@@ -36,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -344,16 +347,17 @@ private fun FirmwareBrowserListTopBar(
 @Composable
 private fun RepositoryDropdown(uiState: FirmwareBrowserUiState, installedRepoId: Long?, onSelect: (Long) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    val selectedRepoName = uiState.selectedRepository?.name.orEmpty()
+    val repoNameState = remember(selectedRepoName) { TextFieldState(selectedRepoName) }
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         OutlinedTextField(
-            value = uiState.selectedRepository?.name.orEmpty(),
-            onValueChange = {},
+            state = repoNameState,
             readOnly = true,
-            singleLine = true,
+            lineLimits = TextFieldLineLimits.SingleLine,
             label = { Text(stringResource(R.string.update_source)) },
             supportingText = uiState.selectedRepository?.let { repo ->
                 {
@@ -414,8 +418,8 @@ private fun SourceSwitchWarningBanner(sourceName: String) {
         ListItem(
             colors = ListItemDefaults.colors(
                 containerColor = Color.Transparent,
-                leadingIconColor = MaterialTheme.colorScheme.onErrorContainer,
-                headlineColor = MaterialTheme.colorScheme.onErrorContainer,
+                leadingContentColor = MaterialTheme.colorScheme.onErrorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
             ),
             leadingContent = {
                 Icon(
@@ -424,13 +428,12 @@ private fun SourceSwitchWarningBanner(sourceName: String) {
                     modifier = Modifier.size(20.dp),
                 )
             },
-            headlineContent = {
-                Text(
-                    text = stringResource(R.string.switching_source_warning, sourceName),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            },
-        )
+        ) {
+            Text(
+                text = stringResource(R.string.switching_source_warning, sourceName),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 
@@ -466,23 +469,24 @@ private fun VersionListSection(
     val listState = key(uiState.selectedRepositoryId, uiState.selectedBranch) { rememberLazyListState() }
     val selectedVersion = uiState.selectedVersion?.versionWithAssets?.version
     Column(modifier = modifier.fillMaxSize()) {
-        if (uiState.isLoadingVersions) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        if (uiState.isLoadingVersions) LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
         ) {
-            items(
+            itemsIndexed(
                 items = uiState.versions,
-                key = { "${it.version.repositoryId}:${it.version.tagName}" },
-                contentType = { "version" },
-            ) { item ->
+                key = { _, item -> "${item.version.repositoryId}:${item.version.tagName}" },
+                contentType = { _, _ -> "version" },
+            ) { index, item ->
                 val isSelected = highlightSelection &&
                     selectedVersion?.repositoryId == item.version.repositoryId &&
                     selectedVersion.tagName == item.version.tagName
                 VersionRowCard(
                     item = item,
+                    shapes = ListItemDefaults.segmentedShapes(index = index, count = uiState.versions.size),
                     isInstalled = item.version.tagName in uiState.installedTags,
                     isSelected = isSelected,
                     onClick = { onVersionClick(item) },
@@ -536,35 +540,37 @@ private fun EmptyVersionsPlaceholder(
 }
 
 @Composable
-private fun VersionRowCard(item: VersionWithAssets, isInstalled: Boolean, isSelected: Boolean, onClick: () -> Unit) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainer
-    }
-    Card(
+private fun VersionRowCard(
+    item: VersionWithAssets,
+    shapes: ListItemShapes,
+    isInstalled: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    SegmentedListItem(
+        selected = isSelected,
         onClick = onClick,
+        shapes = shapes,
+        colors = ListItemDefaults.segmentedColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            selectedSupportingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
         modifier = Modifier.fillMaxWidth(),
-        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        supportingContent = item.version.displaySubtitle.takeIf { it.isNotEmpty() }?.let { subtitle ->
+            { Text(text = subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        },
+        trailingContent = if (isInstalled) {
+            { InstalledBadge() }
+        } else {
+            null
+        },
     ) {
-        ListItem(
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            headlineContent = {
-                Text(
-                    text = item.version.tagName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                )
-            },
-            supportingContent = item.version.displaySubtitle.takeIf { it.isNotEmpty() }?.let { subtitle ->
-                { Text(text = subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            },
-            trailingContent = if (isInstalled) {
-                { InstalledBadge() }
-            } else {
-                null
-            },
+        Text(
+            text = item.version.tagName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
 }
