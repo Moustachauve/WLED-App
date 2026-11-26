@@ -88,6 +88,6 @@
   "soundSyncPort": 11988,
   "soundSyncBetaEnabled": false,
   "holidayThemesEnabled": false,
-  "holidayThemeOverride": "Christmas"
+  "holidayThemeOverride": "WinterHolidays"
 }
 ╔═ [end of file] ═╗

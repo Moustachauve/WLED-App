@@ -8,14 +8,14 @@ import kotlin.test.assertNull
 class HolidayThemeResolverTest {
 
     @Test
-    fun resolveForDate_christmasRange_returnsChristmas() {
+    fun resolveForDate_winterHolidaysRange_returnsWinterHolidays() {
         listOf(
             CalendarDate(month = 12, dayOfMonth = 1),
             CalendarDate(month = 12, dayOfMonth = 15),
             CalendarDate(month = 12, dayOfMonth = 25),
             CalendarDate(month = 12, dayOfMonth = 28),
         ).forEach { date ->
-            assertEquals(HolidayTheme.Christmas, HolidayThemeResolver.resolveForDate(date), "date=$date")
+            assertEquals(HolidayTheme.WinterHolidays, HolidayThemeResolver.resolveForDate(date), "date=$date")
         }
     }
 
@@ -48,7 +48,7 @@ class HolidayThemeResolverTest {
     fun resolve_whenDisabled_returnsNullEvenWithOverrideAndActiveDate() {
         val result = HolidayThemeResolver.resolve(
             enabled = false,
-            override = HolidayTheme.Christmas,
+            override = HolidayTheme.WinterHolidays,
             date = CalendarDate(month = 12, dayOfMonth = 25),
         )
         assertNull(result)
@@ -57,10 +57,10 @@ class HolidayThemeResolverTest {
     @Test
     fun resolve_whenEnabledWithOverride_returnsOverrideOutsideHolidayDate() {
         assertEquals(
-            HolidayTheme.Christmas,
+            HolidayTheme.WinterHolidays,
             HolidayThemeResolver.resolve(
                 enabled = true,
-                override = HolidayTheme.Christmas,
+                override = HolidayTheme.WinterHolidays,
                 date = CalendarDate(month = 7, dayOfMonth = 15),
             ),
         )
@@ -77,7 +77,7 @@ class HolidayThemeResolverTest {
     @Test
     fun resolve_whenEnabledWithNullOverride_delegatesToCalendarDate() {
         listOf(
-            CalendarDate(month = 12, dayOfMonth = 25) to HolidayTheme.Christmas,
+            CalendarDate(month = 12, dayOfMonth = 25) to HolidayTheme.WinterHolidays,
             CalendarDate(month = 1, dayOfMonth = 1) to HolidayTheme.NewYear,
             CalendarDate(month = 6, dayOfMonth = 1) to null,
         ).forEach { (date, expected) ->

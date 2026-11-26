@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class HolidayTheme {
-    Christmas,
+    WinterHolidays,
     NewYear,
 }
 
