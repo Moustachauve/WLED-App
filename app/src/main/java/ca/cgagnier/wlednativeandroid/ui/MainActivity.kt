@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition {
-            themeViewModel.theme.value == null
+            themeViewModel.themeState.value == null
         }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -79,6 +79,11 @@ class MainActivity : ComponentActivity() {
             }
         }
         viewModel.downloadUpdateMetadata()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        themeViewModel.refreshDate()
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.settingsScreen
 
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncManager
@@ -20,7 +21,9 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -32,6 +35,8 @@ class SettingsViewModelTest {
     private val preferencesRepository: UserPreferencesRepository = mockk(relaxed = true)
     private val soundSyncManager: SoundSyncManager = mockk(relaxed = true)
     private val soundSyncBetaEnabledFlow = MutableStateFlow(false)
+    private val holidayThemesEnabledFlow = MutableStateFlow(true)
+    private val holidayThemeOverrideFlow = MutableStateFlow<HolidayTheme?>(null)
 
     @BeforeEach
     fun setUp() {
@@ -40,6 +45,8 @@ class SettingsViewModelTest {
         every { preferencesRepository.autoDiscovery } returns flowOf(true)
         every { preferencesRepository.showOfflineDevicesLast } returns flowOf(true)
         every { preferencesRepository.showHiddenDevices } returns flowOf(false)
+        every { preferencesRepository.holidayThemesEnabled } returns holidayThemesEnabledFlow
+        every { preferencesRepository.holidayThemeOverride } returns holidayThemeOverrideFlow
         every { preferencesRepository.soundSyncBetaEnabled } returns soundSyncBetaEnabledFlow
     }
 
@@ -89,5 +96,55 @@ class SettingsViewModelTest {
 
         verify(exactly = 1) { soundSyncManager.stop() }
         coVerify { preferencesRepository.updateSoundSyncBetaEnabled(false) }
+    }
+
+    @Test
+    fun `settingsState reflects holidayThemesEnabled flow`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.settingsState.collect()
+        }
+
+        assertTrue(viewModel.settingsState.value.isHolidayThemesEnabled)
+
+        holidayThemesEnabledFlow.value = false
+        advanceUntilIdle()
+
+        assertFalse(viewModel.settingsState.value.isHolidayThemesEnabled)
+    }
+
+    @Test
+    fun `settingsState reflects holidayThemeOverride flow`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.settingsState.collect()
+        }
+
+        assertNull(viewModel.settingsState.value.holidayThemeOverride)
+
+        holidayThemeOverrideFlow.value = HolidayTheme.NewYear
+        advanceUntilIdle()
+
+        assertEquals(HolidayTheme.NewYear, viewModel.settingsState.value.holidayThemeOverride)
+    }
+
+    @Test
+    fun `setHolidayThemesEnabled updates preference`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.setHolidayThemesEnabled(false)
+        advanceUntilIdle()
+
+        coVerify { preferencesRepository.updateHolidayThemesEnabled(false) }
+    }
+
+    @Test
+    fun `setHolidayThemeOverride updates preference`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.setHolidayThemeOverride(HolidayTheme.WinterHolidays)
+        advanceUntilIdle()
+
+        coVerify { preferencesRepository.updateHolidayThemeOverride(HolidayTheme.WinterHolidays) }
     }
 }

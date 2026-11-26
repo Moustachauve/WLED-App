@@ -205,4 +205,13 @@
     <string name="no_installable_binaries">此版本中没有可安装的固件文件</string>
     <string name="select_a_version_from_the_list">从列表中选择一个固件版本</string>
 
+    <!-- Holiday Themes -->
+    <string name="holiday_themes">节日主题</string>
+    <string name="enable_holiday_themes">启用节日主题</string>
+    <string name="enable_holiday_themes_description">在节日期间显示季节性动画和节日点缀。</string>
+    <string name="holiday_theme_override">固定节日主题</string>
+    <string name="holiday_theme_automatic">自动</string>
+    <string name="holiday_theme_winter_holidays">冬季节日</string>
+    <string name="holiday_theme_new_year">新年</string>
+
 </resources>

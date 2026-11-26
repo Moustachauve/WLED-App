@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.BuildConfig
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import ca.cgagnier.wlednativeandroid.util.openUriSafely
 
 @Composable
@@ -34,9 +37,13 @@ internal fun DrawerContent(showHiddenDevices: Boolean, showSoundSync: Boolean = 
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier.verticalScroll(scrollState),
+        modifier = Modifier
+            .fillMaxSize()
+            .holidayParticles()
+            .verticalScroll(scrollState),
     ) {
         DrawerHeader()
+        HolidayStringLightsBar()
         DrawerMainActions(showHiddenDevices, showSoundSync, actions)
         HorizontalDivider(modifier = Modifier.padding(12.dp))
         DrawerExternalLinks(uriHandler)

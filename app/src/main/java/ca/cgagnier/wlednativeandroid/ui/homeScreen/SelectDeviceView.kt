@@ -16,6 +16,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 
 @Composable
 fun SelectDeviceView() {
@@ -28,6 +29,7 @@ fun SelectDeviceView() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .holidayParticles()
                 .padding(top = 44.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

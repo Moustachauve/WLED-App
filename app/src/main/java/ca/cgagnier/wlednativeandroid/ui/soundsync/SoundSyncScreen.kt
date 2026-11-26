@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -96,6 +97,8 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.androidx.compose.koinViewModel
@@ -230,15 +233,21 @@ fun SoundSyncContent(
     actions: SoundSyncActions = SoundSyncActions(),
 ) {
     Scaffold(
-        topBar = { SoundSyncTopBar(navigateUp = actions.navigateUp) },
+        topBar = {
+            Column {
+                SoundSyncTopBar(navigateUp = actions.navigateUp)
+                HolidayStringLightsBar()
+            }
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .fillMaxWidth(),
+                .holidayParticles()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
