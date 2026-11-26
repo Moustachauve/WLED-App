@@ -304,9 +304,26 @@ struct DeviceListView: View {
             NavigationStack(path: navigation.detailPathBinding) {
                 DeviceView(device: device)
             }
+        } else if viewModel.visibleDevices.isEmpty {
+            ContentUnavailableView {
+                placeholderAkemi
+            }
         } else {
-            ContentUnavailableView("Select A Device", systemImage: "lightbulb.led")
+            ContentUnavailableView {
+                VStack(spacing: 12) {
+                    placeholderAkemi
+                    Text("Select A Device")
+                }
+            }
         }
+    }
+
+    private var placeholderAkemi: some View {
+        Image(.akemi042CheerfulRgb)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 120)
+            .accessibilityHidden(true)
     }
 }
 
