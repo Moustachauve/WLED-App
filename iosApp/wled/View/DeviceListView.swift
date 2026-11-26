@@ -304,10 +304,26 @@ struct DeviceListView: View {
             NavigationStack(path: navigation.detailPathBinding) {
                 DeviceView(device: device)
             }
+        } else if viewModel.visibleDevices.isEmpty {
+            ContentUnavailableView {
+                placeholderAkemi
+            }
         } else {
-            Text("Select A Device")
-                .font(.title2)
+            ContentUnavailableView {
+                VStack(spacing: 12) {
+                    placeholderAkemi
+                    Text("Select A Device")
+                }
+            }
         }
+    }
+
+    private var placeholderAkemi: some View {
+        Image(.akemi042CheerfulRgb)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 120)
+            .accessibilityHidden(true)
     }
 }
 
@@ -465,7 +481,7 @@ struct ConfirmDeleteDeviceDialog: View {
                 .onTapGesture(perform: onCancel)
                 .accessibilityHidden(true)
 
-            Card {
+            dialogContainer {
                 Text("Delete Device?")
                     .font(.title3.bold())
 
@@ -484,11 +500,25 @@ struct ConfirmDeleteDeviceDialog: View {
                 }
             }
             .frame(maxWidth: 360)
-            .shadow(radius: 20)
             .padding(.horizontal, 24)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
             .accessibilityAction(.escape, onCancel)
+        }
+    }
+
+    @ViewBuilder
+    private func dialogContainer<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
+        if #available(iOS 26.0, *) {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        } else {
+            Card(content: content)
+                .shadow(radius: 20)
         }
     }
 }

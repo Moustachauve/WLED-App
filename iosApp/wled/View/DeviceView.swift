@@ -55,11 +55,9 @@ struct DeviceView: View {
             if showDownloadFinished {
                 VStack {
                     Spacer()
-                    Text("Download Completed")
+                    Label("Download Completed", systemImage: "checkmark.circle.fill")
                         .font(.title3)
-                        .padding()
-                        .background(.regularMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                        .adaptiveToastSurface()
                         .padding(.bottom)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -98,15 +96,14 @@ struct DeviceView: View {
         ToolbarItem(placement: .principal) {
             DeviceInfoTwoRows(device: device)
         }
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button("Refresh", systemImage: "arrow.clockwise", action: refreshWebView)
+
             NavigationLink(value: DeviceDetailRoute.edit(deviceId: device.id)) {
                 Label("Settings", systemImage: "gear")
-                // This badge only works on iOS 26+, but that's fine.
+                    // This badge only works on iOS 26+, but that's fine.
                     .badge(getToolbarBadgeCount())
             }
-        }
-        ToolbarItem(placement: .automatic) {
-            Button("Refresh", systemImage: "arrow.clockwise", action: refreshWebView)
         }
     }
 
@@ -150,6 +147,21 @@ private struct IndeterminateProgressBar: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func adaptiveToastSurface() -> some View {
+        if #available(iOS 26.0, *) {
+            padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .glassEffect(.regular, in: .capsule)
+        } else {
+            padding()
+                .background(.regularMaterial)
+                .clipShape(.rect(cornerRadius: 15))
+        }
     }
 }
 

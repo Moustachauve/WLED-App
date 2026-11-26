@@ -91,10 +91,8 @@ struct DeviceUpdateDetails: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .safeAreaInset(edge: .bottom) {
+        .updateFooterBar {
             footerBar
-                .padding()
-                .background(.bar)
         }
         .navigationTitle("Version \(versionWithAssets?.version.tagName ?? targetTagName ?? "")")
         .fullScreenCover(
@@ -113,7 +111,7 @@ struct DeviceUpdateDetails: View {
                 ) {
                     didCompleteInstall = true
                 }
-                .background(BackgroundBlurView())
+                .presentationBackground(.ultraThinMaterial)
             }
         )
         .task(id: loadTaskId) {
@@ -156,6 +154,7 @@ struct DeviceUpdateDetails: View {
             Button("Skip This Version") {
                 skipVersion()
             }
+            .adaptiveGlassButtonStyle()
 
             Spacer()
 
@@ -207,7 +206,7 @@ struct DeviceUpdateDetails: View {
         Button(titleKey) {
             showWarningDialog = true
         }
-        .buttonStyle(.borderedProminent)
+        .adaptiveGlassProminentButtonStyle()
         .disabled(!isEnabled)
         .confirmationDialog("Are you sure?", isPresented: $showWarningDialog) {
             Button("Install Now", role: isSwitchingSource ? .destructive : nil) {
@@ -247,13 +246,10 @@ struct DeviceUpdateDetails: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(.quaternary, lineWidth: 1)
-            )
+            .adaptiveGlassPickerBackground()
         }
         .disabled(installableAssets.isEmpty)
         .accessibilityLabel("Firmware Binary")
@@ -337,6 +333,57 @@ struct DeviceUpdateDetails: View {
             version: versionWithAssets,
             asset: selectedAsset
         )
+    }
+}
+
+// MARK: - Adaptive Liquid Glass Helpers
+
+extension View {
+    @ViewBuilder
+    fileprivate func updateFooterBar<BarContent: View>(@ViewBuilder content: () -> BarContent) -> some View {
+        if #available(iOS 26.0, *) {
+            safeAreaBar(edge: .bottom) {
+                content()
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+            }
+        } else {
+            safeAreaInset(edge: .bottom) {
+                content()
+                    .padding()
+                    .background(.bar)
+            }
+        }
+    }
+
+    @ViewBuilder
+    fileprivate func adaptiveGlassPickerBackground() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            background(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(.quaternary, lineWidth: 1)
+            )
+        }
+    }
+
+    @ViewBuilder
+    fileprivate func adaptiveGlassButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            buttonStyle(.glass)
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    fileprivate func adaptiveGlassProminentButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            buttonStyle(.glassProminent)
+        } else {
+            buttonStyle(.borderedProminent)
+        }
     }
 }
 

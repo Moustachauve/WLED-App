@@ -45,11 +45,7 @@ struct ChangelogSheetView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 4)
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .tint(palette.primary.swiftUIColor)
-                .foregroundStyle(palette.onPrimary.swiftUIColor)
-                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                .adaptiveAwesomeButtonStyle(palette: palette)
                 .padding(.trailing, 12)
                 .padding(.bottom, 16)
             }
@@ -217,6 +213,22 @@ struct ChangelogColorPalette: Sendable {
                 surface: ChangelogRGBColor(red: 0xF1 / 255.0, green: 0xF3 / 255.0, blue: 0xF9 / 255.0),
                 cardSurface: ChangelogRGBColor(red: 0xE5 / 255.0, green: 0xE8 / 255.0, blue: 0xEE / 255.0)
             )
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func adaptiveAwesomeButtonStyle(palette: ChangelogColorPalette) -> some View {
+        if #available(iOS 26.0, *) {
+            buttonStyle(.glass)
+                .foregroundStyle(palette.primary.swiftUIColor)
+        } else {
+            buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(palette.primary.swiftUIColor)
+                .foregroundStyle(palette.onPrimary.swiftUIColor)
+                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
         }
     }
 }
