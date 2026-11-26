@@ -26,7 +26,7 @@ data class CalendarDate(val month: Int, val dayOfMonth: Int) {
     }
 }
 
-data class HolidayDateRange(val start: CalendarDate, val end: CalendarDate) {
+internal data class HolidayDateRange(val start: CalendarDate, val end: CalendarDate) {
     operator fun contains(date: CalendarDate): Boolean {
         val dateKey = date.monthDayKey
         val startKey = start.monthDayKey

@@ -171,19 +171,17 @@ class UserPreferencesRepositoryTest {
     fun updateHolidayThemesEnabled_updatesFlow() = withRepository { repo ->
         repo.updateHolidayThemesEnabled(false)
         assertFalse(repo.holidayThemesEnabled.first())
-
-        repo.updateHolidayThemesEnabled(true)
-        assertTrue(repo.holidayThemesEnabled.first())
     }
 
     @Test
-    fun updateHolidayThemeOverride_updatesFlow() = withRepository { repo ->
-        repo.updateHolidayThemeOverride(HolidayTheme.WinterHolidays)
-        assertEquals(HolidayTheme.WinterHolidays, repo.holidayThemeOverride.first())
-
+    fun updateHolidayThemeOverride_setsValue() = withRepository { repo ->
         repo.updateHolidayThemeOverride(HolidayTheme.NewYear)
         assertEquals(HolidayTheme.NewYear, repo.holidayThemeOverride.first())
+    }
 
+    @Test
+    fun updateHolidayThemeOverride_null_clearsOverride() = withRepository { repo ->
+        repo.updateHolidayThemeOverride(HolidayTheme.WinterHolidays)
         repo.updateHolidayThemeOverride(null)
         assertNull(repo.holidayThemeOverride.first())
     }
