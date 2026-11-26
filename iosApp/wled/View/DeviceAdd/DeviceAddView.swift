@@ -10,21 +10,27 @@ struct DeviceAddView: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
+            Group {
                 switch viewModel.currentStep {
                 case .form(let errorMessage):
                     DeviceAddStep1FormView(
                         viewModel: viewModel,
-                        errorMessage: errorMessage,
+                        errorMessage: errorMessage
                     )
                 case .adding:
-                    DeviceAddStep2LoadingView(address: viewModel.address)
+                    VStack {
+                        DeviceAddStep2LoadingView(address: viewModel.address)
+                        Spacer()
+                    }
+                    .padding()
                 case .success(let device):
-                    DeviceAddStep3Success(device: device)
+                    VStack {
+                        DeviceAddStep3Success(device: device)
+                        Spacer()
+                    }
+                    .padding()
                 }
-                Spacer()
             }
-            .padding()
             .animation(.easeInOut, value: viewModel.currentStep)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -33,7 +39,7 @@ struct DeviceAddView: View {
                     }
                 }
                 if viewModel.currentStep.isForm {
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItem(placement: .confirmationAction) {
                         Button("Add", systemImage: "checkmark") {
                             withAnimation {
                                 viewModel.submitCreateDevice()
@@ -57,31 +63,28 @@ struct DeviceAddStep1FormView: View {
     @FocusState private var focusedField: Field?
 
     let errorMessage: String
-    let state = DeviceAddViewModel.Step.self
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("IP Address or URL")
-            TextField("IP Address or URL", text: $viewModel.address)
-                .keyboardType(.URL)
-                .submitLabel(.done)
-                .textFieldStyle(.roundedBorder)
-                .focused($focusedField, equals: .address)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(
-                            errorMessage.isEmpty ? Color.clear : Color.red
-                        )
-                )
-                .onSubmit {
-                    withAnimation {
-                        viewModel.submitCreateDevice()
+        Form {
+            Section {
+                TextField("IP Address or URL", text: $viewModel.address)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .focused($focusedField, equals: .address)
+                    .onSubmit {
+                        withAnimation {
+                            viewModel.submitCreateDevice()
+                        }
                     }
+            } header: {
+                Text("IP Address or URL")
+            } footer: {
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
                 }
-            if !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .foregroundStyle(.red)
-                    .font(Font.caption.bold())
             }
         }
         .onAppear {
