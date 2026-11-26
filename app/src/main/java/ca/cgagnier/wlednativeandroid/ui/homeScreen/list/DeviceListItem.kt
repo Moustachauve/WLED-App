@@ -7,6 +7,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -29,8 +30,10 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +45,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -51,11 +55,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.SliderWithLabel
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.LocalHolidayTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardContainerColor
 import kotlin.math.roundToInt
+
+private const val SWIPE_TO_TRANSLUCENT_MS = 150
 
 @Composable
 fun DeviceListItem(
@@ -78,6 +87,7 @@ fun DeviceListItem(
     DeviceTheme(device) {
         val cardColor =
             if (isSelected) MaterialTheme.colorScheme.inversePrimary else MaterialTheme.colorScheme.surfaceContainer
+        val animatedCardColor = swipeCardContainerColor(cardColor, swipeToDismissBoxState)
 
         SwipeBox(
             modifier = modifier,
@@ -91,7 +101,8 @@ fun DeviceListItem(
                     .clip(CardDefaults.shape),
                 isSelected = isSelected,
                 colors = CardDefaults.cardColors(
-                    containerColor = cardColor,
+                    containerColor = animatedCardColor,
+                    contentColor = contentColorFor(cardColor),
                 ),
                 onClick = onClick,
             ) {
@@ -122,6 +133,25 @@ fun DeviceListItem(
             }
         }
     }
+}
+
+@Composable
+private fun swipeCardContainerColor(
+    baseColor: Color,
+    swipeToDismissBoxState: SwipeToDismissBoxState,
+    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
+): Color {
+    if (holidayTheme == null) return baseColor
+    val isSwiping by remember(swipeToDismissBoxState) {
+        derivedStateOf { swipeToDismissBoxState.dismissDirection != SwipeToDismissBoxValue.Settled }
+    }
+    val settledColor = holidayCardContainerColor(baseColor, holidayTheme = holidayTheme)
+    val animatedColor by animateColorAsState(
+        targetValue = if (isSwiping) baseColor else settledColor,
+        animationSpec = if (isSwiping) snap() else tween(durationMillis = SWIPE_TO_TRANSLUCENT_MS),
+        label = "DeviceCardContainerColor",
+    )
+    return if (isSwiping) baseColor else animatedColor
 }
 
 @Composable
@@ -167,6 +197,9 @@ private fun SwipeBox(
         state = swipeToDismissBoxState,
         onDismiss = onDismiss,
         backgroundContent = {
+            if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.Settled) {
+                return@SwipeToDismissBox
+            }
             val color by animateColorAsState(
                 when (swipeToDismissBoxState.targetValue) {
                     SwipeToDismissBoxValue.Settled -> MaterialTheme.colorScheme.surfaceDim

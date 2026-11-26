@@ -37,6 +37,7 @@ import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import org.koin.androidx.compose.koinViewModel
 
@@ -203,7 +204,10 @@ fun ListingOptions(
     setAutoDiscover: (Boolean) -> Unit,
     setShowOfflineDevicesLast: (Boolean) -> Unit,
 ) {
-    Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = holidayCardColors(),
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(R.string.listing_options),
@@ -237,7 +241,10 @@ fun ThemeOptions(currentTheme: ThemeSettings, setTheme: (ThemeSettings) -> Unit 
         Pair(ThemeSettings.Light, stringResource(R.string.light)),
         Pair(ThemeSettings.Auto, stringResource(R.string.system_default)),
     )
-    Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = holidayCardColors(),
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(R.string.theme),
@@ -269,7 +276,10 @@ fun HolidayThemeOptions(
         Pair(HolidayTheme.WinterHolidays, stringResource(R.string.holiday_theme_winter_holidays)),
         Pair(HolidayTheme.NewYear, stringResource(R.string.holiday_theme_new_year)),
     )
-    Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = holidayCardColors(),
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(R.string.holiday_themes),
@@ -306,7 +316,10 @@ fun HolidayThemeOptions(
 
 @Composable
 fun BetaOptions(isSoundSyncBetaEnabled: Boolean, setSoundSyncBetaEnabled: (Boolean) -> Unit = {}) {
-    Card(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = holidayCardColors(),
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(R.string.beta_features),

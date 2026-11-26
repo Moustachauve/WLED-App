@@ -81,6 +81,7 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsMode
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardContainerColor
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -575,8 +576,8 @@ private fun VersionRowCard(
         onClick = onClick,
         shapes = shapes,
         colors = ListItemDefaults.segmentedColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            containerColor = holidayCardContainerColor(MaterialTheme.colorScheme.surfaceContainer),
+            selectedContainerColor = holidayCardContainerColor(MaterialTheme.colorScheme.secondaryContainer),
             selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             selectedSupportingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ),

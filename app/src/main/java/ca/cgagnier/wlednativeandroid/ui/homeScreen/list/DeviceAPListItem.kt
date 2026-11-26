@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardContainerColor
 
 @Composable
 fun DeviceAPListItem(modifier: Modifier = Modifier, isSelected: Boolean = false, onClick: () -> Unit = {}) {
@@ -30,7 +32,8 @@ fun DeviceAPListItem(modifier: Modifier = Modifier, isSelected: Boolean = false,
         modifier = modifier
             .padding(bottom = 16.dp),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = cardColor,
+            containerColor = holidayCardContainerColor(cardColor),
+            contentColor = contentColorFor(cardColor),
         ),
         shape = MaterialTheme.shapes.extraLarge,
         onClick = onClick,
