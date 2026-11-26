@@ -22,96 +22,68 @@ struct DeviceEditView: View {
     // MARK: - body
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 10) {
+        Form {
+            Section {
                 Card(style: .device(color: device.currentColor)) {
                     DeviceInfoTwoRows(device: device)
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
 
-                VStack(alignment: .leading) {
-                    Text("Custom Name")
-                    TextField("Custom Name", text: $viewModel.customName)
-                        .submitLabel(.done)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                }
+            Section("Custom Name") {
+                TextField("Custom Name", text: $viewModel.customName)
+                    .submitLabel(.done)
+            }
 
+            Section {
                 Toggle("Hide this Device", isOn: $viewModel.hideDevice)
-                    .padding(.trailing, 2)
-                    .padding(.bottom)
 
-                HStack {
-                    Text("Update Channel")
-                    Spacer()
+                LabeledContent("Update Channel") {
                     Picker("Update Channel", selection: $viewModel.branch) {
                         ForEach(Branch.allCases.filter { $0 != .unknown }) { branch in
                             Text(LocalizedStringKey(branch.nameKey))
                                 .tag(branch)
-                                .padding()
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     .fixedSize()
                 }
-                .padding(.bottom)
-
-                Card {
-                    if !device.isOnline && device.stateInfo == nil {
-                        DeviceOfflineUpdateStatus()
-                    } else if (device.availableUpdateVersion ?? "").isEmpty {
-                        DeviceNoUpdateAvailable(
-                            device: device,
-                            isCheckingForUpdates: viewModel.isCheckingForUpdates
-                        ) {
-                            await viewModel.checkForUpdate()
-                        }
-                    } else {
-                        DeviceUpdateAvailable(device: device)
-                    }
-
-                    VStack(spacing: 0) {
-                        Divider()
-                        NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: device.id)) {
-                            HStack {
-                                Text("Other Versions & Sources")
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                                    .accessibilityHidden(true)
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if let repository = viewModel.repository {
-                            Divider()
-                            HStack {
-                                Text("Update Source")
-                                Spacer()
-                                Text(repository.ownerAndRepo)
-                                    .lineLimit(1)
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 8)
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-                .animation(.default, value: device.availableUpdateVersion)
-                .animation(.default, value: viewModel.isCheckingForUpdates)
-
-                Text("Mac Address: \(device.device.macAddress)")
-                    .font(.caption)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Spacer()
             }
-            .padding()
-            .padding(.bottom, 100)
+
+            Section {
+                if !device.isOnline && device.stateInfo == nil {
+                    DeviceOfflineUpdateStatus()
+                } else if (device.availableUpdateVersion ?? "").isEmpty {
+                    DeviceNoUpdateAvailable(
+                        device: device,
+                        isCheckingForUpdates: viewModel.isCheckingForUpdates
+                    ) {
+                        await viewModel.checkForUpdate()
+                    }
+                } else {
+                    DeviceUpdateAvailable(device: device)
+                    NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
+                        Text("See Update")
+                    }
+                }
+
+                NavigationLink(value: DeviceDetailRoute.firmwareBrowser(deviceId: device.id)) {
+                    Text("Other Versions & Sources")
+                }
+
+                if let repository = viewModel.repository {
+                    LabeledContent("Update Source") {
+                        Text(repository.ownerAndRepo)
+                            .lineLimit(1)
+                    }
+                }
+            } footer: {
+                Text("Mac Address: \(device.device.macAddress)")
+            }
+            .animation(.default, value: device.availableUpdateVersion)
+            .animation(.default, value: viewModel.isCheckingForUpdates)
         }
         .task(id: device.device.repositoryId) {
             await viewModel.loadRepository(id: device.device.repositoryId)
@@ -149,6 +121,7 @@ struct DeviceNoUpdateAvailable: View {
     let isCheckingForUpdates: Bool
     let onCheckForUpdate: () async -> Void
 
+    @ViewBuilder
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Your device is up to date")
@@ -171,12 +144,8 @@ struct DeviceNoUpdateAvailable: View {
                 }
                 Text(isCheckingForUpdates ? "Checking for Updates" : "Check for Update")
             }
-            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
         .disabled(isCheckingForUpdates)
-        .padding(.top, 4)
     }
 }
 
@@ -189,23 +158,21 @@ struct DeviceUpdateAvailable: View {
     private let unknownVersion = String(localized: "unknown_version")
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             Image(systemName: getUpdateIconName())
                 .resizable()
-                // TODO: Migrate legacy aspectRatio to scaledToFill in a dedicated follow-up PR
-                // swiftlint:disable:next all
-                .aspectRatio(contentMode: .fill)
+                .scaledToFit()
                 .frame(width: 30.0, height: 30.0)
-                .padding(.trailing)
-            VStack(alignment: .leading) {
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Update Available")
+                    .font(.headline)
                 Text("From \(device.stateInfo?.info.version ?? unknownVersion) to \(device.availableUpdateVersion ?? unknownVersion)")
-                NavigationLink(value: DeviceDetailRoute.updateDetails(deviceId: device.id)) {
-                    Text("See Update")
-                }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
-        .buttonStyle(.borderedProminent)
     }
 
     private func getUpdateIconName() -> String {
