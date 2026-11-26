@@ -54,9 +54,7 @@ struct DeviceUpdateInstalling: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .padding()
-            .background(Color(UIColor.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(radius: 20)
+            .adaptiveFloatingDialogBackground()
             .padding(.horizontal)
             .task(id: retryWithoutValidation) {
                 await viewModel.startUpdateProcess(
@@ -77,6 +75,8 @@ struct DeviceUpdateInstalling: View {
                 Button("Cancel") {
                     dismiss()
                 }
+                .buttonStyle(.bordered)
+
                 Button("Install Anyway") {
                     retryWithoutValidation = true
                 }
@@ -92,6 +92,7 @@ struct DeviceUpdateInstalling: View {
             } label: {
                 Text(dismissButtonText)
             }
+            .buttonStyle(.bordered)
             .disabled(!canDismiss)
         }
     }
@@ -161,7 +162,7 @@ struct SuccessView: View {
     var body: some View {
         Image(systemName: "checkmark.seal.fill")
             .resizable()
-            .foregroundColor(.green)
+            .foregroundStyle(.green)
             .frame(width: 32.0, height: 32.0)
             .padding(.bottom, 5)
 
@@ -181,7 +182,7 @@ struct FailureView: View {
     var body: some View {
         Image(systemName: "exclamationmark.octagon.fill")
             .resizable()
-            .foregroundColor(.red)
+            .foregroundStyle(.red)
             .frame(width: 32.0, height: 32.0)
             .padding(.bottom, 5)
 
@@ -206,6 +207,19 @@ struct FailureView: View {
             .foregroundStyle(.red)
             .multilineTextAlignment(.center)
             .padding(.horizontal)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func adaptiveFloatingDialogBackground() -> some View {
+        if #available(iOS 26.0, *) {
+            glassEffect(.regular, in: .rect(cornerRadius: 24))
+        } else {
+            background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .shadow(radius: 20)
         }
     }
 }
