@@ -1,6 +1,8 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceAdd
 
 import android.util.Log
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -25,16 +27,13 @@ class DeviceAddViewModel(
     private val deviceFirstContactService: DeviceFirstContactService,
 ) : ViewModel() {
 
+    val addressState = TextFieldState()
     var state by mutableStateOf(DeviceAddState())
     private var findDeviceJob: Job? = null
 
-    fun setAddress(address: String) {
-        if (state.step is DeviceAddStep.Form) state = state.copy(address = address)
-    }
-
     fun submitCreateDevice() {
         findDeviceJob = viewModelScope.launch(Dispatchers.IO) {
-            when (val validationResult = addressValidator.validate(state.address)) {
+            when (val validationResult = addressValidator.validate(addressState.text.toString())) {
                 is AddressValidationResult.Invalid -> {
                     val errorResId = when (validationResult.error) {
                         AddressValidationError.EMPTY -> R.string.please_enter_value
@@ -91,6 +90,7 @@ class DeviceAddViewModel(
         // This needs to be canceled to avoid showing a "success" screen if the user
         // reopens the "add device" screen quickly after dismissing it in the "Adding" step.
         findDeviceJob?.cancel()
+        addressState.clearText()
         state = DeviceAddState()
     }
 }
