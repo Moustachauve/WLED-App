@@ -97,7 +97,7 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
-import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -235,9 +235,8 @@ fun SoundSyncContent(
 ) {
     Scaffold(
         topBar = {
-            Column {
+            HolidayTopBar {
                 SoundSyncTopBar(navigateUp = actions.navigateUp)
-                HolidayStringLightsBar()
             }
         },
     ) { innerPadding ->

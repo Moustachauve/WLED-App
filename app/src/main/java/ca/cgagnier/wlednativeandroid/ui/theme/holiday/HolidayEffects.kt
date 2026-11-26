@@ -1,6 +1,5 @@
 package ca.cgagnier.wlednativeandroid.ui.theme.holiday
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -17,8 +16,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
-import ca.cgagnier.wlednativeandroid.ui.theme.LocalDarkTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.LocalHolidayTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.currentIsDarkTheme
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -163,13 +162,9 @@ private class FireworkDrawCache(
  * so background seasonal particles softly show behind cards, or [containerColor] unchanged otherwise.
  */
 @Composable
-fun holidayCardContainerColor(
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
-    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
-    isDarkTheme: Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme(),
-): Color {
-    if (holidayTheme == null) return containerColor
-    val alpha = if (isDarkTheme) HOLIDAY_CARD_ALPHA_DARK else HOLIDAY_CARD_ALPHA_LIGHT
+fun holidayCardContainerColor(containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest): Color {
+    if (LocalHolidayTheme.current == null) return containerColor
+    val alpha = if (currentIsDarkTheme()) HOLIDAY_CARD_ALPHA_DARK else HOLIDAY_CARD_ALPHA_LIGHT
     return containerColor.copy(alpha = alpha)
 }
 
@@ -186,11 +181,9 @@ fun holidayCardColors(containerColor: Color = MaterialTheme.colorScheme.surfaceC
  * or celebratory fireworks for [HolidayTheme.NewYear]) behind the modified composable's content.
  */
 @Composable
-fun Modifier.holidayParticles(
-    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
-    isDarkTheme: Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme(),
-): Modifier {
-    if (holidayTheme == null) return this
+fun Modifier.holidayParticles(): Modifier {
+    val holidayTheme = LocalHolidayTheme.current ?: return this
+    val isDarkTheme = currentIsDarkTheme()
     val timeProvider = rememberHolidayTimeSeconds()
     return drawWithCache {
         when (holidayTheme) {

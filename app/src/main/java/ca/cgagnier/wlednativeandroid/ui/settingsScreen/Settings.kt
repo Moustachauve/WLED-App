@@ -36,7 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
-import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import org.koin.androidx.compose.koinViewModel
@@ -87,11 +87,10 @@ fun SettingsContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            Column {
+            HolidayTopBar {
                 DeviceSettingsAppBar(
                     navigateUp = navigateUp,
                 )
-                HolidayStringLightsBar()
             }
         },
     ) { innerPadding ->
@@ -116,21 +115,21 @@ fun SettingsContent(
                         setAutoDiscover = actions.setAutoDiscover,
                         setShowOfflineDevicesLast = actions.setShowOfflineDevicesLast,
                     )
-                    BetaOptions(
-                        isSoundSyncBetaEnabled = settingsState.isSoundSyncBetaEnabled,
-                        setSoundSyncBetaEnabled = actions.setSoundSyncBetaEnabled,
-                    )
-                },
-                secondColumn = {
                     ThemeOptions(
                         currentTheme = settingsState.theme,
                         setTheme = actions.setTheme,
                     )
+                },
+                secondColumn = {
                     HolidayThemeOptions(
                         isHolidayThemesEnabled = settingsState.isHolidayThemesEnabled,
                         holidayThemeOverride = settingsState.holidayThemeOverride,
                         setHolidayThemesEnabled = actions.setHolidayThemesEnabled,
                         setHolidayThemeOverride = actions.setHolidayThemeOverride,
+                    )
+                    BetaOptions(
+                        isSoundSyncBetaEnabled = settingsState.isSoundSyncBetaEnabled,
+                        setSoundSyncBetaEnabled = actions.setSoundSyncBetaEnabled,
                     )
                 },
             )

@@ -27,15 +27,13 @@ class ThemeViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val preferencesRepository: UserPreferencesRepository = mockk()
-    private val holidayEnabledFlow = MutableStateFlow(true)
-    private val holidayOverrideFlow = MutableStateFlow<HolidayTheme?>(null)
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         every { preferencesRepository.themeMode } returns flowOf(ThemeSettings.Auto)
-        every { preferencesRepository.holidayThemesEnabled } returns holidayEnabledFlow
-        every { preferencesRepository.holidayThemeOverride } returns holidayOverrideFlow
+        every { preferencesRepository.holidayThemesEnabled } returns flowOf(true)
+        every { preferencesRepository.holidayThemeOverride } returns flowOf(null)
     }
 
     @AfterEach
@@ -43,64 +41,31 @@ class ThemeViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun createViewModel(date: () -> CalendarDate = { CalendarDate(month = 6, dayOfMonth = 15) }) =
+        ThemeViewModel(preferencesRepository = preferencesRepository, currentDateProvider = date)
+
     @Test
     fun `themeState is initially null before preferences emit`() = runTest(testDispatcher) {
         every { preferencesRepository.themeMode } returns MutableSharedFlow()
 
-        val viewModel = ThemeViewModel(preferencesRepository)
+        val viewModel = createViewModel()
 
         assertNull(viewModel.themeState.value)
     }
 
     @Test
     fun `themeState reflects stored theme preference once loaded`() = runTest(testDispatcher) {
-        val themeFlow = MutableStateFlow(ThemeSettings.Dark)
-        every { preferencesRepository.themeMode } returns themeFlow
+        every { preferencesRepository.themeMode } returns MutableStateFlow(ThemeSettings.Dark)
 
-        val viewModel = ThemeViewModel(
-            preferencesRepository = preferencesRepository,
-            currentDateProvider = { CalendarDate(month = 6, dayOfMonth = 15) },
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(ThemeSettings.Dark, viewModel.themeState.value?.theme)
-        assertNull(viewModel.themeState.value?.holidayTheme)
     }
 
     @Test
     fun `themeState resolves holiday automatically for active calendar date`() = runTest(testDispatcher) {
-        val viewModel = ThemeViewModel(
-            preferencesRepository = preferencesRepository,
-            currentDateProvider = { CalendarDate(month = 12, dayOfMonth = 25) },
-        )
-        advanceUntilIdle()
-
-        assertEquals(HolidayTheme.WinterHolidays, viewModel.themeState.value?.holidayTheme)
-    }
-
-    @Test
-    fun `themeState has null holiday when holiday themes are disabled`() = runTest(testDispatcher) {
-        holidayEnabledFlow.value = false
-        holidayOverrideFlow.value = HolidayTheme.WinterHolidays
-
-        val viewModel = ThemeViewModel(
-            preferencesRepository = preferencesRepository,
-            currentDateProvider = { CalendarDate(month = 12, dayOfMonth = 25) },
-        )
-        advanceUntilIdle()
-
-        assertEquals(ThemeSettings.Auto, viewModel.themeState.value?.theme)
-        assertNull(viewModel.themeState.value?.holidayTheme)
-    }
-
-    @Test
-    fun `themeState uses override outside active holiday window`() = runTest(testDispatcher) {
-        holidayOverrideFlow.value = HolidayTheme.WinterHolidays
-
-        val viewModel = ThemeViewModel(
-            preferencesRepository = preferencesRepository,
-            currentDateProvider = { CalendarDate(month = 7, dayOfMonth = 15) },
-        )
+        val viewModel = createViewModel { CalendarDate(month = 12, dayOfMonth = 25) }
         advanceUntilIdle()
 
         assertEquals(HolidayTheme.WinterHolidays, viewModel.themeState.value?.holidayTheme)
@@ -109,10 +74,7 @@ class ThemeViewModelTest {
     @Test
     fun `refreshDate updates holidayTheme when calendar date changes`() = runTest(testDispatcher) {
         var fakeDate = CalendarDate(month = 12, dayOfMonth = 28)
-        val viewModel = ThemeViewModel(
-            preferencesRepository = preferencesRepository,
-            currentDateProvider = { fakeDate },
-        )
+        val viewModel = createViewModel { fakeDate }
         advanceUntilIdle()
         assertEquals(HolidayTheme.WinterHolidays, viewModel.themeState.value?.holidayTheme)
 

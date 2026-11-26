@@ -279,6 +279,9 @@ internal val LocalDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 val LocalHolidayTheme = staticCompositionLocalOf<HolidayTheme?> { null }
 
 @Composable
+internal fun currentIsDarkTheme(): Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme()
+
+@Composable
 fun WLEDNativeTheme(
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
@@ -368,7 +371,7 @@ fun getColorFromDeviceState(state: State?): Int = getColorFromState(state) ?: an
 fun DeviceTheme(device: DeviceWithState, content: @Composable () -> Unit) {
     DeviceTheme(
         device = device,
-        darkTheme = LocalDarkTheme.current ?: isSystemInDarkTheme(),
+        darkTheme = currentIsDarkTheme(),
         content = content,
     )
 }
