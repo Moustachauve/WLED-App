@@ -1,6 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.theme.holiday
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,9 +18,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.dp
-import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
-import ca.cgagnier.wlednativeandroid.ui.theme.LocalDarkTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.LocalHolidayTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.currentIsDarkTheme
 import kotlin.math.sin
 
 private const val HALF = 0.5f
@@ -57,47 +56,29 @@ private const val BULB_BASE_ALPHA = 0.72f
 private const val BULB_TWINKLE_ALPHA = 0.28f
 private const val SPECULAR_ALPHA = 0.65f
 
-private const val WIRE_COLOR_DARK_HEX = 0xFF6B7280L
-private const val WIRE_COLOR_LIGHT_HEX = 0xFF6B7280L
+private const val WIRE_COLOR_HEX = 0xFF6B7280L
 private const val SOCKET_COLOR_DARK_HEX = 0xFF374151L
 private const val SOCKET_COLOR_LIGHT_HEX = 0xFF4B5563L
 
-private const val WINTER_BULB_RED_HEX = 0xFFFF1E27L
-private const val WINTER_BULB_GREEN_HEX = 0xFF00C853L
-private const val WINTER_BULB_ORANGE_HEX = 0xFFFF6D00L
-private const val WINTER_BULB_BLUE_HEX = 0xFF2979FFL
-private const val WINTER_BULB_WARM_WHITE_HEX = 0xFFFFF1C1L
+private const val BULB_RED_HEX = 0xFFFF1E27L
+private const val BULB_GREEN_HEX = 0xFF00C853L
+private const val BULB_ORANGE_HEX = 0xFFFF6D00L
+private const val BULB_BLUE_HEX = 0xFF2979FFL
+private const val BULB_WARM_WHITE_HEX = 0xFFFFF1C1L
 
-private const val NEW_YEAR_GOLD_HEX = 0xFFFFD54FL
-private const val NEW_YEAR_CYAN_HEX = 0xFF26C6DAL
-private const val NEW_YEAR_ROSE_HEX = 0xFFEC407AL
-private const val NEW_YEAR_MINT_HEX = 0xFF2EE6A6L
-private const val NEW_YEAR_VIOLET_HEX = 0xFFAB47BCL
-
-private val WireColorDark = Color(WIRE_COLOR_DARK_HEX)
-private val WireColorLight = Color(WIRE_COLOR_LIGHT_HEX)
+private val WireColor = Color(WIRE_COLOR_HEX)
 private val SocketColorDark = Color(SOCKET_COLOR_DARK_HEX)
 private val SocketColorLight = Color(SOCKET_COLOR_LIGHT_HEX)
 
-private val WinterBulbColors = listOf(
-    Color(WINTER_BULB_RED_HEX),
-    Color(WINTER_BULB_GREEN_HEX),
-    Color(WINTER_BULB_ORANGE_HEX),
-    Color(WINTER_BULB_BLUE_HEX),
-    Color(WINTER_BULB_WARM_WHITE_HEX),
-)
-
-private val NewYearBulbColors = listOf(
-    Color(NEW_YEAR_GOLD_HEX),
-    Color(NEW_YEAR_CYAN_HEX),
-    Color(NEW_YEAR_ROSE_HEX),
-    Color(NEW_YEAR_MINT_HEX),
-    Color(NEW_YEAR_VIOLET_HEX),
+private val BulbColors = listOf(
+    Color(BULB_RED_HEX),
+    Color(BULB_GREEN_HEX),
+    Color(BULB_ORANGE_HEX),
+    Color(BULB_BLUE_HEX),
+    Color(BULB_WARM_WHITE_HEX),
 )
 
 private class LightGeometry(
-    val wireY: Float,
-    val wireStrokePx: Float,
     val socketSize: Size,
     val socketTop: Float,
     val socketCorner: CornerRadius,
@@ -113,22 +94,24 @@ private class LightMetrics(
     val glowBrushes: Array<Brush>,
 )
 
+/** Wraps a top bar with [HolidayStringLightsBar] directly underneath it. */
+@Composable
+fun HolidayTopBar(topBar: @Composable () -> Unit) {
+    Column {
+        topBar()
+        HolidayStringLightsBar()
+    }
+}
+
 /**
- * Renders a slim decorative strand of twinkling WLED-inspired LED string lights below a top bar
- * when a [holidayTheme] is active, or nothing when `null`.
+ * Renders a slim decorative strand of twinkling WLED-inspired classic C5 string lights below a
+ * top bar when a holiday theme is active, or nothing when `null`.
  */
 @Composable
-fun HolidayStringLightsBar(
-    modifier: Modifier = Modifier,
-    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
-    isDarkTheme: Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme(),
-) {
-    if (holidayTheme == null) return
+fun HolidayStringLightsBar(modifier: Modifier = Modifier) {
+    if (LocalHolidayTheme.current == null) return
+    val isDarkTheme = currentIsDarkTheme()
     val timeProvider = rememberHolidayTimeSeconds()
-    val palette = when (holidayTheme) {
-        HolidayTheme.WinterHolidays -> WinterBulbColors
-        HolidayTheme.NewYear -> NewYearBulbColors
-    }
 
     Spacer(
         modifier = modifier
@@ -137,21 +120,18 @@ fun HolidayStringLightsBar(
             .drawWithCache {
                 buildStringLightsDraw(
                     timeProvider = timeProvider,
-                    palette = palette,
                     isDarkTheme = isDarkTheme,
                 )
             },
     )
 }
 
-private fun CacheDrawScope.buildStringLightsDraw(
-    timeProvider: () -> Float,
-    palette: List<Color>,
-    isDarkTheme: Boolean,
-): DrawResult {
+private fun CacheDrawScope.buildStringLightsDraw(timeProvider: () -> Float, isDarkTheme: Boolean): DrawResult {
     val bulbCount = (size.width / BULB_SPACING_DP.dp.toPx()).toInt().coerceIn(MIN_BULBS, MAX_BULBS)
     val step = size.width / bulbCount
     val bulbXs = FloatArray(bulbCount) { (it + HALF) * step }
+    val wireY = WIRE_Y_DP.dp.toPx()
+    val wireStrokePx = WIRE_STROKE_DP.dp.toPx()
     val glowRadiusPx = GLOW_RADIUS_DP.dp.toPx()
     val bulbSize = Size(BULB_WIDTH_DP.dp.toPx(), BULB_HEIGHT_DP.dp.toPx())
     val metrics = LightMetrics(
@@ -160,15 +140,13 @@ private fun CacheDrawScope.buildStringLightsDraw(
         specularSize = Size(bulbSize.width * SPECULAR_WIDTH_RATIO, bulbSize.height * SPECULAR_HEIGHT_RATIO),
         glowMaxAlpha = if (isDarkTheme) GLOW_MAX_ALPHA_DARK else GLOW_MAX_ALPHA_LIGHT,
         geometry = LightGeometry(
-            wireY = WIRE_Y_DP.dp.toPx(),
-            wireStrokePx = WIRE_STROKE_DP.dp.toPx(),
             socketSize = Size(SOCKET_WIDTH_DP.dp.toPx(), SOCKET_HEIGHT_DP.dp.toPx()),
             socketTop = SOCKET_TOP_DP.dp.toPx(),
             socketCorner = CornerRadius(SOCKET_CORNER_DP.dp.toPx()),
             bulbSize = bulbSize,
         ),
-        glowBrushes = Array(palette.size) { index ->
-            val color = palette[index]
+        glowBrushes = Array(BulbColors.size) { index ->
+            val color = BulbColors[index]
             Brush.radialGradient(
                 colorStops = arrayOf(
                     0f to color.copy(alpha = GLOW_CENTER_ALPHA),
@@ -180,22 +158,20 @@ private fun CacheDrawScope.buildStringLightsDraw(
             )
         },
     )
-    val wireAlpha = if (isDarkTheme) WIRE_ALPHA_DARK else WIRE_ALPHA_LIGHT
-    val wireColor = (if (isDarkTheme) WireColorDark else WireColorLight).copy(alpha = wireAlpha)
+    val wireColor = WireColor.copy(alpha = if (isDarkTheme) WIRE_ALPHA_DARK else WIRE_ALPHA_LIGHT)
     val socketColor = if (isDarkTheme) SocketColorDark else SocketColorLight
 
     return onDrawBehind {
         if (size.width > 0f) {
             drawLine(
                 color = wireColor,
-                start = Offset(0f, metrics.geometry.wireY),
-                end = Offset(size.width, metrics.geometry.wireY),
-                strokeWidth = metrics.geometry.wireStrokePx,
+                start = Offset(0f, wireY),
+                end = Offset(size.width, wireY),
+                strokeWidth = wireStrokePx,
                 cap = StrokeCap.Butt,
             )
             drawStringBulbs(
                 timeSeconds = timeProvider(),
-                palette = palette,
                 socketColor = socketColor,
                 bulbXs = bulbXs,
                 metrics = metrics,
@@ -206,7 +182,6 @@ private fun CacheDrawScope.buildStringLightsDraw(
 
 private fun DrawScope.drawStringBulbs(
     timeSeconds: Float,
-    palette: List<Color>,
     socketColor: Color,
     bulbXs: FloatArray,
     metrics: LightMetrics,
@@ -222,8 +197,8 @@ private fun DrawScope.drawStringBulbs(
         val x = bulbXs[i]
         val twinkle = MIN_TWINKLE_FACTOR +
             TWINKLE_AMPLITUDE * (HALF + HALF * sin(timeSeconds * TWINKLE_SPEED_RAD + i * BULB_PHASE_STEP))
-        val colorIndex = i % palette.size
-        val color = palette[colorIndex]
+        val colorIndex = i % BulbColors.size
+        val color = BulbColors[colorIndex]
         val glowCenterY = metrics.bulbTop + bulbHalfHeight
 
         translate(left = x, top = glowCenterY) {

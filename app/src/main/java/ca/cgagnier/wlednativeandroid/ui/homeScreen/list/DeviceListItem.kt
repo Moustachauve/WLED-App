@@ -55,7 +55,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
-import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.SliderWithLabel
@@ -136,16 +135,12 @@ fun DeviceListItem(
 }
 
 @Composable
-private fun swipeCardContainerColor(
-    baseColor: Color,
-    swipeToDismissBoxState: SwipeToDismissBoxState,
-    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
-): Color {
-    if (holidayTheme == null) return baseColor
+private fun swipeCardContainerColor(baseColor: Color, swipeToDismissBoxState: SwipeToDismissBoxState): Color {
+    if (LocalHolidayTheme.current == null) return baseColor
     val isSwiping by remember(swipeToDismissBoxState) {
         derivedStateOf { swipeToDismissBoxState.dismissDirection != SwipeToDismissBoxValue.Settled }
     }
-    val settledColor = holidayCardContainerColor(baseColor, holidayTheme = holidayTheme)
+    val settledColor = holidayCardContainerColor(baseColor)
     val animatedColor by animateColorAsState(
         targetValue = if (isSwiping) baseColor else settledColor,
         animationSpec = if (isSwiping) snap() else tween(durationMillis = SWIPE_TO_TRANSLUCENT_MS),

@@ -2,7 +2,6 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.list
 
 import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,7 +51,7 @@ import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncToolbarIcon
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
-import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -182,7 +181,9 @@ fun DeviceListContent(state: DeviceListState, actions: DeviceListActions = Devic
 
     Scaffold(
         topBar = {
-            DeviceListTopBar(state = state, actions = actions)
+            HolidayTopBar {
+                DeviceListAppBar(state = state, actions = actions)
+            }
         },
     ) { innerPadding ->
         PullToRefreshBox(
@@ -423,14 +424,6 @@ fun LazyItemScope.DeviceRow(
         }, onDismiss = {
             isConfirmingDelete = false
         })
-    }
-}
-
-@Composable
-private fun DeviceListTopBar(state: DeviceListState, actions: DeviceListActions) {
-    Column {
-        DeviceListAppBar(state = state, actions = actions)
-        HolidayStringLightsBar()
     }
 }
 

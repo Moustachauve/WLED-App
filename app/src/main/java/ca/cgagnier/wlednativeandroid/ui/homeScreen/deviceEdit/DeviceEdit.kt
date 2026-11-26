@@ -75,7 +75,7 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
-import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
@@ -161,13 +161,12 @@ fun DeviceEditContent(
 
     Scaffold(
         topBar = {
-            Column {
+            HolidayTopBar {
                 DeviceEditAppBar(
                     device = device,
                     canNavigateBack = canNavigateBack,
                     navigateUp = navigateUp,
                 )
-                HolidayStringLightsBar()
             }
         },
     ) { innerPadding ->
