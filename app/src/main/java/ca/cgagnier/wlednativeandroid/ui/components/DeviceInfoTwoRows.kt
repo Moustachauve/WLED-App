@@ -12,9 +12,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlexAlignItems
+import androidx.compose.foundation.layout.FlexBox
+import androidx.compose.foundation.layout.FlexDirection
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
@@ -45,12 +47,21 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
@@ -85,33 +96,43 @@ fun DeviceInfoTwoRows(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(
+        FlexBox(
             modifier = Modifier.padding(bottom = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            config = {
+                direction(FlexDirection.Row)
+                alignItems(FlexAlignItems.Center)
+            },
         ) {
-            // TODO: This row should be replaced with a ConstraintLayout or something similar.
-            //  This would allow for the offline message to also be truncated dynamically if
-            //  the address + offline message can't both fit. Right now, only the address can be
-            //  truncated. This is due to the limitation of the weight system of a row. When using
-            //  `fill = false`, the unused space is not distributed to the other elements.
-            WebsocketStatusIndicator(device.websocketStatus)
+            WebsocketStatusIndicator(
+                device.websocketStatus,
+                modifier = Modifier.flex { shrink(0f) },
+            )
             Text(
                 device.device.address,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier
+                    .flex { shrink(1f) }
+                    .allowShrinkBelowMinIntrinsic(),
             )
-            deviceNetworkStrengthImage(device)
-            deviceBatteryPercentageImage(device)
+            deviceNetworkStrengthImage(
+                device,
+                modifier = Modifier.flex { shrink(0f) },
+            )
+            deviceBatteryPercentageImage(
+                device,
+                modifier = Modifier.flex { shrink(0f) },
+            )
 
             if (updateTag != null) {
                 Icon(
                     painter = painterResource(R.drawable.baseline_download_24),
                     contentDescription = stringResource(R.string.network_status),
                     modifier = Modifier
+                        .flex { shrink(0f) }
                         .padding(start = 4.dp)
-                        .height(20.dp),
+                        .size(20.dp),
                 )
             }
             if (!device.isOnline) {
@@ -119,6 +140,8 @@ fun DeviceInfoTwoRows(
                     device.device,
                     currentTime = currentTime,
                     modifier = Modifier
+                        .flex { shrink(1f) }
+                        .allowShrinkBelowMinIntrinsic()
                         .padding(start = 4.dp),
                 )
             }
@@ -127,14 +150,17 @@ fun DeviceInfoTwoRows(
                     painter = painterResource(R.drawable.ic_baseline_visibility_off_24),
                     contentDescription = stringResource(R.string.description_back_button),
                     modifier = Modifier
+                        .flex { shrink(0f) }
                         .padding(start = 4.dp)
-                        .height(16.dp),
+                        .size(16.dp),
                 )
                 Text(
                     stringResource(R.string.hidden_status),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier
+                        .flex { shrink(0f) }
+                        .padding(start = 4.dp),
                 )
             }
         }
@@ -142,7 +168,7 @@ fun DeviceInfoTwoRows(
 }
 
 @Composable
-fun WebsocketStatusIndicator(websocketState: WebsocketStatus) {
+fun WebsocketStatusIndicator(websocketState: WebsocketStatus, modifier: Modifier = Modifier) {
     val tooltipTextResource = when (websocketState) {
         WebsocketStatus.CONNECTED -> R.string.websocket_connected
         WebsocketStatus.CONNECTING -> R.string.websocket_connecting
@@ -156,6 +182,7 @@ fun WebsocketStatusIndicator(websocketState: WebsocketStatus) {
             }
         },
         state = rememberTooltipState(),
+        modifier = modifier,
     ) {
         WebsocketStatusShape(websocketState)
     }
@@ -266,6 +293,8 @@ fun OfflineSinceText(
             "(${stringResource(R.string.is_offline)})",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = modifier,
         )
         return
@@ -297,12 +326,14 @@ fun OfflineSinceText(
             }
         },
         state = rememberTooltipState(),
+        modifier = modifier,
     ) {
         Text(
             text = "($offlineText)",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = modifier,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -359,4 +390,33 @@ fun AnimatedWebsocketPreview() {
             DeviceInfoTwoRows(device = device, modifier = Modifier.padding(16.dp))
         }
     }
+}
+
+/**
+ * Lets [FlexBox] shrink single-token text children below their `minIntrinsicWidth` so
+ * [TextOverflow.Ellipsis] can trigger instead of overflowing horizontally.
+ */
+private fun Modifier.allowShrinkBelowMinIntrinsic(): Modifier = this then ZeroMinIntrinsicWidthElement
+
+private data object ZeroMinIntrinsicWidthElement : ModifierNodeElement<ZeroMinIntrinsicWidthNode>() {
+    override fun create() = ZeroMinIntrinsicWidthNode()
+
+    override fun update(node: ZeroMinIntrinsicWidthNode) = Unit
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "allowShrinkBelowMinIntrinsic"
+    }
+}
+
+private class ZeroMinIntrinsicWidthNode :
+    Modifier.Node(),
+    LayoutModifierNode {
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+        val placeable = measurable.measure(constraints)
+        return layout(placeable.width, placeable.height) {
+            placeable.placeRelative(0, 0)
+        }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurable: IntrinsicMeasurable, height: Int): Int = 0
 }
