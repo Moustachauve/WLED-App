@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -31,10 +32,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.byValue
+import androidx.compose.foundation.text.input.maxLengthTrim
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.HorizontalDivider
@@ -44,14 +53,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,6 +78,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
@@ -114,7 +122,7 @@ data class SoundSyncActions(
     val onSquelchChanged: (Int) -> Unit = {},
     val onSquelchChangeFinished: () -> Unit = {},
     val onSquelchStepped: (Int) -> Unit = {},
-    val onPortChanged: (Int) -> Unit = {},
+    val onPortFocusLost: () -> Unit = {},
 )
 
 @Composable
@@ -169,12 +177,13 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
             onSquelchChanged = { viewModel.setSquelch(it) },
             onSquelchChangeFinished = { viewModel.saveSquelch() },
             onSquelchStepped = { viewModel.stepSquelch(it) },
-            onPortChanged = { viewModel.setPort(it) },
+            onPortFocusLost = { viewModel.resetInvalidPort() },
         )
     }
 
     SoundSyncContent(
         uiState = uiState,
+        portState = viewModel.portState,
         permanentlyDenied = permanentlyDenied,
         latestPacketFlow = viewModel.latestPacket,
         actions = actions,
@@ -215,13 +224,12 @@ private fun SoundSyncTopBar(navigateUp: () -> Unit) {
 @Composable
 fun SoundSyncContent(
     uiState: SoundSyncUiState,
-    modifier: Modifier = Modifier,
+    portState: TextFieldState = rememberTextFieldState(initialText = uiState.port.toString()),
     permanentlyDenied: Boolean = false,
     latestPacketFlow: StateFlow<UdpSoundSyncPacket> = remember { MutableStateFlow(UdpSoundSyncPacket()) },
     actions: SoundSyncActions = SoundSyncActions(),
 ) {
     Scaffold(
-        modifier = modifier,
         topBar = { SoundSyncTopBar(navigateUp = actions.navigateUp) },
     ) { innerPadding ->
         Column(
@@ -256,9 +264,9 @@ fun SoundSyncContent(
                     actions = actions,
                 )
                 PortCard(
-                    port = uiState.port,
+                    portState = portState,
                     isRunning = uiState.isRunning,
-                    onPortChanged = actions.onPortChanged,
+                    onPortFocusLost = actions.onPortFocusLost,
                 )
             }
         }
@@ -458,28 +466,48 @@ private fun AgcModeSection(
     ) {
         Column {
             Spacer(modifier = Modifier.height(12.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                modes.forEachIndexed { index, mode ->
-                    SegmentedButton(
-                        selected = agcMode == mode,
-                        onClick = { onAgcModeChanged(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                        label = {
-                            Text(
-                                text = stringResource(mode.labelResId()),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                    )
-                }
-            }
+            AgcModeSelectorRow(
+                modes = modes,
+                selectedMode = agcMode,
+                onModeSelected = onAgcModeChanged,
+            )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(agcMode.descriptionResId()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun AgcModeSelectorRow(modes: List<AgcMode>, selectedMode: AgcMode, onModeSelected: (AgcMode) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        modes.forEachIndexed { index, mode ->
+            ToggleButton(
+                checked = selectedMode == mode,
+                onCheckedChange = { checked -> if (checked) onModeSelected(mode) },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { role = Role.RadioButton },
+            ) {
+                Text(
+                    text = stringResource(mode.labelResId()),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -548,33 +576,36 @@ private fun SquelchSection(
     )
 }
 
-@Composable
-private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit) {
-    val portLabel = stringResource(R.string.sound_sync_port)
-    var editingPortText by rememberSaveable { mutableStateOf<String?>(null) }
+private val PortInputTransformation: InputTransformation = InputTransformation
+    .byValue { _, proposed ->
+        if (proposed.all { it.isDigit() }) proposed else proposed.filter { it.isDigit() }
+    }
+    .maxLengthTrim(MAX_PORT_DIGITS)
 
-    val displayedPortText = if (isRunning) port.toString() else editingPortText ?: port.toString()
-    val isPortValid = displayedPortText.toValidPortOrNull() != null
+@Composable
+private fun PortCard(portState: TextFieldState, isRunning: Boolean, onPortFocusLost: () -> Unit) {
+    val portLabel = stringResource(R.string.sound_sync_port)
+    var isFocused by remember { mutableStateOf(false) }
+    val isPortValid = isRunning || portState.text.toString().toValidPortOrNull() != null
 
     SoundSyncCard {
         SectionTitle(portLabel)
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
-            value = displayedPortText,
-            onValueChange = { newValue ->
-                val digitsOnly = newValue.filter { it.isDigit() }.take(MAX_PORT_DIGITS)
-                editingPortText = digitsOnly
-                digitsOnly.toValidPortOrNull()?.let(onPortChanged)
-            },
+            state = portState,
             enabled = !isRunning,
-            singleLine = true,
+            lineLimits = TextFieldLineLimits.SingleLine,
             isError = !isPortValid,
             placeholder = { Text(UdpSoundSyncPacket.DEFAULT_PORT.toString()) },
+            inputTransformation = PortInputTransformation,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = portLabel }
-                .onFocusChanged { if (!it.isFocused) editingPortText = null },
+                .onFocusChanged { focusState ->
+                    if (isFocused && !focusState.isFocused) onPortFocusLost()
+                    isFocused = focusState.isFocused
+                },
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -586,8 +617,6 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
         )
     }
 }
-
-private fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)
 
 private fun AgcMode.labelResId(): Int = when (this) {
     AgcMode.NORMAL -> R.string.sound_sync_agc_mode_normal
