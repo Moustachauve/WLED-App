@@ -1,10 +1,13 @@
 package ca.cgagnier.wlednativeandroid.shared
 
+import ca.cgagnier.wlednativeandroid.domain.CalendarDate
 import okio.FileSystem
 
 expect fun getPlatformName(): String
 
 expect fun currentTimeMillis(): Long
+
+expect fun currentLocalDate(): CalendarDate
 
 internal expect class SynchronizedObject()
 

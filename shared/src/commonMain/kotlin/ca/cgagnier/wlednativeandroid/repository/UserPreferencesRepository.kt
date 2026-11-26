@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.DataStore
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.shared.currentTimeMillis
@@ -39,6 +40,12 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
     }.distinctUntilChanged()
     val soundSyncBetaEnabled: Flow<Boolean> = dataStore.data.map {
         it.soundSyncBetaEnabled
+    }.distinctUntilChanged()
+    val holidayThemesEnabled: Flow<Boolean> = dataStore.data.map {
+        it.holidayThemesEnabled
+    }.distinctUntilChanged()
+    val holidayThemeOverride: Flow<HolidayTheme?> = dataStore.data.map {
+        it.holidayThemeOverride
     }.distinctUntilChanged()
 
     suspend fun updateThemeMode(themeSettings: ThemeSettings) {
@@ -157,6 +164,26 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
         dataStore.updateData {
             it.copy(
                 soundSyncBetaEnabled = enabled,
+                dateLastWritten = currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun updateHolidayThemesEnabled(enabled: Boolean) {
+        logger.d { "updateHolidayThemesEnabled" }
+        dataStore.updateData {
+            it.copy(
+                holidayThemesEnabled = enabled,
+                dateLastWritten = currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun updateHolidayThemeOverride(override: HolidayTheme?) {
+        logger.d { "updateHolidayThemeOverride" }
+        dataStore.updateData {
+            it.copy(
+                holidayThemeOverride = override,
                 dateLastWritten = currentTimeMillis(),
             )
         }

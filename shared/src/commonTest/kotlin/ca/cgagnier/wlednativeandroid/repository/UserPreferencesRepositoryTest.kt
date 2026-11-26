@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.repository
 
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
@@ -19,6 +20,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UserPreferencesRepositoryTest {
@@ -68,6 +70,8 @@ class UserPreferencesRepositoryTest {
         assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, repo.soundSyncSquelch.first())
         assertEquals(UdpSoundSyncPacket.DEFAULT_PORT, repo.soundSyncPort.first())
         assertFalse(repo.soundSyncBetaEnabled.first())
+        assertTrue(repo.holidayThemesEnabled.first())
+        assertNull(repo.holidayThemeOverride.first())
     }
 
     @Test
@@ -164,6 +168,27 @@ class UserPreferencesRepositoryTest {
     }
 
     @Test
+    fun updateHolidayThemesEnabled_updatesFlow() = withRepository { repo ->
+        repo.updateHolidayThemesEnabled(false)
+        assertFalse(repo.holidayThemesEnabled.first())
+
+        repo.updateHolidayThemesEnabled(true)
+        assertTrue(repo.holidayThemesEnabled.first())
+    }
+
+    @Test
+    fun updateHolidayThemeOverride_updatesFlow() = withRepository { repo ->
+        repo.updateHolidayThemeOverride(HolidayTheme.Christmas)
+        assertEquals(HolidayTheme.Christmas, repo.holidayThemeOverride.first())
+
+        repo.updateHolidayThemeOverride(HolidayTheme.NewYear)
+        assertEquals(HolidayTheme.NewYear, repo.holidayThemeOverride.first())
+
+        repo.updateHolidayThemeOverride(null)
+        assertNull(repo.holidayThemeOverride.first())
+    }
+
+    @Test
     fun updatesToOtherPreferences_doNotEmitDuplicateValuesOnUnrelatedFlows() = withRepository { repo ->
         val emissions = mutableListOf<ThemeSettings>()
         val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -200,6 +225,8 @@ class UserPreferencesRepositoryTest {
             repo1.updateShowHiddenDevices(true)
             repo1.updateLastUpdateCheckDate(987654321L)
             repo1.updateLastChangelogVersionSeen("v3.0.0")
+            repo1.updateHolidayThemesEnabled(false)
+            repo1.updateHolidayThemeOverride(HolidayTheme.NewYear)
         } finally {
             // Cancel scope1 to simulate process termination
             scope1.cancel()
@@ -213,5 +240,7 @@ class UserPreferencesRepositoryTest {
         assertTrue(repo2.showHiddenDevices.first())
         assertEquals(987654321L, repo2.lastUpdateCheckDate.first())
         assertEquals("v3.0.0", repo2.lastChangelogVersionSeen.first())
+        assertFalse(repo2.holidayThemesEnabled.first())
+        assertEquals(HolidayTheme.NewYear, repo2.holidayThemeOverride.first())
     }
 }
