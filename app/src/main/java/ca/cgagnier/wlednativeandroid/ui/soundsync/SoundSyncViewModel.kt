@@ -2,6 +2,9 @@ package ca.cgagnier.wlednativeandroid.ui.soundsync
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,14 +31,35 @@ class SoundSyncViewModel(
 ) : ViewModel() {
 
     private val hasRecordAudioPermission = MutableStateFlow(soundSyncManager.hasRecordAudioPermission())
+    val portState = TextFieldState(initialText = UdpSoundSyncPacket.DEFAULT_PORT.toString())
 
     init {
         viewModelScope.launch {
+            val savedPort = preferencesRepository.soundSyncPort.first()
             if (!soundSyncManager.state.value.isRunning) {
                 soundSyncManager.setGain(preferencesRepository.soundSyncGain.first())
                 soundSyncManager.setAgcEnabled(preferencesRepository.soundSyncAgcEnabled.first())
                 soundSyncManager.setAgcMode(preferencesRepository.soundSyncAgcMode.first())
                 soundSyncManager.setSquelch(preferencesRepository.soundSyncSquelch.first())
+            }
+            val initialPort = if (soundSyncManager.state.value.isRunning) {
+                soundSyncManager.state.value.port
+            } else {
+                savedPort
+            }
+            if (portState.text.toString() == UdpSoundSyncPacket.DEFAULT_PORT.toString() &&
+                initialPort != UdpSoundSyncPacket.DEFAULT_PORT
+            ) {
+                portState.setTextAndPlaceCursorAtEnd(initialPort.toString())
+            }
+            var lastSavedPort = savedPort
+            snapshotFlow { portState.text.toString() }.collect { text ->
+                if (soundSyncManager.state.value.isRunning) return@collect
+                val validPort = text.toValidPortOrNull() ?: return@collect
+                if (validPort != lastSavedPort) {
+                    lastSavedPort = validPort
+                    preferencesRepository.updateSoundSyncPort(validPort)
+                }
             }
         }
     }
@@ -81,7 +105,11 @@ class SoundSyncViewModel(
             refreshPermissionState()
             return
         }
-        val current = soundSyncManager.state.value.copy(port = uiState.value.port)
+        val effectivePort = portState.text.toString().toValidPortOrNull() ?: uiState.value.port
+        if (portState.text.toString() != effectivePort.toString()) {
+            portState.setTextAndPlaceCursorAtEnd(effectivePort.toString())
+        }
+        val current = soundSyncManager.state.value.copy(port = effectivePort)
         val intent = SoundSyncService.startIntent(
             context = context,
             state = current,
@@ -135,9 +163,9 @@ class SoundSyncViewModel(
         }
     }
 
-    fun setPort(port: Int) {
-        viewModelScope.launch {
-            preferencesRepository.updateSoundSyncPort(port)
+    fun resetInvalidPort() {
+        if (!soundSyncManager.state.value.isRunning && portState.text.toString().toValidPortOrNull() == null) {
+            portState.setTextAndPlaceCursorAtEnd(uiState.value.port.toString())
         }
     }
 
@@ -165,3 +193,5 @@ data class SoundSyncUiState(
     val displayedGain: Float
         get() = if (isRunning && agcEnabled) effectiveGain else gain
 }
+
+internal fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)

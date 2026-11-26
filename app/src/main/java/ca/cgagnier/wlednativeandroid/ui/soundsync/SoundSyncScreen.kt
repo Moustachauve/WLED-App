@@ -41,7 +41,6 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.byValue
 import androidx.compose.foundation.text.input.maxLengthTrim
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
@@ -64,14 +63,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -126,7 +122,7 @@ data class SoundSyncActions(
     val onSquelchChanged: (Int) -> Unit = {},
     val onSquelchChangeFinished: () -> Unit = {},
     val onSquelchStepped: (Int) -> Unit = {},
-    val onPortChanged: (Int) -> Unit = {},
+    val onPortFocusLost: () -> Unit = {},
 )
 
 @Composable
@@ -181,12 +177,13 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
             onSquelchChanged = { viewModel.setSquelch(it) },
             onSquelchChangeFinished = { viewModel.saveSquelch() },
             onSquelchStepped = { viewModel.stepSquelch(it) },
-            onPortChanged = { viewModel.setPort(it) },
+            onPortFocusLost = { viewModel.resetInvalidPort() },
         )
     }
 
     SoundSyncContent(
         uiState = uiState,
+        portState = viewModel.portState,
         permanentlyDenied = permanentlyDenied,
         latestPacketFlow = viewModel.latestPacket,
         actions = actions,
@@ -227,13 +224,12 @@ private fun SoundSyncTopBar(navigateUp: () -> Unit) {
 @Composable
 fun SoundSyncContent(
     uiState: SoundSyncUiState,
-    modifier: Modifier = Modifier,
+    portState: TextFieldState = rememberTextFieldState(initialText = uiState.port.toString()),
     permanentlyDenied: Boolean = false,
     latestPacketFlow: StateFlow<UdpSoundSyncPacket> = remember { MutableStateFlow(UdpSoundSyncPacket()) },
     actions: SoundSyncActions = SoundSyncActions(),
 ) {
     Scaffold(
-        modifier = modifier,
         topBar = { SoundSyncTopBar(navigateUp = actions.navigateUp) },
     ) { innerPadding ->
         Column(
@@ -268,9 +264,9 @@ fun SoundSyncContent(
                     actions = actions,
                 )
                 PortCard(
-                    port = uiState.port,
+                    portState = portState,
                     isRunning = uiState.isRunning,
-                    onPortChanged = actions.onPortChanged,
+                    onPortFocusLost = actions.onPortFocusLost,
                 )
             }
         }
@@ -587,17 +583,10 @@ private val PortInputTransformation: InputTransformation = InputTransformation
     .maxLengthTrim(MAX_PORT_DIGITS)
 
 @Composable
-private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit) {
+private fun PortCard(portState: TextFieldState, isRunning: Boolean, onPortFocusLost: () -> Unit) {
     val portLabel = stringResource(R.string.sound_sync_port)
     var isFocused by remember { mutableStateOf(false) }
-    val portState = rememberSyncedPortFieldState(
-        port = port,
-        isRunning = isRunning,
-        isFocused = isFocused,
-        onPortChanged = onPortChanged,
-    )
-    val currentPort by rememberUpdatedState(port)
-    val isPortValid = (if (isRunning) port.toString() else portState.text.toString()).toValidPortOrNull() != null
+    val isPortValid = isRunning || portState.text.toString().toValidPortOrNull() != null
 
     SoundSyncCard {
         SectionTitle(portLabel)
@@ -614,9 +603,7 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
                 .fillMaxWidth()
                 .semantics { contentDescription = portLabel }
                 .onFocusChanged { focusState ->
-                    if (isFocused && !focusState.isFocused && portState.text.toString().toValidPortOrNull() == null) {
-                        portState.setTextAndPlaceCursorAtEnd(currentPort.toString())
-                    }
+                    if (isFocused && !focusState.isFocused) onPortFocusLost()
                     isFocused = focusState.isFocused
                 },
         )
@@ -630,43 +617,6 @@ private fun PortCard(port: Int, isRunning: Boolean, onPortChanged: (Int) -> Unit
         )
     }
 }
-
-@Composable
-private fun rememberSyncedPortFieldState(
-    port: Int,
-    isRunning: Boolean,
-    isFocused: Boolean,
-    onPortChanged: (Int) -> Unit,
-): TextFieldState {
-    val portState = rememberTextFieldState(initialText = port.toString())
-    var lastSyncedPort by rememberSaveable { mutableIntStateOf(port) }
-    val currentPort by rememberUpdatedState(port)
-    val currentlyFocused by rememberUpdatedState(isFocused)
-    val currentOnPortChanged by rememberUpdatedState(onPortChanged)
-
-    LaunchedEffect(portState, isRunning) {
-        if (isRunning) return@LaunchedEffect
-        snapshotFlow { portState.text.toString() }
-            .collect { text ->
-                val validPort = text.toValidPortOrNull() ?: return@collect
-                if (validPort != currentPort) currentOnPortChanged(validPort)
-            }
-    }
-
-    LaunchedEffect(port, isRunning) {
-        val target = port.toString()
-        if (isRunning || (!currentlyFocused && port != lastSyncedPort)) {
-            lastSyncedPort = port
-            if (portState.text.toString() != target) {
-                portState.setTextAndPlaceCursorAtEnd(target)
-            }
-        }
-    }
-
-    return portState
-}
-
-private fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)
 
 private fun AgcMode.labelResId(): Int = when (this) {
     AgcMode.NORMAL -> R.string.sound_sync_agc_mode_normal

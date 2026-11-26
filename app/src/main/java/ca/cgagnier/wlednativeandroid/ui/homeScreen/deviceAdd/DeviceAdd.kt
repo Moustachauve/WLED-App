@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -28,10 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -89,13 +85,12 @@ fun DeviceAdd(
 
                 when (state.step) {
                     is DeviceAddStep.Form -> step1AddressForm(
-                        state = state,
                         step = state.step,
                         viewModel = viewModel,
                         onDismissRequest = dismissRequest,
                     )
 
-                    is DeviceAddStep.Adding -> step2Loading(state)
+                    is DeviceAddStep.Adding -> step2Loading(address = viewModel.addressState.text.toString())
 
                     is DeviceAddStep.Success -> step3Complete(
                         step = state.step,
@@ -108,31 +103,17 @@ fun DeviceAdd(
 }
 
 @Composable
-private fun step1AddressForm(
-    state: DeviceAddState,
-    step: DeviceAddStep.Form,
-    viewModel: DeviceAddViewModel,
-    onDismissRequest: () -> Unit,
-) {
+private fun step1AddressForm(step: DeviceAddStep.Form, viewModel: DeviceAddViewModel, onDismissRequest: () -> Unit) {
     val focusRequester = remember {
         FocusRequester()
     }
     val focusManager = LocalFocusManager.current
-    val addressState = rememberTextFieldState(initialText = state.address)
-    val currentAddress by rememberUpdatedState(state.address)
-    val currentViewModel by rememberUpdatedState(viewModel)
 
     LaunchedEffect("initialFocus") {
         focusRequester.requestFocus()
     }
-    LaunchedEffect(addressState) {
-        snapshotFlow { addressState.text.toString() }
-            .collect { address ->
-                if (address != currentAddress) currentViewModel.setAddress(address)
-            }
-    }
     OutlinedTextField(
-        state = addressState,
+        state = viewModel.addressState,
         label = { Text(stringResource(R.string.ip_address_or_url)) },
         isError = step.addressError != null,
         supportingText = {
@@ -155,10 +136,7 @@ private fun step1AddressForm(
 
     AddressFormActions(
         onCancel = onDismissRequest,
-        onAdd = {
-            viewModel.setAddress(addressState.text.toString())
-            viewModel.submitCreateDevice()
-        },
+        onAdd = { viewModel.submitCreateDevice() },
     )
 }
 
@@ -183,12 +161,12 @@ private fun AddressFormActions(onCancel: () -> Unit, onAdd: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun step2Loading(state: DeviceAddState) {
+private fun step2Loading(address: String) {
     LoadingIndicator(
         modifier = Modifier.size(48.dp),
     )
     Text(
-        stringResource(R.string.add_adding_device, state.address),
+        stringResource(R.string.add_adding_device, address),
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(12.dp),
         maxLines = 1,
