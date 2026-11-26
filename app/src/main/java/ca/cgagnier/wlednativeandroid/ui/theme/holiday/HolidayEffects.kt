@@ -1,6 +1,10 @@
 package ca.cgagnier.wlednativeandroid.ui.theme.holiday
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawScope
@@ -22,6 +26,8 @@ import kotlin.random.Random
 
 private const val HALF = 0.5f
 private const val TWO_PI = (2.0 * PI).toFloat()
+private const val HOLIDAY_CARD_ALPHA_DARK = 0.78f
+private const val HOLIDAY_CARD_ALPHA_LIGHT = 0.82f
 
 private const val SNOW_COUNT = 38
 private const val SNOW_SEED = 20261225
@@ -151,6 +157,29 @@ private class FireworkDrawCache(
     val palette: List<Color>,
     val maxAlpha: Float,
 )
+
+/**
+ * Returns a semi-translucent variant of [containerColor] when a holiday theme is active
+ * so background seasonal particles softly show behind cards, or [containerColor] unchanged otherwise.
+ */
+@Composable
+fun holidayCardContainerColor(
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    holidayTheme: HolidayTheme? = LocalHolidayTheme.current,
+    isDarkTheme: Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme(),
+): Color {
+    if (holidayTheme == null) return containerColor
+    val alpha = if (isDarkTheme) HOLIDAY_CARD_ALPHA_DARK else HOLIDAY_CARD_ALPHA_LIGHT
+    return containerColor.copy(alpha = alpha)
+}
+
+/** Returns [CardDefaults.cardColors] using [holidayCardContainerColor] for card backgrounds. */
+@Composable
+fun holidayCardColors(containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest): CardColors =
+    CardDefaults.cardColors(
+        containerColor = holidayCardContainerColor(containerColor = containerColor),
+        contentColor = contentColorFor(containerColor),
+    )
 
 /**
  * Draws non-interactive seasonal particles (falling snowflakes for [HolidayTheme.WinterHolidays]

@@ -76,6 +76,7 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -341,6 +342,7 @@ private fun UpdateStatusCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
+        colors = holidayCardColors(),
     ) {
         Column(
             modifier = Modifier
