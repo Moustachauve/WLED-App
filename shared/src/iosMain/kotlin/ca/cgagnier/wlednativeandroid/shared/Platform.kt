@@ -17,8 +17,9 @@ actual fun getPlatformName(): String = "iOS"
 actual fun currentTimeMillis(): Long = (NSDate().timeIntervalSince1970 * MILLIS_PER_SECOND).toLong()
 
 actual fun currentLocalDate(): CalendarDate {
-    val calendar = NSCalendar.calendarWithIdentifier(NSCalendarIdentifierGregorian)
-        ?: NSCalendar.currentCalendar
+    val calendar = checkNotNull(NSCalendar.calendarWithIdentifier(NSCalendarIdentifierGregorian)) {
+        "Gregorian calendar is unavailable"
+    }
     val components = calendar.components(
         NSCalendarUnitMonth or NSCalendarUnitDay,
         fromDate = NSDate(),

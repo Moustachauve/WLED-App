@@ -3,7 +3,7 @@ package ca.cgagnier.wlednativeandroid.domain
 import ca.cgagnier.wlednativeandroid.shared.currentLocalDate
 
 object HolidayThemeResolver {
-    val holidays: List<HolidayDefinition> = listOf(
+    internal val holidays: List<HolidayDefinition> = listOf(
         HolidayDefinition(
             theme = HolidayTheme.WinterHolidays,
             dateRange = HolidayDateRange(
@@ -29,4 +29,4 @@ object HolidayThemeResolver {
     }
 }
 
-data class HolidayDefinition(val theme: HolidayTheme, val dateRange: HolidayDateRange)
+internal data class HolidayDefinition(val theme: HolidayTheme, val dateRange: HolidayDateRange)
