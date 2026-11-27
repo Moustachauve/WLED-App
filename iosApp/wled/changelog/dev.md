@@ -1,11 +1,12 @@
 ### Holiday Themes
-Celebrate the season right inside the app with festive color accents, twinkling header string lights, falling snow for the Winter Holidays, and fireworks for New Year. Prefer the classic look or want to keep the winter spirit going all year round? Toggle Holiday Themes or pick an override in Settings.
+Celebrate the season right inside the app with festive accents, twinkling header lights, falling snow for the Winter Holidays, and fireworks for New Year. Toggle Holiday Themes or pick an override anytime in Settings.
 
 ### Sound Sync (Beta)
-Turn your WLED devices into a music visualizer. Sound Sync captures audio from your microphone and sends real-time frequency data to your devices over the local network using UDP Sound Sync, even in the background or with the screen locked, complete with a Lock Screen and Dynamic Island Live Activity to jump back to settings or stop syncing at any time. Dial in manual gain up to 30x, pick from Normal, Vivid, or Lazy Automatic Gain Control presets, fine-tune the Squelch noise gate so your strips stay dark during quiet moments, and configure a custom UDP port if needed. Enable Sound Sync (Beta) in Settings to try it early.
+Turn your WLED strips into a live music visualizer over UDP Sound Sync, even in the background or with the screen locked, complete with a Lock Screen and Dynamic Island Live Activity. Fine-tune gain, Automatic Gain Control presets, squelch, and a custom UDP port, then enable Sound Sync (Beta) in Settings to try it early.
 
 ### Firmware Version Browser
-Want full control over what runs on your strips? Open Edit Device and tap Other Versions & Sources to explore every available Stable and Beta release, switch update sources between Official WLED, QuinLED, and MoonModules, read release notes, pick the exact firmware binary for your board, and install any version (including downgrades or cross-fork switches).
+Take full control over what runs on your strips. Open Edit Device and tap Other Versions & Sources to browse Stable and Beta releases from Official WLED, QuinLED, and MoonModules, read release notes, pick your exact board binary, and install or downgrade to any version.
 
 ### Other Improvements
-- Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates, and streamlined the update confirmation message.
+- Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates.
+- Polished the UI with iOS 26 Liquid Glass styling, native forms when adding and editing devices, and a cleaner split-view empty state.
