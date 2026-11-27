@@ -26,6 +26,7 @@ struct DeviceUpdateDetails: View {
     )
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.activeHolidayTheme) private var activeHolidayTheme
     var device: DeviceWithState
     var target: Target = .availableUpdate
     var database: AppDatabase = .shared
@@ -113,6 +114,7 @@ struct DeviceUpdateDetails: View {
                     didCompleteInstall = true
                 }
                 .presentationBackground(.ultraThinMaterial)
+                .tint(activeHolidayTheme?.accentColor)
             }
         )
         .task(id: loadTaskId) {

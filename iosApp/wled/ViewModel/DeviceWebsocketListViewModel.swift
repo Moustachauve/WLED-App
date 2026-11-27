@@ -94,7 +94,7 @@ final class DeviceWebsocketListViewModel {
         }
     }
 
-    private(set) var currentDate: CalendarDate
+    private var currentDate: CalendarDate
 
     var activeHolidayTheme: HolidayTheme? {
         HolidayThemeResolver.shared.resolve(
@@ -304,7 +304,7 @@ extension DeviceWebsocketListViewModel {
         connectionManager.onPause()
     }
 
-    func refreshDate() {
+    private func refreshDate() {
         let newDate = currentDateProvider()
         guard newDate != currentDate else { return }
         currentDate = newDate

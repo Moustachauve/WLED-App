@@ -13,12 +13,14 @@ private let maxBarHeightUnits: CGFloat = 20
 /// Sound Sync toolbar icon that displays `"waveform.badge.mic"` when inactive and
 /// animates the 5 rounded waveform bars in `.accentColor` when Sound Sync is running.
 struct SoundSyncToolbarIcon: View {
+    @Environment(\.activeHolidayTheme) private var activeHolidayTheme
     var viewModel: SoundSyncViewModel?
 
     @State private var smoother = BarLevelSmoother()
     @State private var referenceDate = Date.now
 
     var body: some View {
+        let barColor = activeHolidayTheme?.accentColor ?? .accentColor
         if viewModel?.isRunning == true {
             TimelineView(.animation) { timeline in
                 let elapsedTimeMs = Int64(timeline.date.timeIntervalSince(referenceDate) * 1000)
@@ -48,7 +50,7 @@ struct SoundSyncToolbarIcon: View {
 
                         context.fill(
                             Path(roundedRect: rect, cornerRadius: cornerRadius),
-                            with: .color(.accentColor)
+                            with: .color(barColor)
                         )
                     }
                 }

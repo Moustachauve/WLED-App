@@ -42,7 +42,7 @@ struct SoundSyncView: View {
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.15))
+                            .background(.tint.opacity(0.15))
                             .foregroundStyle(.tint)
                             .clipShape(Capsule())
                     }
@@ -346,7 +346,7 @@ private struct FftBarChart: View {
                         let barHeight = value * geometry.size.height
 
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.accentColor)
+                            .fill(.tint)
                             .frame(width: actualBarWidth, height: max(barHeight, 2))
                             .frame(maxHeight: .infinity, alignment: .bottom)
                     }
@@ -372,7 +372,7 @@ private struct SampleLevelIndicator: View {
                     .fill(Color.secondary.opacity(0.3))
 
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(isPeak ? Color.red : Color.accentColor)
+                    .fill(isPeak ? AnyShapeStyle(.red) : AnyShapeStyle(.tint))
                     .frame(width: max(levelWidth, 2))
             }
         }
