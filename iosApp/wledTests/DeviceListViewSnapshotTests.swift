@@ -27,24 +27,52 @@ struct DeviceListViewSnapshotTests {
         try await assertDeviceListSnapshot(style: .dark)
     }
 
+    @Test func testDeviceListWinterHolidaysLightSnapshot() async throws {
+        try await assertDeviceListSnapshot(
+            style: .light,
+            date: CalendarDate(month: 12, dayOfMonth: 25),
+            precision: 0.99
+        )
+    }
+
+    @Test func testDeviceListWinterHolidaysDarkSnapshot() async throws {
+        try await assertDeviceListSnapshot(
+            style: .dark,
+            date: CalendarDate(month: 12, dayOfMonth: 25),
+            precision: 0.99
+        )
+    }
+
+    @Test func testDeviceListNewYearDarkSnapshot() async throws {
+        try await assertDeviceListSnapshot(
+            style: .dark,
+            date: CalendarDate(month: 12, dayOfMonth: 31),
+            precision: 0.99
+        )
+    }
+
     // MARK: - Helpers
 
+    /// Holiday snapshots pass `precision: 0.99` to absorb Liquid Glass toolbar refraction above the string lights.
     private func assertDeviceListSnapshot(
         style: UIUserInterfaceStyle,
+        date: CalendarDate = CalendarDate(month: 6, dayOfMonth: 15),
+        precision: Float = 0.998,
         fileID: StaticString = #fileID,
         file: StaticString = #filePath,
         testName: String = #function,
         line: UInt = #line,
         column: UInt = #column
     ) async throws {
-        let viewModel = try await makePopulatedViewModel()
+        let viewModel = try await makePopulatedViewModel(date: date)
         let view = DeviceListView(viewModel: viewModel)
+            .environment(\.holidayAnimationStaticTime, 2.4)
 
         assertSnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
-                precision: 0.998,
+                precision: precision,
                 layout: .device(config: .iPhone13Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
             ),
@@ -57,7 +85,9 @@ struct DeviceListViewSnapshotTests {
         )
     }
 
-    private func makePopulatedViewModel() async throws -> DeviceWebsocketListViewModel {
+    private func makePopulatedViewModel(
+        date: CalendarDate = CalendarDate(month: 6, dayOfMonth: 15)
+    ) async throws -> DeviceWebsocketListViewModel {
         let onlineDevice = Device(
             macAddress: "AA:BB:CC:DD:EE:01",
             address: "192.168.1.101",
@@ -95,7 +125,8 @@ struct DeviceListViewSnapshotTests {
 
         let viewModel = DeviceWebsocketListViewModel(
             database: database,
-            discoveryService: discoveryService
+            discoveryService: discoveryService,
+            currentDateProvider: { date }
         )
 
         let observationTask = Task {

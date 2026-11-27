@@ -30,6 +30,7 @@ struct SoundSyncView: View {
 
                 portSection
             }
+            .holidayFormSurface()
             .navigationTitle("Sound Sync")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

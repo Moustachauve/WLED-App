@@ -1,3 +1,6 @@
+### Holiday Themes
+Celebrate the season right inside the app with festive color accents, twinkling header string lights, falling snow for the Winter Holidays, and fireworks for New Year. Prefer the classic look or want to keep the winter spirit going all year round? Toggle Holiday Themes or pick an override in Settings.
+
 ### Sound Sync (Beta)
 Turn your WLED devices into a music visualizer. Sound Sync captures audio from your microphone and sends real-time frequency data to your devices over the local network using UDP Sound Sync, even in the background or with the screen locked, complete with a Lock Screen and Dynamic Island Live Activity to jump back to settings or stop syncing at any time. Dial in manual gain up to 30x, pick from Normal, Vivid, or Lazy Automatic Gain Control presets, fine-tune the Squelch noise gate so your strips stay dark during quiet moments, and configure a custom UDP port if needed. Enable Sound Sync (Beta) in Settings to try it early.
 

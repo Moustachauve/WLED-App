@@ -28,6 +28,7 @@ struct DeviceFirmwareBrowserView: View {
             versionsSection
         }
         .listStyle(.insetGrouped)
+        .holidayFormSurface()
         .navigationTitle("Firmware Versions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
