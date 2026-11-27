@@ -87,6 +87,7 @@ struct DeviceAddStep1FormView: View {
                 }
             }
         }
+        .holidayFormSurface()
         .onAppear {
             focusedField = .address
         }

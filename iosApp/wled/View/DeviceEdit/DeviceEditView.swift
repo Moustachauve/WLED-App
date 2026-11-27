@@ -85,6 +85,7 @@ struct DeviceEditView: View {
             .animation(.default, value: device.availableUpdateVersion)
             .animation(.default, value: viewModel.isCheckingForUpdates)
         }
+        .holidayFormSurface()
         .task(id: device.device.repositoryId) {
             await viewModel.loadRepository(id: device.device.repositoryId)
         }

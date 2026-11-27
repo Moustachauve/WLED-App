@@ -7,12 +7,19 @@ enum CardStyle {
 }
 
 struct Card<Content: View>: View {
+    @Environment(\.activeHolidayTheme) private var activeHolidayTheme
+    @Environment(\.colorScheme) private var colorScheme
     let style: CardStyle
     @ViewBuilder let content: () -> Content
 
     init(style: CardStyle = .default, @ViewBuilder content: @escaping () -> Content) {
         self.style = style
         self.content = content
+    }
+
+    private var isHolidayDeviceCard: Bool {
+        guard activeHolidayTheme != nil, case .device = style else { return false }
+        return true
     }
 
     var body: some View {
@@ -23,6 +30,15 @@ struct Card<Content: View>: View {
         .padding()
         .background(backgroundView)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            if isHolidayDeviceCard {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(
+                        Color.primary.opacity(colorScheme == .dark ? 0.14 : 0.08),
+                        lineWidth: 0.75
+                    )
+            }
+        }
     }
 
     @ViewBuilder
@@ -31,9 +47,17 @@ struct Card<Content: View>: View {
         case .default:
             Color(UIColor.secondarySystemBackground)
         case .device(let color):
-            ZStack {
-                Rectangle().fill(color)
-                Rectangle().fill(.thickMaterial)
+            if activeHolidayTheme != nil {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    Rectangle().fill(color.opacity(colorScheme == .dark ? 0.30 : 0.24))
+                }
+                .opacity(0.78)
+            } else {
+                ZStack {
+                    Rectangle().fill(color)
+                    Rectangle().fill(.thickMaterial)
+                }
             }
         case .warning:
             ZStack {

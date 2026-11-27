@@ -78,6 +78,32 @@ final class DeviceWebsocketListViewModel {
         }
     }
 
+    var holidayThemesEnabled: Bool = true {
+        didSet {
+            guard holidayThemesEnabled != oldValue, !isSyncingPreferences else { return }
+            let enabled = holidayThemesEnabled
+            persistPreference { try await $0.updateHolidayThemesEnabled(enabled: enabled) }
+        }
+    }
+
+    var holidayThemeOverride: HolidayTheme? {
+        didSet {
+            guard holidayThemeOverride != oldValue, !isSyncingPreferences else { return }
+            let selectedOverride = holidayThemeOverride
+            persistPreference { try await $0.updateHolidayThemeOverride(override: selectedOverride) }
+        }
+    }
+
+    private(set) var currentDate: CalendarDate
+
+    var activeHolidayTheme: HolidayTheme? {
+        HolidayThemeResolver.shared.resolve(
+            enabled: holidayThemesEnabled,
+            override: holidayThemeOverride,
+            date: currentDate
+        )
+    }
+
     // MARK: - Private Properties
 
     private let connectionManager: DeviceConnectionManager
@@ -85,6 +111,7 @@ final class DeviceWebsocketListViewModel {
     private let deviceFirstContactService: DeviceFirstContactService
     private let userPreferencesRepository: UserPreferencesRepository
     @ObservationIgnored private let discoveryService: any DeviceDiscovering
+    @ObservationIgnored private let currentDateProvider: () -> CalendarDate
 
     @ObservationIgnored private var deviceMap: [String: DeviceWithState] = [:]
     @ObservationIgnored private var latestSharedDevices: [Shared.DeviceWithState] = []
@@ -101,13 +128,16 @@ final class DeviceWebsocketListViewModel {
         connectionManager: DeviceConnectionManager? = nil,
         database: AppDatabase = .shared,
         discoveryService: (any DeviceDiscovering)? = nil,
-        widgetSnapshotStore: WledWidgetSnapshotStore = .shared
+        widgetSnapshotStore: WledWidgetSnapshotStore = .shared,
+        currentDateProvider: @escaping () -> CalendarDate = { PlatformKt.currentLocalDate() }
     ) {
         self.database = database
         self.connectionManager = connectionManager ?? database.deviceConnectionManager
         self.deviceFirstContactService = database.deviceFirstContactService
         self.userPreferencesRepository = database.userPreferencesRepository
         self.widgetSnapshotStore = widgetSnapshotStore
+        self.currentDateProvider = currentDateProvider
+        self.currentDate = currentDateProvider()
 
         let resolvedDiscoveryService = discoveryService ?? DiscoveryService()
         self.discoveryService = resolvedDiscoveryService
@@ -132,6 +162,8 @@ final class DeviceWebsocketListViewModel {
             group.addTask { await self.observeThemeMode() }
             group.addTask { await self.observeAutoDiscovery() }
             group.addTask { await self.observeSoundSyncBetaEnabled() }
+            group.addTask { await self.observeHolidayThemesEnabled() }
+            group.addTask { await self.observeHolidayThemeOverride() }
             group.addTask { await self.observePausedState() }
             group.addTask { await self.runOfflineGracePeriodTimer() }
         }
@@ -166,6 +198,18 @@ final class DeviceWebsocketListViewModel {
     private func observeSoundSyncBetaEnabled() async {
         await observePreference(userPreferencesRepository.soundSyncBetaEnabled) {
             soundSyncBetaEnabled = $0.boolValue
+        }
+    }
+
+    private func observeHolidayThemesEnabled() async {
+        await observePreference(userPreferencesRepository.holidayThemesEnabled) {
+            holidayThemesEnabled = $0.boolValue
+        }
+    }
+
+    private func observeHolidayThemeOverride() async {
+        await observePreference(userPreferencesRepository.holidayThemeOverride) {
+            holidayThemeOverride = $0
         }
     }
 
@@ -249,13 +293,21 @@ final class DeviceWebsocketListViewModel {
         self.updateFilteredDevices(currentTime: Date())
         self.widgetSnapshotStore.sync(devices: sharedDevices)
     }
+}
 
-    // MARK: - Lifecycle (Call these from App ScenePhase)
+// MARK: - Lifecycle, Actions & Discovery
 
+extension DeviceWebsocketListViewModel {
     func onPause() {
         cancelAutoDiscovery()
         discoveryService.stop()
         connectionManager.onPause()
+    }
+
+    func refreshDate() {
+        let newDate = currentDateProvider()
+        guard newDate != currentDate else { return }
+        currentDate = newDate
     }
 
     /// Resumes device connections and starts automatic discovery if the user has it enabled.
@@ -263,6 +315,7 @@ final class DeviceWebsocketListViewModel {
     /// - Returns: The pending auto-discovery task, so callers (tests) can await its completion.
     @discardableResult
     func onResume() -> Task<Void, Never> {
+        refreshDate()
         connectionManager.onResume()
         cancelAutoDiscovery()
         let task = Task { await startAutoDiscoveryIfEnabled() }

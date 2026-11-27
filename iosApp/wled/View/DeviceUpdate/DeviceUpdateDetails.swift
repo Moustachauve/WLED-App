@@ -91,6 +91,7 @@ struct DeviceUpdateDetails: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
+        .holidayFormSurface(grouped: false)
         .updateFooterBar {
             footerBar
         }

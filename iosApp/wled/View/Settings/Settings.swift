@@ -13,6 +13,8 @@ struct Settings: View {
     @Binding var showOfflineDevicesLast: Bool
     @Binding var theme: ThemeSettings
     @Binding var autoDiscovery: Bool
+    @Binding var holidayThemesEnabled: Bool
+    @Binding var holidayThemeOverride: HolidayTheme?
     @Binding var soundSyncBetaEnabled: Bool
     var onShowChangelog: (() -> Void)?
     /// Injectable so snapshot tests don't change with every release.
@@ -55,6 +57,25 @@ struct Settings: View {
                 }
 
                 Section {
+                    Toggle(isOn: $holidayThemesEnabled) {
+                        Label("Enable Holiday Themes", systemImage: "party.popper")
+                    }
+
+                    if holidayThemesEnabled {
+                        Picker("Holiday Theme Override", selection: $holidayThemeOverride) {
+                            Text("Automatic").tag(HolidayTheme?.none)
+                            ForEach(HolidayTheme.allCases) { option in
+                                Text(option.localizedName).tag(Optional(option))
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Holiday Themes")
+                } footer: {
+                    Text("Show seasonal animations and festive accents during holidays.")
+                }
+
+                Section {
                     Toggle(isOn: $soundSyncBetaEnabled) {
                         Label("Sound Sync (Beta)", systemImage: "waveform")
                     }
@@ -89,6 +110,8 @@ struct Settings: View {
                 }
 
             }
+            .animation(.default, value: holidayThemesEnabled)
+            .holidayFormSurface()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -109,6 +132,8 @@ struct Settings: View {
         showOfflineDevicesLast: .constant(true),
         theme: .constant(.auto),
         autoDiscovery: .constant(true),
+        holidayThemesEnabled: .constant(true),
+        holidayThemeOverride: .constant(nil),
         soundSyncBetaEnabled: .constant(false)
     )
 }

@@ -300,16 +300,95 @@ struct DeviceWebsocketListViewModelTests {
         #expect(viewModel.visibleDevices.map(\.device.displayName) == ["Hidden Device"])
     }
 
-    // MARK: - Helpers
+    @Test func testActiveHolidayThemeResolvesForActiveDate() {
+        let viewModel = makeViewModel(currentDateProvider: { CalendarDate(month: 12, dayOfMonth: 25) })
+        #expect(viewModel.activeHolidayTheme == .winterHolidays)
+    }
 
-    private func makeViewModel(database: AppDatabase? = nil) -> DeviceWebsocketListViewModel {
+    @Test func testOnResumeRefreshesDateAndUpdatesHolidayTheme() async {
+        var fakeDate = CalendarDate(month: 12, dayOfMonth: 28)
+        let viewModel = makeViewModel(currentDateProvider: { fakeDate })
+        #expect(viewModel.activeHolidayTheme == .winterHolidays)
+
+        fakeDate = CalendarDate(month: 12, dayOfMonth: 29)
+        await viewModel.onResume().value
+
+        #expect(viewModel.activeHolidayTheme == .newYear)
+    }
+
+    @Test func testUpdatingHolidayThemesEnabledPersistsToRepository() async throws {
+        let viewModel = makeViewModel()
+        viewModel.holidayThemesEnabled = false
+
+        try await waitUntil {
+            let value = await self.database.userPreferencesRepository.holidayThemesEnabled.firstValue()
+            return value?.boolValue == false
+        }
+    }
+
+    @Test func testUpdatingHolidayThemeOverridePersistsToRepository() async throws {
+        let viewModel = makeViewModel()
+        viewModel.holidayThemeOverride = .winterHolidays
+
+        try await waitUntil {
+            let value = await self.database.userPreferencesRepository.holidayThemeOverride.firstValue()
+            return value == .winterHolidays
+        }
+    }
+
+    @Test func testObservingRepositoryHolidayThemesEnabledUpdatesViewModel() async throws {
+        let (viewModel, observationTask) = try await makeObservingViewModelWithDevice()
+        defer { observationTask.cancel() }
+
+        try await database.userPreferencesRepository.updateHolidayThemesEnabled(enabled: false)
+
+        try await waitUntil {
+            !viewModel.holidayThemesEnabled
+        }
+        #expect(!viewModel.holidayThemesEnabled)
+    }
+
+    @Test func testObservingRepositoryHolidayThemeOverrideUpdatesViewModel() async throws {
+        let (viewModel, observationTask) = try await makeObservingViewModelWithDevice()
+        defer { observationTask.cancel() }
+
+        try await database.userPreferencesRepository.updateHolidayThemeOverride(override: .newYear)
+
+        try await waitUntil {
+            viewModel.holidayThemeOverride == .newYear
+        }
+        #expect(viewModel.holidayThemeOverride == .newYear)
+    }
+
+}
+
+// MARK: - Helpers
+
+private extension DeviceWebsocketListViewModelTests {
+    func makeObservingViewModelWithDevice() async throws -> (
+        DeviceWebsocketListViewModel,
+        Task<Void, Never>
+    ) {
+        let device = createDevice(name: "Known Device", mac: "10", isHidden: false)
+        try await repository.insert(device: device)
+
+        let viewModel = makeViewModel()
+        let observationTask = try await startObserving(viewModel, expectedCount: 1)
+        return (viewModel, observationTask)
+    }
+
+    func makeViewModel(
+        database: AppDatabase? = nil,
+        currentDateProvider: @escaping () -> CalendarDate = { PlatformKt.currentLocalDate() }
+    ) -> DeviceWebsocketListViewModel {
         DeviceWebsocketListViewModel(
             database: database ?? self.database,
-            discoveryService: discoveryService
+            discoveryService: discoveryService,
+            currentDateProvider: currentDateProvider
         )
     }
 
-    private func makeFastPauseDatabase(delayMs: Int64 = 50) -> AppDatabase {
+    func makeFastPauseDatabase(delayMs: Int64 = 50) -> AppDatabase {
         let fastPauseConfig = DeviceConnectionManagerConfig(
             backgroundPauseDelayMs: delayMs,
             lastSeenPersistIntervalMs: 30000,
@@ -319,7 +398,7 @@ struct DeviceWebsocketListViewModelTests {
         return AppDatabase(inMemory: true, config: fastPauseConfig)
     }
 
-    private func createDevice(name: String, mac: String, isHidden: Bool) -> Device {
+    func createDevice(name: String, mac: String, isHidden: Bool) -> Device {
         Device(
             macAddress: mac,
             address: "192.168.1.\(mac)",
@@ -330,7 +409,7 @@ struct DeviceWebsocketListViewModelTests {
     }
 
     /// Starts observing the database and waits until the expected number of devices is loaded.
-    private func startObserving(
+    func startObserving(
         _ viewModel: DeviceWebsocketListViewModel,
         expectedCount: Int
     ) async throws -> Task<Void, Never> {

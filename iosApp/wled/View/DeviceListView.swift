@@ -85,6 +85,8 @@ struct DeviceListView: View {
                             showOfflineDevicesLast: $viewModel.showOfflineDevicesLast,
                             theme: $viewModel.theme,
                             autoDiscovery: $viewModel.autoDiscovery,
+                            holidayThemesEnabled: $viewModel.holidayThemesEnabled,
+                            holidayThemeOverride: $viewModel.holidayThemeOverride,
                             soundSyncBetaEnabled: $viewModel.soundSyncBetaEnabled,
                             onShowChangelog: {
                                 pendingShowChangelog = true
@@ -118,6 +120,8 @@ struct DeviceListView: View {
             detailView
         }
         .navigationSplitViewStyle(.balanced)
+        .environment(\.activeHolidayTheme, viewModel.activeHolidayTheme)
+        .tint(viewModel.activeHolidayTheme?.accentColor)
         .overlay {
             if let pendingDevice = devicePendingDeletion {
                 ConfirmDeleteDeviceDialog(
@@ -233,6 +237,7 @@ struct DeviceListView: View {
                 }
             }
             .listStyle(.plain)
+            .holidayFormSurface(grouped: false)
             .refreshable(action: refreshList)
             .animation(.default, value: viewModel.localNetworkDenied)
 
@@ -308,6 +313,7 @@ struct DeviceListView: View {
             ContentUnavailableView {
                 placeholderAkemi
             }
+            .holidayFormSurface(grouped: false)
         } else {
             ContentUnavailableView {
                 VStack(spacing: 12) {
@@ -315,6 +321,7 @@ struct DeviceListView: View {
                     Text("Select A Device")
                 }
             }
+            .holidayFormSurface(grouped: false)
         }
     }
 

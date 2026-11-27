@@ -17,10 +17,20 @@ struct SettingsSnapshotTests {
         assertSettingsSnapshot(style: .dark)
     }
 
+    @Test func testSettingsWinterHolidaysDarkSnapshot() {
+        assertSettingsSnapshot(
+            style: .dark,
+            holidayTheme: .winterHolidays,
+            holidayThemeOverride: .winterHolidays
+        )
+    }
+
     // MARK: - Helpers
 
     private func assertSettingsSnapshot(
         style: UIUserInterfaceStyle,
+        holidayTheme: HolidayTheme? = nil,
+        holidayThemeOverride: HolidayTheme? = nil,
         fileID: StaticString = #fileID,
         file: StaticString = #filePath,
         testName: String = #function,
@@ -32,11 +42,16 @@ struct SettingsSnapshotTests {
             showOfflineDevicesLast: .constant(true),
             theme: .constant(.auto),
             autoDiscovery: .constant(true),
+            holidayThemesEnabled: .constant(true),
+            holidayThemeOverride: .constant(holidayThemeOverride),
             soundSyncBetaEnabled: .constant(false),
             onShowChangelog: {},
             appVersion: "7.2.0",
             buildNumber: "100"
         )
+        .environment(\.activeHolidayTheme, holidayTheme)
+        .environment(\.holidayAnimationStaticTime, 2.4)
+        .tint(holidayTheme?.accentColor)
 
         assertSnapshot(
             of: view,
