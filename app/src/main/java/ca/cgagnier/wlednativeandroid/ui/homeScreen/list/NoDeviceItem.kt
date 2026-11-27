@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 
 @Composable
 fun NoDevicesItem(
@@ -43,6 +44,7 @@ fun NoDevicesItem(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth()
+                .holidayParticles()
                 .padding(16.dp)
                 .padding(top = 24.dp),
             horizontalAlignment = CenterHorizontally,

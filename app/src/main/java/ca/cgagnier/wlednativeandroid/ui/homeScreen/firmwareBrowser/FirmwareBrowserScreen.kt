@@ -80,6 +80,9 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsContent
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsMode
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardContainerColor
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -157,7 +160,7 @@ private fun FirmwareBrowserListPane(
     navigateUp: () -> Unit,
     onOpenDetail: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().holidayParticles()) {
         val installedRepoId = uiState.device?.device?.repositoryId
         val selectedRepo = uiState.selectedRepository
         FirmwareBrowserListTopBar(
@@ -166,6 +169,7 @@ private fun FirmwareBrowserListPane(
             navigateUp = navigateUp,
             onRefresh = viewModel::refreshSelectedRepository,
         )
+        HolidayStringLightsBar()
         RepositoryDropdown(
             uiState = uiState,
             installedRepoId = installedRepoId,
@@ -197,7 +201,13 @@ private fun FirmwareBrowserDetailPane(
 ) {
     val selected = uiState.selectedVersion
     if (selected == null) {
-        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .holidayParticles()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
                 text = stringResource(R.string.select_a_version_from_the_list),
                 style = MaterialTheme.typography.bodyLarge,
@@ -208,13 +218,14 @@ private fun FirmwareBrowserDetailPane(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().holidayParticles()) {
         DetailPaneTopBar(
             version = selected.versionWithAssets,
             repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
             canNavigateBack = canNavigateBack,
             navigateBack = navigateBack,
         )
+        HolidayStringLightsBar()
         Card(
             modifier = Modifier
                 .weight(1f)
@@ -552,8 +563,8 @@ private fun VersionRowCard(
         onClick = onClick,
         shapes = shapes,
         colors = ListItemDefaults.segmentedColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            containerColor = holidayCardContainerColor(MaterialTheme.colorScheme.surfaceContainer),
+            selectedContainerColor = holidayCardContainerColor(MaterialTheme.colorScheme.secondaryContainer),
             selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             selectedSupportingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ),

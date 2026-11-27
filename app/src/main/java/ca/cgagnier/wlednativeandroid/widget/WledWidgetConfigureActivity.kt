@@ -10,8 +10,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -53,6 +57,8 @@ import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
 import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -156,19 +162,21 @@ fun ConfigurationScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(stringResource(R.string.select_a_device))
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.baseline_arrow_back_24),
-                            contentDescription = stringResource(R.string.description_back_button),
-                        )
-                    }
-                },
-            )
+            HolidayTopBar {
+                TopAppBar(
+                    title = {
+                        Text(stringResource(R.string.select_a_device))
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                painter = painterResource(R.drawable.baseline_arrow_back_24),
+                                contentDescription = stringResource(R.string.description_back_button),
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         when {
@@ -179,6 +187,7 @@ fun ConfigurationScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
+                        .holidayParticles()
                         .padding(24.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -191,24 +200,44 @@ fun ConfigurationScreen(
                 }
             }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .consumeWindowInsets(padding)
-                        .selectableGroup(),
-                    contentPadding = padding,
-                ) {
-                    items(devices, key = { it.macAddress }) { device ->
-                        DeviceItem(
-                            device = device,
-                            isSelected = device.macAddress == selectedMacAddress,
-                            onClick = { onDeviceSelected(device) },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            }
+            else -> DeviceSelectionList(
+                devices = devices,
+                selectedMacAddress = selectedMacAddress,
+                padding = padding,
+                onDeviceSelected = onDeviceSelected,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceSelectionList(
+    devices: List<Device>,
+    selectedMacAddress: String?,
+    padding: PaddingValues,
+    onDeviceSelected: (Device) -> Unit,
+) {
+    val layoutDirection = LocalLayoutDirection.current
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = padding.calculateTopPadding())
+            .holidayParticles()
+            .consumeWindowInsets(padding)
+            .selectableGroup(),
+        contentPadding = PaddingValues(
+            start = padding.calculateStartPadding(layoutDirection),
+            end = padding.calculateEndPadding(layoutDirection),
+            bottom = padding.calculateBottomPadding(),
+        ),
+    ) {
+        items(devices, key = { it.macAddress }) { device ->
+            DeviceItem(
+                device = device,
+                isSelected = device.macAddress == selectedMacAddress,
+                onClick = { onDeviceSelected(device) },
+            )
+            HorizontalDivider()
         }
     }
 }

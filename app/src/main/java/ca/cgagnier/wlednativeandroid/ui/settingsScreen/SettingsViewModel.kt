@@ -3,6 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.settingsScreen
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncManager
@@ -21,18 +22,12 @@ class SettingsViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private val theme = preferencesRepository.themeMode
-    private val autoDiscovery = preferencesRepository.autoDiscovery
-    private val showOfflineDevicesLast = preferencesRepository.showOfflineDevicesLast
-    private val showHiddenDevices = preferencesRepository.showHiddenDevices
-    private val soundSyncBetaEnabled = preferencesRepository.soundSyncBetaEnabled
-
     val settingsState = combine(
-        autoDiscovery,
-        showOfflineDevicesLast,
-        showHiddenDevices,
-        theme,
-        soundSyncBetaEnabled,
+        preferencesRepository.autoDiscovery,
+        preferencesRepository.showOfflineDevicesLast,
+        preferencesRepository.showHiddenDevices,
+        preferencesRepository.themeMode,
+        preferencesRepository.soundSyncBetaEnabled,
     ) { autoDiscovery, showOfflineDevicesLast, showHiddenDevices, theme, soundSyncBetaEnabled ->
         SettingsState(
             isAutoDiscoveryEnabled = autoDiscovery,
@@ -41,6 +36,10 @@ class SettingsViewModel(
             theme = theme,
             isSoundSyncBetaEnabled = soundSyncBetaEnabled,
         )
+    }.combine(preferencesRepository.holidayThemesEnabled) { state, enabled ->
+        state.copy(isHolidayThemesEnabled = enabled)
+    }.combine(preferencesRepository.holidayThemeOverride) { state, override ->
+        state.copy(holidayThemeOverride = override)
     }.stateIn(viewModelScope, WhileSubscribed(STATE_FLOW_TIMEOUT_MS), SettingsState())
 
     fun setAutoDiscover(enabled: Boolean) = viewModelScope.launch(ioDispatcher) {
@@ -54,6 +53,12 @@ class SettingsViewModel(
     }
     fun setTheme(theme: ThemeSettings) = viewModelScope.launch(ioDispatcher) {
         preferencesRepository.updateThemeMode(theme)
+    }
+    fun setHolidayThemesEnabled(enabled: Boolean) = viewModelScope.launch(ioDispatcher) {
+        preferencesRepository.updateHolidayThemesEnabled(enabled)
+    }
+    fun setHolidayThemeOverride(override: HolidayTheme?) = viewModelScope.launch(ioDispatcher) {
+        preferencesRepository.updateHolidayThemeOverride(override)
     }
     fun setSoundSyncBetaEnabled(enabled: Boolean) {
         if (!enabled) {
@@ -71,5 +76,7 @@ data class SettingsState(
     val showOfflineLast: Boolean = true,
     val showHiddenDevices: Boolean = false,
     val theme: ThemeSettings = ThemeSettings.Auto,
+    val isHolidayThemesEnabled: Boolean = true,
+    val holidayThemeOverride: HolidayTheme? = null,
     val isSoundSyncBetaEnabled: Boolean = false,
 )

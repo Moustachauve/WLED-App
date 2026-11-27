@@ -3,6 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -19,12 +20,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
 import ca.cgagnier.wlednativeandroid.model.getColorFromState
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import com.materialkolor.DynamicMaterialTheme
 import com.materialkolor.PaletteStyle
+import com.materialkolor.rememberDynamicColorScheme
 import org.koin.androidx.compose.koinViewModel
 
 private val lightScheme = lightColorScheme(
@@ -265,7 +268,18 @@ val unspecified_scheme = ColorFamily(
     Color.Unspecified,
 )
 
-private val LocalDarkTheme = staticCompositionLocalOf<Boolean?> { null }
+private const val WINTER_PRIMARY_SEED = 0xFF1B6B4AL
+private const val WINTER_SECONDARY_SEED = 0xFFB3261EL
+private const val WINTER_TERTIARY_SEED = 0xFFC8962EL
+private const val NEW_YEAR_PRIMARY_SEED = 0xFF3949ABL
+private const val NEW_YEAR_SECONDARY_SEED = 0xFFD4AF37L
+private const val NEW_YEAR_TERTIARY_SEED = 0xFFC2185BL
+
+internal val LocalDarkTheme = staticCompositionLocalOf<Boolean?> { null }
+val LocalHolidayTheme = staticCompositionLocalOf<HolidayTheme?> { null }
+
+@Composable
+internal fun currentIsDarkTheme(): Boolean = LocalDarkTheme.current ?: isSystemInDarkTheme()
 
 @Composable
 fun WLEDNativeTheme(
@@ -274,9 +288,9 @@ fun WLEDNativeTheme(
     themeViewModel: ThemeViewModel = koinViewModel(),
     content: @Composable () -> Unit,
 ) {
-    val theme by themeViewModel.theme.collectAsStateWithLifecycle()
-    val currentTheme = theme ?: return
-    val darkTheme = when (currentTheme) {
+    val themeState by themeViewModel.themeState.collectAsStateWithLifecycle()
+    val currentState = themeState ?: return
+    val darkTheme = when (currentState.theme) {
         ThemeSettings.Dark -> true
         ThemeSettings.Light -> false
         ThemeSettings.Auto -> isSystemInDarkTheme()
@@ -284,6 +298,7 @@ fun WLEDNativeTheme(
     WLEDNativeTheme(
         darkTheme = darkTheme,
         dynamicColor = dynamicColor,
+        holidayTheme = currentState.holidayTheme,
         content = content,
     )
 }
@@ -293,10 +308,13 @@ fun WLEDNativeTheme(
     darkTheme: Boolean,
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
+    holidayTheme: HolidayTheme? = null,
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
     val colorScheme = when {
+        holidayTheme != null -> holidayColorScheme(holidayTheme = holidayTheme, darkTheme = darkTheme)
+
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -307,7 +325,10 @@ fun WLEDNativeTheme(
         else -> lightScheme
     }
 
-    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+    CompositionLocalProvider(
+        LocalDarkTheme provides darkTheme,
+        LocalHolidayTheme provides holidayTheme,
+    ) {
         MaterialExpressiveTheme(
             colorScheme = colorScheme,
             content = content,
@@ -323,13 +344,34 @@ fun WLEDNativeTheme(
     }
 }
 
+@Composable
+private fun holidayColorScheme(holidayTheme: HolidayTheme, darkTheme: Boolean): ColorScheme = when (holidayTheme) {
+    HolidayTheme.WinterHolidays -> rememberDynamicColorScheme(
+        seedColor = Color(WINTER_PRIMARY_SEED),
+        isDark = darkTheme,
+        primary = Color(WINTER_PRIMARY_SEED),
+        secondary = Color(WINTER_SECONDARY_SEED),
+        tertiary = Color(WINTER_TERTIARY_SEED),
+        style = PaletteStyle.TonalSpot,
+    )
+
+    HolidayTheme.NewYear -> rememberDynamicColorScheme(
+        seedColor = Color(NEW_YEAR_PRIMARY_SEED),
+        isDark = darkTheme,
+        primary = Color(NEW_YEAR_PRIMARY_SEED),
+        secondary = Color(NEW_YEAR_SECONDARY_SEED),
+        tertiary = Color(NEW_YEAR_TERTIARY_SEED),
+        style = PaletteStyle.TonalSpot,
+    )
+}
+
 fun getColorFromDeviceState(state: State?): Int = getColorFromState(state) ?: android.graphics.Color.WHITE
 
 @Composable
 fun DeviceTheme(device: DeviceWithState, content: @Composable () -> Unit) {
     DeviceTheme(
         device = device,
-        darkTheme = LocalDarkTheme.current ?: isSystemInDarkTheme(),
+        darkTheme = currentIsDarkTheme(),
         content = content,
     )
 }

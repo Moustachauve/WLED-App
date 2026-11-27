@@ -51,6 +51,8 @@ import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncToolbarIcon
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -179,14 +181,15 @@ fun DeviceListContent(state: DeviceListState, actions: DeviceListActions = Devic
 
     Scaffold(
         topBar = {
-            DeviceListAppBar(
-                state = state,
-                actions = actions,
-            )
+            HolidayTopBar {
+                DeviceListAppBar(state = state, actions = actions)
+            }
         },
     ) { innerPadding ->
         PullToRefreshBox(
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier
+                .padding(innerPadding)
+                .holidayParticles(),
             state = pullToRefreshState,
             isRefreshing = isRefreshing,
             onRefresh = refresh,

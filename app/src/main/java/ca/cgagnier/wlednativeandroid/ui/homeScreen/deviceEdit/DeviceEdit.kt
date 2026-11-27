@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -72,6 +71,9 @@ import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
+import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.androidx.compose.koinViewModel
@@ -155,20 +157,23 @@ fun DeviceEditContent(
 
     Scaffold(
         topBar = {
-            DeviceEditAppBar(
-                device = device,
-                canNavigateBack = canNavigateBack,
-                navigateUp = navigateUp,
-            )
+            HolidayTopBar {
+                DeviceEditAppBar(
+                    device = device,
+                    canNavigateBack = canNavigateBack,
+                    navigateUp = navigateUp,
+                )
+            }
         },
     ) { innerPadding ->
         Card(
             modifier = Modifier
                 .padding(innerPadding)
+                .holidayParticles()
                 .padding(horizontal = 3.dp)
                 .fillMaxHeight()
                 .height(IntrinsicSize.Max),
-            colors = CardDefaults.cardColors(
+            colors = holidayCardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         ) {
@@ -330,6 +335,7 @@ private fun UpdateStatusCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
+        colors = holidayCardColors(),
     ) {
         Column(
             modifier = Modifier

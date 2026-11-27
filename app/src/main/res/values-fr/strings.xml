@@ -207,4 +207,13 @@
     <string name="no_installable_binaries">Aucun fichier de micrologiciel installable dans cette version</string>
     <string name="select_a_version_from_the_list">Sélectionnez une version du micrologiciel dans la liste</string>
 
+    <!-- Holiday Themes -->
+    <string name="holiday_themes">Thèmes des fêtes</string>
+    <string name="enable_holiday_themes">Activer les thèmes des fêtes</string>
+    <string name="enable_holiday_themes_description">Afficher des animations saisonnières et des accents festifs pendant les fêtes.</string>
+    <string name="holiday_theme_override">Forcer un thème</string>
+    <string name="holiday_theme_automatic">Automatique</string>
+    <string name="holiday_theme_winter_holidays">Fêtes d\'hiver</string>
+    <string name="holiday_theme_new_year">Nouvel An</string>
+
 </resources>
