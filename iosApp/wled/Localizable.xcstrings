@@ -1928,6 +1928,23 @@
         }
       }
     },
+    "%lld controllers · %lld on [one]" : {
+      "comment" : "IllumiDEL controller list, 0 or 1 controller on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld controllers · %lld on"
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld contrôleurs · %lld allumé"
+          }
+        }
+      }
+    },
     "%lld controllers · %lld on" : {
       "comment" : "IllumiDEL controller list",
       "localizations" : {

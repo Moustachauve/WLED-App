@@ -298,14 +298,17 @@ private fun LazyListScope.populatedDeviceListItems(
             )
         }
     }
-    item(key = "il_summary") {
-        val online = partitioned.visible.filter { it.isOnline }
-        SummaryBar(
-            total = partitioned.visible.size,
-            onCount = online.count { it.stateInfo?.state?.isOn == true },
-            hasOnlineDevices = online.isNotEmpty(),
-            onAllPower = { isOn -> online.forEach { actions.onPowerSwitchToggle(it, isOn) } },
-        )
+    // only useful with 2+ controllers (a single card already has its own switch)
+    if (partitioned.visible.size > 1) {
+        item(key = "il_summary") {
+            val online = partitioned.visible.filter { it.isOnline }
+            SummaryBar(
+                total = partitioned.visible.size,
+                onCount = online.count { it.stateInfo?.state?.isOn == true },
+                hasOnlineDevices = online.isNotEmpty(),
+                onAllPower = { isOn -> online.forEach { actions.onPowerSwitchToggle(it, isOn) } },
+            )
+        }
     }
     if (state.showOfflineDevicesLast) {
         onlineOfflineDevicesList(
@@ -586,7 +589,8 @@ private fun SummaryBar(total: Int, onCount: Int, hasOnlineDevices: Boolean, onAl
             .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 10.dp),
     ) {
         Text(
-            stringResource(R.string.il_summary, total, onCount),
+            // French: "allumé" for 0 and 1, "allumés" from 2 (Android plural rules)
+            LocalContext.current.resources.getQuantityString(R.plurals.il_summary, onCount, total, onCount),
             color = IlSummaryColor,
             fontSize = 13.sp,
             modifier = Modifier.weight(1f),

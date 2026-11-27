@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -67,6 +68,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
@@ -394,12 +396,15 @@ private fun BrightnessRow(
                 .padding(horizontal = 12.dp),
         )
         Text(
-            "${(sliderPosition / MAX_BRIGHTNESS * PERCENT_SCALE).roundToInt()} %",
+            // non-breaking space: "100 %" never splits over two lines
+            "${(sliderPosition / MAX_BRIGHTNESS * PERCENT_SCALE).roundToInt()}\u00A0%",
             color = Il.Value,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            modifier = Modifier.width(44.dp),
+            softWrap = false,
+            textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(min = 44.dp),
         )
     }
 }

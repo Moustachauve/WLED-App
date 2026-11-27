@@ -109,11 +109,14 @@ struct DeviceListItemView: View {
                 .tint(isLit ? tint : IL.off)
                 .disabled(!device.isOnline)
                 .accessibilityLabel(Text("Brightness"))
-                Text("\(Int((brightness / 255 * 100).rounded())) %")
+                // non-breaking space + one line: "100 %" never wraps, even with large text sizes
+                Text("\(Int((brightness / 255 * 100).rounded()))\u{00A0}%")
                     .font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(IL.value)
-                    .frame(width: 44, alignment: .trailing)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 44, alignment: .trailing)
             }
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))

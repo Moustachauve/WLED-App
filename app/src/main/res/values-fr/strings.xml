@@ -145,7 +145,11 @@
     <string name="il_status_on">Allumé</string>
     <string name="il_status_off">Éteint</string>
     <string name="il_status_offline">Hors ligne</string>
-    <string name="il_summary">%1$d contrôleurs · %2$d allumés</string>
+    <plurals name="il_summary">
+        <item quantity="one">%1$d contrôleurs · %2$d allumé</item>
+        <item quantity="many">%1$d contrôleurs · %2$d allumés</item>
+        <item quantity="other">%1$d contrôleurs · %2$d allumés</item>
+    </plurals>
     <string name="il_turn_all_off">Tout éteindre</string>
     <string name="il_turn_all_on">Tout allumer</string>
     <string name="il_update_prompt_title">Mise à jour <xliff:g example="v1.6.0" id="version">%1$s</xliff:g> disponible</string>

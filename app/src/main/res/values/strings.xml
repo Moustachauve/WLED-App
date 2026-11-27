@@ -147,7 +147,10 @@
     <string name="il_status_on">On</string>
     <string name="il_status_off">Off</string>
     <string name="il_status_offline">Offline</string>
-    <string name="il_summary">%1$d controllers · %2$d on</string>
+    <plurals name="il_summary">
+        <item quantity="one">%1$d controllers · %2$d on</item>
+        <item quantity="other">%1$d controllers · %2$d on</item>
+    </plurals>
     <string name="il_turn_all_off">Turn all off</string>
     <string name="il_turn_all_on">Turn all on</string>
     <string name="il_update_prompt_title">Update <xliff:g example="v1.6.0" id="version">%1$s</xliff:g> available</string>

@@ -200,7 +200,8 @@ struct DeviceListView: View {
                     }
                 }
 
-                if !viewModel.visibleDevices.isEmpty {
+                // only useful with 2+ controllers (a single card already has its own switch)
+                if viewModel.visibleDevices.count > 1 {
                     summaryBar
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 6, trailing: 20))
                         .listRowSeparator(.hidden)
@@ -332,7 +333,10 @@ private extension DeviceListView {
         let onCount = onlineDevices.filter { $0.stateInfo?.state.isOn?.boolValue ?? false }.count
         let anyOn = onCount > 0
         return HStack {
-            Text("\(devices.count) controllers · \(onCount) on")
+            // French: "allumé" for 0 and 1, "allumés" from 2
+            (onCount <= 1
+                ? Text("\(devices.count) controllers · \(onCount) on [one]")
+                : Text("\(devices.count) controllers · \(onCount) on"))
                 .font(.system(size: 13))
                 .foregroundStyle(IL.summary)
             Spacer()
