@@ -70,6 +70,7 @@ struct DeviceListView: View {
                 .toolbar { toolbar }
                 .sheet(isPresented: $addDeviceButtonActive) {
                     DeviceAddView()
+                        .tint(viewModel.activeHolidayTheme?.accentColor)
                 }
                 .sheet(
                     isPresented: $showSettingsSheet,
@@ -93,11 +94,13 @@ struct DeviceListView: View {
                                 showSettingsSheet = false
                             }
                         )
+                        .tint(viewModel.activeHolidayTheme?.accentColor)
                     }
                 )
                 .sheet(isPresented: $showSoundSyncSheet) {
                     if let soundSyncViewModel {
                         SoundSyncView(viewModel: soundSyncViewModel)
+                            .tint(viewModel.activeHolidayTheme?.accentColor)
                     }
                 }
                 .sheet(
@@ -120,8 +123,6 @@ struct DeviceListView: View {
             detailView
         }
         .navigationSplitViewStyle(.balanced)
-        .environment(\.activeHolidayTheme, viewModel.activeHolidayTheme)
-        .tint(viewModel.activeHolidayTheme?.accentColor)
         .overlay {
             if let pendingDevice = devicePendingDeletion {
                 ConfirmDeleteDeviceDialog(
@@ -140,6 +141,8 @@ struct DeviceListView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
+        .environment(\.activeHolidayTheme, viewModel.activeHolidayTheme)
+        .tint(viewModel.activeHolidayTheme?.accentColor)
         .onChange(of: viewModel.theme, initial: true) { _, newTheme in
             newTheme.applyToWindows()
         }
@@ -309,16 +312,13 @@ struct DeviceListView: View {
             NavigationStack(path: navigation.detailPathBinding) {
                 DeviceView(device: device)
             }
-        } else if viewModel.visibleDevices.isEmpty {
-            ContentUnavailableView {
-                placeholderAkemi
-            }
-            .holidayFormSurface(grouped: false)
         } else {
             ContentUnavailableView {
                 VStack(spacing: 12) {
                     placeholderAkemi
-                    Text("Select A Device")
+                    if !viewModel.visibleDevices.isEmpty {
+                        Text("Select A Device")
+                    }
                 }
             }
             .holidayFormSurface(grouped: false)

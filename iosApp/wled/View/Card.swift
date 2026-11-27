@@ -8,6 +8,7 @@ enum CardStyle {
 
 struct Card<Content: View>: View {
     @Environment(\.activeHolidayTheme) private var activeHolidayTheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
     let style: CardStyle
     @ViewBuilder let content: () -> Content
@@ -52,7 +53,7 @@ struct Card<Content: View>: View {
                     Rectangle().fill(.ultraThinMaterial)
                     Rectangle().fill(color.opacity(colorScheme == .dark ? 0.30 : 0.24))
                 }
-                .opacity(0.78)
+                .opacity(reduceTransparency ? 1.0 : 0.78)
             } else {
                 ZStack {
                     Rectangle().fill(color)

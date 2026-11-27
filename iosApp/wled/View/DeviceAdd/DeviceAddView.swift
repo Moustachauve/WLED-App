@@ -22,15 +22,18 @@ struct DeviceAddView: View {
                         DeviceAddStep2LoadingView(address: viewModel.address)
                         Spacer()
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
                 case .success(let device):
                     VStack {
                         DeviceAddStep3Success(device: device)
                         Spacer()
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
                 }
             }
+            .holidayFormSurface()
             .animation(.easeInOut, value: viewModel.currentStep)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -87,7 +90,6 @@ struct DeviceAddStep1FormView: View {
                 }
             }
         }
-        .holidayFormSurface()
         .onAppear {
             focusedField = .address
         }

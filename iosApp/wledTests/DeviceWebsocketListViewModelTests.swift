@@ -337,7 +337,8 @@ struct DeviceWebsocketListViewModelTests {
     }
 
     @Test func testObservingRepositoryHolidayThemesEnabledUpdatesViewModel() async throws {
-        let (viewModel, observationTask) = try await makeObservingViewModelWithDevice()
+        let viewModel = makeViewModel()
+        let observationTask = Task { await viewModel.observe() }
         defer { observationTask.cancel() }
 
         try await database.userPreferencesRepository.updateHolidayThemesEnabled(enabled: false)
@@ -349,7 +350,8 @@ struct DeviceWebsocketListViewModelTests {
     }
 
     @Test func testObservingRepositoryHolidayThemeOverrideUpdatesViewModel() async throws {
-        let (viewModel, observationTask) = try await makeObservingViewModelWithDevice()
+        let viewModel = makeViewModel()
+        let observationTask = Task { await viewModel.observe() }
         defer { observationTask.cancel() }
 
         try await database.userPreferencesRepository.updateHolidayThemeOverride(override: .newYear)
@@ -365,18 +367,6 @@ struct DeviceWebsocketListViewModelTests {
 // MARK: - Helpers
 
 private extension DeviceWebsocketListViewModelTests {
-    func makeObservingViewModelWithDevice() async throws -> (
-        DeviceWebsocketListViewModel,
-        Task<Void, Never>
-    ) {
-        let device = createDevice(name: "Known Device", mac: "10", isHidden: false)
-        try await repository.insert(device: device)
-
-        let viewModel = makeViewModel()
-        let observationTask = try await startObserving(viewModel, expectedCount: 1)
-        return (viewModel, observationTask)
-    }
-
     func makeViewModel(
         database: AppDatabase? = nil,
         currentDateProvider: @escaping () -> CalendarDate = { PlatformKt.currentLocalDate() }
