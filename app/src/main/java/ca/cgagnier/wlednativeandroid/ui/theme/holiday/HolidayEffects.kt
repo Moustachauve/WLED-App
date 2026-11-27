@@ -25,8 +25,7 @@ import kotlin.random.Random
 
 private const val HALF = 0.5f
 private const val TWO_PI = (2.0 * PI).toFloat()
-private const val HOLIDAY_CARD_ALPHA_DARK = 0.78f
-private const val HOLIDAY_CARD_ALPHA_LIGHT = 0.82f
+private const val HOLIDAY_CARD_ALPHA = 0.80f
 
 private const val SNOW_COUNT = 38
 private const val SNOW_SEED = 20261225
@@ -44,12 +43,8 @@ private const val SNOW_MIN_SWAY_DP = 6.0f
 private const val SNOW_SWAY_RANGE_DP = 10.0f
 private const val SNOW_MIN_SWAY_FREQ = 0.8f
 private const val SNOW_SWAY_FREQ_RANGE = 0.9f
-private const val SNOW_MIN_ALPHA_DARK = 0.28f
-private const val SNOW_ALPHA_RANGE_DARK = 0.34f
-private const val SNOW_MIN_ALPHA_LIGHT = 0.32f
-private const val SNOW_ALPHA_RANGE_LIGHT = 0.32f
-private const val SNOW_CORE_RADIUS_FACTOR = 0.45f
-private const val SNOW_CORE_ALPHA_FACTOR = 0.85f
+private const val SNOW_MIN_ALPHA = 0.30f
+private const val SNOW_ALPHA_RANGE = 0.32f
 
 private const val BURST_COUNT = 5
 private const val SPARKS_PER_BURST = 16
@@ -145,7 +140,6 @@ private class SnowDrawCache(
     val swayPx: FloatArray,
     val crystalStrokePx: Float,
     val flakeColor: Color,
-    val isDarkTheme: Boolean,
 )
 
 private class FireworkDrawCache(
@@ -164,8 +158,7 @@ private class FireworkDrawCache(
 @Composable
 fun holidayCardContainerColor(containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest): Color {
     if (LocalHolidayTheme.current == null) return containerColor
-    val alpha = if (currentIsDarkTheme()) HOLIDAY_CARD_ALPHA_DARK else HOLIDAY_CARD_ALPHA_LIGHT
-    return containerColor.copy(alpha = alpha)
+    return containerColor.copy(alpha = HOLIDAY_CARD_ALPHA)
 }
 
 /** Returns [CardDefaults.cardColors] using [holidayCardContainerColor] for card backgrounds. */
@@ -199,7 +192,6 @@ private fun CacheDrawScope.buildWinterSnowDraw(timeProvider: () -> Float, isDark
         swayPx = FloatArray(SNOW_COUNT) { SnowField.swayAmpsDp[it].dp.toPx() },
         crystalStrokePx = CRYSTAL_STROKE_DP.dp.toPx(),
         flakeColor = if (isDarkTheme) SnowFlakeColorDark else SnowFlakeColorLight,
-        isDarkTheme = isDarkTheme,
     )
 
     return onDrawBehind {
@@ -212,15 +204,12 @@ private fun CacheDrawScope.buildWinterSnowDraw(timeProvider: () -> Float, isDark
 }
 
 private fun DrawScope.drawWinterSnow(timeSeconds: Float, cache: SnowDrawCache) {
-    val baseAlpha = if (cache.isDarkTheme) SNOW_MIN_ALPHA_DARK else SNOW_MIN_ALPHA_LIGHT
-    val alphaRange = if (cache.isDarkTheme) SNOW_ALPHA_RANGE_DARK else SNOW_ALPHA_RANGE_LIGHT
-
     for (i in 0 until SNOW_COUNT) {
         val yFraction = (SnowField.yPhases[i] + SnowField.speeds[i] * timeSeconds) % 1f
         val sway = sin(timeSeconds * SnowField.swayFreqs[i] + SnowField.yPhases[i] * TWO_PI) * cache.swayPx[i]
         val x = (SnowField.xFractions[i] * size.width + sway + size.width) % size.width
         val y = yFraction * size.height
-        val alpha = baseAlpha + SnowField.alphaFractions[i] * alphaRange
+        val alpha = SNOW_MIN_ALPHA + SnowField.alphaFractions[i] * SNOW_ALPHA_RANGE
         val radius = cache.radiiPx[i]
         val color = cache.flakeColor.copy(alpha = alpha)
 
@@ -228,13 +217,6 @@ private fun DrawScope.drawWinterSnow(timeSeconds: Float, cache: SnowDrawCache) {
             drawCrystalFlake(center = Offset(x, y), radius = radius, strokeWidth = cache.crystalStrokePx, color = color)
         } else {
             drawCircle(color = color, radius = radius, center = Offset(x, y))
-            if (!cache.isDarkTheme) {
-                drawCircle(
-                    color = Color.White.copy(alpha = alpha * SNOW_CORE_ALPHA_FACTOR),
-                    radius = radius * SNOW_CORE_RADIUS_FACTOR,
-                    center = Offset(x, y),
-                )
-            }
         }
     }
 }
