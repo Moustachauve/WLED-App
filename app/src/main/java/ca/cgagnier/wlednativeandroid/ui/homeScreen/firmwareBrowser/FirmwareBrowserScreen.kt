@@ -160,7 +160,7 @@ private fun FirmwareBrowserListPane(
     navigateUp: () -> Unit,
     onOpenDetail: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().holidayParticles()) {
         val installedRepoId = uiState.device?.device?.repositoryId
         val selectedRepo = uiState.selectedRepository
         FirmwareBrowserListTopBar(
@@ -170,32 +170,25 @@ private fun FirmwareBrowserListPane(
             onRefresh = viewModel::refreshSelectedRepository,
         )
         HolidayStringLightsBar()
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .holidayParticles(),
-        ) {
-            RepositoryDropdown(
-                uiState = uiState,
-                installedRepoId = installedRepoId,
-                onSelect = viewModel::selectRepository,
-            )
-            if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
-                SourceSwitchWarningBanner(selectedRepo.name)
-            }
-            BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
-            VersionListSection(
-                uiState = uiState,
-                highlightSelection = highlightSelection,
-                onRefresh = viewModel::refreshSelectedRepository,
-                onVersionClick = { item ->
-                    viewModel.selectVersion(item)
-                    onOpenDetail()
-                },
-                modifier = Modifier.weight(1f),
-            )
+        RepositoryDropdown(
+            uiState = uiState,
+            installedRepoId = installedRepoId,
+            onSelect = viewModel::selectRepository,
+        )
+        if (selectedRepo != null && installedRepoId != null && selectedRepo.id != installedRepoId) {
+            SourceSwitchWarningBanner(selectedRepo.name)
         }
+        BranchTabs(uiState.selectedBranch, viewModel::selectBranch)
+        VersionListSection(
+            uiState = uiState,
+            highlightSelection = highlightSelection,
+            onRefresh = viewModel::refreshSelectedRepository,
+            onVersionClick = { item ->
+                viewModel.selectVersion(item)
+                onOpenDetail()
+            },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -225,7 +218,7 @@ private fun FirmwareBrowserDetailPane(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().holidayParticles()) {
         DetailPaneTopBar(
             version = selected.versionWithAssets,
             repositoryOwnerAndRepo = uiState.selectedRepository?.ownerAndRepo,
@@ -240,22 +233,16 @@ private fun FirmwareBrowserDetailPane(
                 .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .holidayParticles(),
-            ) {
-                UpdateDetailsContent(
-                    device = uiState.device,
-                    version = selected.versionWithAssets,
-                    mode = UpdateDetailsMode.BinaryPicker(
-                        installableAssets = selected.installableAssets,
-                        selectedAsset = selected.selectedAsset,
-                        onSelectAsset = viewModel::selectBinaryAsset,
-                    ),
-                    onInstall = { viewModel.requestInstallSelectedVersion() },
-                )
-            }
+            UpdateDetailsContent(
+                device = uiState.device,
+                version = selected.versionWithAssets,
+                mode = UpdateDetailsMode.BinaryPicker(
+                    installableAssets = selected.installableAssets,
+                    selectedAsset = selected.selectedAsset,
+                    onSelectAsset = viewModel::selectBinaryAsset,
+                ),
+                onInstall = { viewModel.requestInstallSelectedVersion() },
+            )
         }
     }
 }

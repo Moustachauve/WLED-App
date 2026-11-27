@@ -22,43 +22,24 @@ class SettingsViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private val listingPrefs = combine(
+    val settingsState = combine(
         preferencesRepository.autoDiscovery,
         preferencesRepository.showOfflineDevicesLast,
         preferencesRepository.showHiddenDevices,
-    ) { autoDiscovery, showOfflineDevicesLast, showHiddenDevices ->
-        ListingPrefs(
+        preferencesRepository.themeMode,
+        preferencesRepository.soundSyncBetaEnabled,
+    ) { autoDiscovery, showOfflineDevicesLast, showHiddenDevices, theme, soundSyncBetaEnabled ->
+        SettingsState(
             isAutoDiscoveryEnabled = autoDiscovery,
             showOfflineLast = showOfflineDevicesLast,
             showHiddenDevices = showHiddenDevices,
-        )
-    }
-
-    private val holidayPrefs = combine(
-        preferencesRepository.holidayThemesEnabled,
-        preferencesRepository.holidayThemeOverride,
-    ) { enabled, override ->
-        HolidayPrefs(
-            isEnabled = enabled,
-            override = override,
-        )
-    }
-
-    val settingsState = combine(
-        listingPrefs,
-        preferencesRepository.themeMode,
-        holidayPrefs,
-        preferencesRepository.soundSyncBetaEnabled,
-    ) { listing, theme, holiday, soundSyncBetaEnabled ->
-        SettingsState(
-            isAutoDiscoveryEnabled = listing.isAutoDiscoveryEnabled,
-            showOfflineLast = listing.showOfflineLast,
-            showHiddenDevices = listing.showHiddenDevices,
             theme = theme,
-            isHolidayThemesEnabled = holiday.isEnabled,
-            holidayThemeOverride = holiday.override,
             isSoundSyncBetaEnabled = soundSyncBetaEnabled,
         )
+    }.combine(preferencesRepository.holidayThemesEnabled) { state, enabled ->
+        state.copy(isHolidayThemesEnabled = enabled)
+    }.combine(preferencesRepository.holidayThemeOverride) { state, override ->
+        state.copy(holidayThemeOverride = override)
     }.stateIn(viewModelScope, WhileSubscribed(STATE_FLOW_TIMEOUT_MS), SettingsState())
 
     fun setAutoDiscover(enabled: Boolean) = viewModelScope.launch(ioDispatcher) {
@@ -87,14 +68,6 @@ class SettingsViewModel(
             preferencesRepository.updateSoundSyncBetaEnabled(enabled)
         }
     }
-
-    private data class ListingPrefs(
-        val isAutoDiscoveryEnabled: Boolean,
-        val showOfflineLast: Boolean,
-        val showHiddenDevices: Boolean,
-    )
-
-    private data class HolidayPrefs(val isEnabled: Boolean, val override: HolidayTheme?)
 }
 
 @Stable

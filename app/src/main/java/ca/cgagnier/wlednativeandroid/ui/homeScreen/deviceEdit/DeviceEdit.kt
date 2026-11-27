@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,11 +28,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -173,17 +169,16 @@ fun DeviceEditContent(
         Card(
             modifier = Modifier
                 .padding(innerPadding)
+                .holidayParticles()
                 .padding(horizontal = 3.dp)
                 .fillMaxHeight()
                 .height(IntrinsicSize.Max),
-            colors = CardDefaults.cardColors(
+            colors = holidayCardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .holidayParticles()
                     .verticalScroll(rememberScrollState())
                     .padding(12.dp),
             ) {
@@ -192,7 +187,6 @@ fun DeviceEditContent(
                     state = addressState,
                     enabled = false,
                     label = { Text(stringResource(R.string.ip_address_or_url)) },
-                    colors = deviceEditTextFieldColors(),
                     lineLimits = TextFieldLineLimits.SingleLine,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -456,7 +450,6 @@ private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit)
         supportingText = {
             Text(stringResource(R.string.leave_this_empty_to_use_the_device_name))
         },
-        colors = deviceEditTextFieldColors(),
         lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         modifier = Modifier
@@ -471,16 +464,6 @@ private fun CustomNameTextField(device: Device, onValueChange: (String) -> Unit)
                 currentOnValueChange(text)
             }
     }
-}
-
-@Composable
-private fun deviceEditTextFieldColors(): TextFieldColors {
-    val containerColor = MaterialTheme.colorScheme.surfaceContainer
-    return OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = containerColor,
-        unfocusedContainerColor = containerColor,
-        disabledContainerColor = containerColor,
-    )
 }
 
 /** Shows the current version and a button to check for updates. */
