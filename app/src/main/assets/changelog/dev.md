@@ -1,15 +1,16 @@
 ### Holiday Themes
-Celebrate the season right inside the app with festive color accents, twinkling header string lights, falling snow for the Winter Holidays, and fireworks for New Year. Prefer the classic look or want to keep the winter spirit going all year round? Toggle Holiday Themes or pick a permanent override in Settings.
+Celebrate the season right inside the app with festive accents, twinkling header lights, falling snow for the Winter Holidays, and fireworks for New Year. Toggle Holiday Themes or pick an override anytime in Settings.
 
 ### Sound Sync (Beta)
-Turn your phone into a live audio-reactive controller for your WLED devices. Capture sound from your microphone, and the app sends real-time frequency data and beat detection to all your WLED devices over UDP Sound Sync, even in the background with a live notification to quickly jump back to settings or stop syncing. Dial in manual gain up to 30x, pick from Normal, Vivid, or Lazy Automatic Gain Control presets, fine-tune the Squelch noise gate so your strips stay dark during quiet moments, and configure a custom UDP port if needed. Enable Sound Sync (Beta) in Settings to try it early, and make sure your devices are set to Receive mode in their audio sync settings.
-
-### Compact 1x1 Widgets & Easy Reconfiguration
-Shrink your home screen widgets all the way down to a compact 1x1 tile for a quick power toggle and device label right alongside your app icons. Changed your mind about which strip a widget controls? Long-press any placed widget and tap the edit button to reassign it to a different WLED device without removing and re-adding it.
+Turn your phone into a live audio-reactive controller for your WLED strips over UDP Sound Sync, even in the background with a live notification for quick controls. Fine-tune gain, Automatic Gain Control presets, squelch, and a custom UDP port, then enable Sound Sync (Beta) in Settings to try it early.
 
 ### Firmware Version Browser
-Want full control over what runs on your strips? Open Edit Device and tap Other Versions & Sources to explore every available Stable and Beta release, switch update sources between Official WLED, QuinLED, and MoonModules, read release notes, pick the exact firmware binary for your board, and install any version (including downgrades or cross-fork switches).
+Take full control over what runs on your strips. Open Edit Device and tap Other Versions & Sources to browse Stable and Beta releases from Official WLED, QuinLED, and MoonModules, read release notes, pick your exact board binary, and install or downgrade to any version.
+
+### Compact 1x1 Widgets & Reconfiguration
+Shrink home screen widgets down to a compact 1x1 power tile right alongside your app icons, or long-press any widget and tap edit to switch it to another device without re-adding it.
 
 ### Other Improvements & Fixes
-- Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates, and streamlined the update confirmation message.
-- Fixed the home screen widget's power and refresh buttons not working while Battery Saver is on.
+- Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates.
+- Refreshed the UI with Material 3 Expressive styling, wavy progress indicators, and blurred dialog backdrops on Android 12 and newer.
+- Fixed home screen widget power and refresh buttons not working while Battery Saver is on.
