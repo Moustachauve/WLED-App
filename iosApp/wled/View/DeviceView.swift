@@ -130,6 +130,7 @@ struct DeviceView: View {
                         Image(systemName: "chevron.left")
                         Image(systemName: "house")
                     }
+                    .fontWeight(.light)   // IllumiDEL: thin strokes, like the web page's 6-button menu
                 }
                 .accessibilityLabel("Device List")
             }
@@ -145,11 +146,13 @@ struct DeviceView: View {
         ToolbarItem(placement: .primaryAction) {
             NavigationLink(value: DeviceDetailRoute.edit(deviceId: device.id)) {
                 Label("Settings", systemImage: "gear")
+                    .fontWeight(.light)
                     .badge(getToolbarBadgeCount())
             }
         }
         ToolbarItem(placement: .automatic) {
             Button("Refresh", systemImage: "arrow.clockwise", action: refreshWebView)
+                .fontWeight(.light)
         }
     }
 
