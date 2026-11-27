@@ -7,11 +7,22 @@ struct WebView: UIViewRepresentable {
     @Binding var reload: Bool
     @Binding var isError: Bool
     @Binding var isLoading: Bool
+    /// IllumiDEL: background colour of the page (its `--bg` theme colour), so the bar above it can match.
+    /// Called again whenever the customer changes theme in the page. `nil` = the page has no theme colour.
+    var onPageColor: ((UIColor?) -> Void)?
     let downloadCompleted: (URL) -> Void
 
     func makeUIView(context: Context) -> WKWebView {
         print("WebView makeUIView")
-        let webView = WKWebView()
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(
+            WKUserScript(source: Self.pageColorScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+        configuration.userContentController.add(
+            WeakScriptMessageHandler(context.coordinator),
+            name: Self.pageColorHandler
+        )
+        let webView = WKWebView(frame: .zero, configuration: configuration)
 
         webView.customUserAgent = "wled-native/1"
         webView.isOpaque = false
@@ -53,8 +64,45 @@ struct WebView: UIViewRepresentable {
         downloadCompleted(filePathDestination)
     }
 
+    // MARK: - IllumiDEL page colour
+
+    static let pageColorHandler = "ilPageColor"
+
+    /// Reads the page's `--bg` colour (set by the IllumiDEL theme), sends it to the app, and sends it again
+    /// when the theme changes. Pages without a theme colour send `null`.
+    static let pageColorScript = """
+    (function () {
+      if (window.__ilPageColor) return;
+      window.__ilPageColor = true;
+      var last = "";
+      function send() {
+        try {
+          var v = (getComputedStyle(document.documentElement).getPropertyValue("--bg") || "").trim();
+          var rgb = null;
+          if (v) {
+            var e = document.createElement("i");
+            e.style.display = "none";
+            e.style.color = v;
+            document.documentElement.appendChild(e);
+            var m = (getComputedStyle(e).color || "").match(/[0-9.]+/g);
+            e.remove();
+            if (m && m.length >= 3) rgb = [+m[0], +m[1], +m[2]];
+          }
+          var key = rgb ? rgb.join(",") : "none";
+          if (key === last) return;
+          last = key;
+          window.webkit.messageHandlers.ilPageColor.postMessage(rgb);
+        } catch (err) {}
+      }
+      send();
+      new MutationObserver(function () { setTimeout(send, 50); })
+        .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+      window.addEventListener("pageshow", send);
+    })();
+    """
+
     @MainActor
-    class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDelegate {
+    class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         /// WebKit error code (`WebKitErrorFrameLoadInterruptedByPolicyChange`) emitted when a navigation
         /// is converted into a `WKDownload` (e.g. exporting `presets.json` or `cfg.json` from WLED).
         nonisolated static let frameLoadInterruptedByPolicyChangeErrorCode = 102
@@ -65,6 +113,22 @@ struct WebView: UIViewRepresentable {
 
         init(_ parent: WebView) {
             self.parent = parent
+        }
+
+        // IllumiDEL: page colour sent by `pageColorScript`
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == WebView.pageColorHandler else { return }
+            if let rgb = message.body as? [NSNumber], rgb.count >= 3 {
+                let color = UIColor(
+                    red: CGFloat(rgb[0].doubleValue) / 255,
+                    green: CGFloat(rgb[1].doubleValue) / 255,
+                    blue: CGFloat(rgb[2].doubleValue) / 255,
+                    alpha: 1
+                )
+                parent.onPageColor?(color)
+            } else {
+                parent.onPageColor?(nil)
+            }
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -295,5 +359,19 @@ struct WebView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+}
+
+/// Keeps the coordinator out of a retain cycle: `WKUserContentController` holds its script handlers strongly.
+@MainActor
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }

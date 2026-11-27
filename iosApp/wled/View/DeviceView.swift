@@ -21,6 +21,8 @@ struct DeviceView: View {
     @State private var isWebViewError = false
     @State private var isWebViewLoading = false
     @State private var postUpdateReloadTask: Task<Void, Never>?
+    /// IllumiDEL: theme colour of the page, used for the bar at the top (nil = default bar)
+    @State private var pageColor: Color?
 
     var body: some View {
         ZStack {
@@ -28,7 +30,12 @@ struct DeviceView: View {
                 url: getDeviceAddress(),
                 reload: $shouldWebViewRefresh,
                 isError: $isWebViewError,
-                isLoading: $isWebViewLoading
+                isLoading: $isWebViewLoading,
+                onPageColor: { color in
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        pageColor = color.map { Color(uiColor: $0) }
+                    }
+                }
             ) { _ in
                 withAnimation {
                     showDownloadFinished = true
@@ -81,6 +88,7 @@ struct DeviceView: View {
             }
         }
         .onChange(of: device.id) {
+            pageColor = nil
             postUpdateReloadTask?.cancel()
             postUpdateReloadTask = nil
         }
@@ -105,6 +113,9 @@ struct DeviceView: View {
             }
         }
         .toolbar { toolbar }
+        // IllumiDEL: the bar at the top takes the page's theme colour, so bar and page look like one piece
+        .toolbarBackground(pageColor ?? .clear, for: .navigationBar)
+        .toolbarBackground(pageColor == nil ? .automatic : .visible, for: .navigationBar)
     }
 
     @ToolbarContentBuilder
