@@ -7,6 +7,9 @@ Turn your WLED strips into a live music visualizer over UDP Sound Sync, even in 
 ### Firmware Version Browser
 Take full control over what runs on your strips. Open Edit Device and tap Other Versions & Sources to browse Stable and Beta releases from Official WLED, QuinLED, and MoonModules, read release notes, pick your exact board binary, and install or downgrade to any version.
 
+### Your Wrist Is Now a Light Switch
+WLED has landed on Apple Watch. Your devices sync over from your iPhone automatically, so you can flip the power, roll the Digital Crown to set brightness (turn it all the way down to switch the strip off), and start or stop the nightlight with a live countdown of the time left. The watch opens straight to the last device you controlled.
+
 ### Other Improvements
 - Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates.
 - Polished the UI with iOS 26 Liquid Glass styling, native forms when adding and editing devices, and a cleaner split-view empty state.

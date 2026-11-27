@@ -85,6 +85,7 @@ SKIP_KMP_BUILD=1 xcodebuild test \
 *   `iosApp/` - Native iOS app ([iosApp/README.md](iosApp/README.md)):
     *   `iosApp/wled/` - SwiftUI views (`View/`), view models (`ViewModel/`), services (`Service/`), and CoreData-to-Room migration (`Migration/`).
     *   `iosApp/wledTests/` - iOS unit tests (note lowercase `wledTests`).
+    *   `iosApp/WLEDWatch/` & `iosApp/WLEDWatchTests/` - Pure-Swift watchOS companion app (does not link `Shared`) and its tests (`WLEDWatch` scheme). `iosApp/WatchShared/` holds the iPhone/watch sync payload compiled into both apps; the iPhone side is `wled/Service/Watch/WatchSyncService.swift`.
     *   `iosApp/SharedPackage/` - Local Swift Package wrapping `Shared.xcframework`.
     *   `iosApp/scripts/compile_kmp.sh` - Xcode build phase script that builds `:shared` XCFramework.
 *   `.agents/skills/` & `.agent/skills/` - Official Android (`android/skills`) and Swift (`twostraws`) agent skills managed via `skills-lock.json`.

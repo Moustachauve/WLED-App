@@ -200,6 +200,52 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  test-watch:
+    name: Run Unit Tests (watchOS)
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # The watch app is pure Swift: it does not link the Kotlin framework, so no Gradle step is needed.
+      - name: Pick a watchOS simulator
+        id: simulator
+        run: |
+          # Watch simulator names change with every Xcode release: take the newest available one.
+          UDID=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices | to_entries[] | select(.key | contains("watchOS")) | .value[]] | last | .udid // empty')
+          if [ -z "$UDID" ]; then
+            echo "::error::No watchOS simulator available"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Test watchOS App
+        run: |
+          xcodebuild test \
+            -project iosApp/wled.xcodeproj \
+            -scheme WLEDWatch \
+            -destination "platform=watchOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -resultBundlePath iosApp/build/WatchTestResults.xcresult \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Upload watchOS Test Results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: watch-test-results
+          path: iosApp/build/WatchTestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
   lint:
     name: Run Lint (Android + Shared)
     runs-on: ubuntu-latest

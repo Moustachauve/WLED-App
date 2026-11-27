@@ -6,7 +6,7 @@ Native iOS application for discovering and controlling [WLED](https://github.com
 
 ## Architecture
 
-- **UI:** SwiftUI (Targeting iOS 18+)
+- **UI:** SwiftUI (Targeting iOS 18+, watchOS 11+ for the Apple Watch companion)
 - **Shared Logic:** Consumes the Kotlin Multiplatform shared module (`:shared`) via `SharedPackage` (XCFramework with SKIE)
 - **Discovery & Networking:** Bonjour / mDNS network discovery and WebSocket communication
 
@@ -45,6 +45,17 @@ xcodebuild test \
   -parallel-testing-enabled NO \
   -maximum-concurrent-test-simulator-destinations 1 \
   ONLY_ACTIVE_ARCH=YES \
+  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+```
+
+### Apple Watch App
+`WLEDWatch` is a pure-Swift watchOS companion embedded in the iOS app. It does not link the KMP framework: the iPhone (`WatchSyncService`) pushes the device list through WatchConnectivity and the watch controls devices directly over the HTTP JSON API. Run its tests with the `WLEDWatch` scheme:
+
+```bash
+xcodebuild test \
+  -project iosApp/wled.xcodeproj \
+  -scheme WLEDWatch \
+  -destination 'platform=watchOS Simulator,name=Apple Watch SE 3 (44mm),OS=latest' \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
 ```
 
