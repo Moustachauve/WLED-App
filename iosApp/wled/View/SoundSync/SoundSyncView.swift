@@ -79,7 +79,6 @@ struct SoundSyncView: View {
                 )
             }
         }
-        .environment(\.activeSoundSyncTargets, viewModel.activeSoundSyncTargets)
     }
 }
 

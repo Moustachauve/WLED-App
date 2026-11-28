@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 
 class ActiveSoundSyncTargetsTest {
 
@@ -52,11 +55,10 @@ class ActiveSoundSyncTargetsTest {
     }
 
     @Test
-    fun `Selected excludes offline and AP mode devices even if MAC matches`() {
-        val targets = ActiveSoundSyncTargets.Selected(setOf("AA:BB:CC:DD:EE:01", AP_MODE_MAC_ADDRESS))
+    fun `Selected excludes offline devices even if MAC matches`() {
+        val targets = ActiveSoundSyncTargets.Selected(setOf("AA:BB:CC:DD:EE:01"))
 
         assertFalse(targets.isDeviceReceiving(device(mac = "AA:BB:CC:DD:EE:01", isOnline = false)))
-        assertFalse(targets.isDeviceReceiving(device(mac = AP_MODE_MAC_ADDRESS)))
     }
 
     @Test
@@ -73,33 +75,35 @@ class ActiveSoundSyncTargetsTest {
         )
     }
 
-    @Test
-    fun `resolveActiveSoundSyncTargets maps stopped and running modes`() {
+    @ParameterizedTest(name = "isRunning={0}, sendMode={1} -> {2}")
+    @MethodSource("resolveTargetCases")
+    fun `resolveActiveSoundSyncTargets maps stopped and running modes`(
+        isRunning: Boolean,
+        sendMode: SoundSyncSendMode,
+        showHiddenDevices: Boolean,
+        expected: ActiveSoundSyncTargets,
+    ) {
         assertEquals(
-            ActiveSoundSyncTargets.None,
+            expected,
             resolveActiveSoundSyncTargets(
-                isRunning = false,
-                sendMode = SoundSyncSendMode.UNICAST,
+                isRunning = isRunning,
+                sendMode = sendMode,
                 selectedDeviceMacs = setOf("01"),
-                showHiddenDevices = false,
+                showHiddenDevices = showHiddenDevices,
             ),
         )
-        assertEquals(
-            ActiveSoundSyncTargets.AllOnline,
-            resolveActiveSoundSyncTargets(
-                isRunning = true,
-                sendMode = SoundSyncSendMode.MULTICAST,
-                selectedDeviceMacs = setOf("01"),
-                showHiddenDevices = false,
-            ),
-        )
-        assertEquals(
-            ActiveSoundSyncTargets.Selected(macAddresses = setOf("01"), includeHidden = true),
-            resolveActiveSoundSyncTargets(
-                isRunning = true,
-                sendMode = SoundSyncSendMode.UNICAST,
-                selectedDeviceMacs = setOf("01"),
-                showHiddenDevices = true,
+    }
+
+    companion object {
+        @JvmStatic
+        fun resolveTargetCases(): List<Arguments> = listOf(
+            Arguments.of(false, SoundSyncSendMode.UNICAST, false, ActiveSoundSyncTargets.None),
+            Arguments.of(true, SoundSyncSendMode.MULTICAST, false, ActiveSoundSyncTargets.AllOnline),
+            Arguments.of(
+                true,
+                SoundSyncSendMode.UNICAST,
+                true,
+                ActiveSoundSyncTargets.Selected(macAddresses = setOf("01"), includeHidden = true),
             ),
         )
     }

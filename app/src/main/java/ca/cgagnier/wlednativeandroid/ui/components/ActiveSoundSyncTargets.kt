@@ -39,7 +39,6 @@ sealed interface ActiveSoundSyncTargets {
     @Immutable
     data class Selected(val macAddresses: Set<String>, val includeHidden: Boolean = false) : ActiveSoundSyncTargets {
         override fun isDeviceReceiving(device: DeviceWithState): Boolean = device.isOnline &&
-            !device.isAPMode &&
             (includeHidden || !device.device.isHidden) &&
             device.device.macAddress in macAddresses
     }

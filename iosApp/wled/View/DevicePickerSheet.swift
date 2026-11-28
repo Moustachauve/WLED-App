@@ -12,7 +12,7 @@ struct DevicePickerSheet: View {
     let offlineDevices: [DeviceWithState]
     let showOfflineDevicesLast: Bool
     let selectionMode: DevicePickerSelectionMode
-    var title: LocalizedStringKey = "Select a Device"
+    let title: LocalizedStringKey
 
     @Environment(\.dismiss) private var dismiss
     @State private var draftSelection: Set<String> = []

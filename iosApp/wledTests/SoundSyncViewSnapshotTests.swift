@@ -46,25 +46,7 @@ struct SoundSyncViewSnapshotTests {
             isHidden: false,
             originalName: "Desk Strip"
         )
-        try await database.deviceRepository.insert(device: device1)
-        try await database.deviceRepository.insert(device: device2)
-        try await waitUntil { self.database.deviceConnectionManager.allDevicesWithState.value.count == 2 }
-        database.deviceConnectionManager.updateDeviceState(
-            deviceWithState: Shared.DeviceWithState(
-                device: device1,
-                stateInfo: nil,
-                websocketStatus: .connected,
-                updateVersionTag: nil
-            )
-        )
-        database.deviceConnectionManager.updateDeviceState(
-            deviceWithState: Shared.DeviceWithState(
-                device: device2,
-                stateInfo: nil,
-                websocketStatus: .disconnected,
-                updateVersionTag: nil
-            )
-        )
+        try await database.insertDevicesAndSetStatuses([(device1, .connected), (device2, .disconnected)])
         let viewModel = SoundSyncViewModel(
             soundSyncManager: FakeSoundSyncManager(permission: .granted),
             userPreferencesRepository: database.userPreferencesRepository,

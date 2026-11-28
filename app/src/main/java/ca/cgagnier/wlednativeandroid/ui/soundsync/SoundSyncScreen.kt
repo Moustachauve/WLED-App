@@ -86,6 +86,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -113,7 +114,6 @@ import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerList
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceSelectionMode
 import ca.cgagnier.wlednativeandroid.ui.components.LocalActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
-import ca.cgagnier.wlednativeandroid.ui.components.resolveActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
@@ -270,21 +270,7 @@ fun SoundSyncContent(
     latestPacketFlow: StateFlow<UdpSoundSyncPacket> = remember { MutableStateFlow(UdpSoundSyncPacket()) },
     actions: SoundSyncActions = SoundSyncActions(),
 ) {
-    val activeTargets = remember(
-        uiState.isRunning,
-        uiState.sendMode,
-        uiState.selectedDeviceMacs,
-        uiState.showHiddenDevices,
-    ) {
-        resolveActiveSoundSyncTargets(
-            isRunning = uiState.isRunning,
-            sendMode = uiState.sendMode,
-            selectedDeviceMacs = uiState.selectedDeviceMacs,
-            showHiddenDevices = uiState.showHiddenDevices,
-        )
-    }
-
-    CompositionLocalProvider(LocalActiveSoundSyncTargets provides activeTargets) {
+    CompositionLocalProvider(LocalActiveSoundSyncTargets provides uiState.activeSoundSyncTargets) {
         Scaffold(
             topBar = {
                 HolidayTopBar {
@@ -902,13 +888,19 @@ private fun TargetDevicesSection(
     onOpenPicker: () -> Unit,
 ) {
     val isMulticast = sendMode == SoundSyncSendMode.MULTICAST
+    val actionLabelRes = if (selectedDevices.isEmpty()) {
+        R.string.sound_sync_select_devices
+    } else {
+        R.string.sound_sync_change_devices
+    }
+    val actionLabel = stringResource(actionLabelRes)
     val containerModifier = if (isMulticast) {
         Modifier.fillMaxWidth()
     } else {
         Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onOpenPicker)
+            .clickable(onClickLabel = actionLabel, onClick = onOpenPicker)
     }
 
     Column(
@@ -933,17 +925,11 @@ private fun TargetDevicesSection(
                     .padding(end = 8.dp),
             )
             if (!isMulticast) {
-                OutlinedButton(onClick = onOpenPicker) {
-                    Text(
-                        text = stringResource(
-                            if (selectedDevices.isEmpty()) {
-                                R.string.sound_sync_select_devices
-                            } else {
-                                R.string.sound_sync_change_devices
-                            },
-                        ),
-                        maxLines = 1,
-                    )
+                OutlinedButton(
+                    onClick = onOpenPicker,
+                    modifier = Modifier.clearAndSetSemantics {},
+                ) {
+                    Text(text = actionLabel, maxLines = 1)
                 }
             }
         }

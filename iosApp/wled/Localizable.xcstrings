@@ -4092,7 +4092,7 @@
       }
     },
     "Sound Sync Active" : {
-      "comment" : "Title shown in the Sound Sync Live Activity while audio capture is active.",
+      "comment" : "Title shown in the Sound Sync Live Activity and accessibility label for the per-device active Sound Sync indicator.",
       "localizations" : {
         "de" : {
           "stringUnit" : {

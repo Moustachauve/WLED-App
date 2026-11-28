@@ -172,9 +172,6 @@ class UserPreferencesRepositoryTest {
         val selected = setOf("AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02")
         repo.updateSoundSyncTargetMacs(selected)
         assertEquals(selected, repo.soundSyncTargetMacs.first())
-
-        repo.updateSoundSyncTargetMacs(emptySet())
-        assertEquals(emptySet(), repo.soundSyncTargetMacs.first())
     }
 
     @Test

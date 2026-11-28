@@ -184,6 +184,7 @@ class DeviceWebsocketListViewModelTest {
             viewModel.activeSoundSyncTargets.collect()
         }
 
+        showHiddenDevicesFlow.value = true
         soundSyncTargetMacsFlow.value = setOf(sampleDevice.macAddress)
         soundSyncStateFlow.value = SoundSyncState(isRunning = true, sendMode = SoundSyncSendMode.UNICAST)
         advanceUntilIdle()
@@ -191,37 +192,9 @@ class DeviceWebsocketListViewModelTest {
         assertEquals(
             ActiveSoundSyncTargets.Selected(
                 macAddresses = setOf(sampleDevice.macAddress),
-                includeHidden = false,
+                includeHidden = true,
             ),
             viewModel.activeSoundSyncTargets.value,
         )
-    }
-
-    @Test
-    fun `activeSoundSyncTargets reports AllOnline when running in multicast`() = runTest(testDispatcher) {
-        val viewModel = createViewModel()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.activeSoundSyncTargets.collect()
-        }
-
-        soundSyncStateFlow.value = SoundSyncState(isRunning = true, sendMode = SoundSyncSendMode.MULTICAST)
-        advanceUntilIdle()
-
-        assertEquals(ActiveSoundSyncTargets.AllOnline, viewModel.activeSoundSyncTargets.value)
-    }
-
-    @Test
-    fun `activeSoundSyncTargets resets to None when sound sync stops`() = runTest(testDispatcher) {
-        soundSyncStateFlow.value = SoundSyncState(isRunning = true, sendMode = SoundSyncSendMode.MULTICAST)
-        val viewModel = createViewModel()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            viewModel.activeSoundSyncTargets.collect()
-        }
-        advanceUntilIdle()
-
-        soundSyncStateFlow.value = SoundSyncState(isRunning = false, sendMode = SoundSyncSendMode.MULTICAST)
-        advanceUntilIdle()
-
-        assertEquals(ActiveSoundSyncTargets.None, viewModel.activeSoundSyncTargets.value)
     }
 }

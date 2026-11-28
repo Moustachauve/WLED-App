@@ -113,14 +113,10 @@ final class DeviceWebsocketListViewModel {
     @ObservationIgnored private let discoveryService: any DeviceDiscovering
     @ObservationIgnored private let currentDateProvider: () -> CalendarDate
 
-    @ObservationIgnored private var deviceMap: [String: DeviceWithState] = [:]
-    @ObservationIgnored private var latestSharedDevices: [Shared.DeviceWithState] = []
+    @ObservationIgnored private let partitionCache = DevicePartitionCache()
     @ObservationIgnored private let widgetSnapshotStore: WledWidgetSnapshotStore
     @ObservationIgnored private var isSyncingPreferences = false
     @ObservationIgnored private var autoDiscoveryTask: Task<Void, Never>?
-
-    /// Amount of time (in milliseconds) after a device becomes offline before it is considered offline.
-    private static let offlineGracePeriodMs: Int64 = 60_000
 
     // MARK: - Initialization
 
@@ -253,43 +249,7 @@ final class DeviceWebsocketListViewModel {
     }
 
     private func syncDevicesWithState(_ sharedDevices: [Shared.DeviceWithState]) {
-        latestSharedDevices = sharedDevices
-        var updatedList: [DeviceWithState] = []
-        let newMacs = Set(sharedDevices.map { $0.device.macAddress })
-
-        // Prune removed devices from in-memory cache
-        deviceMap = deviceMap.filter { newMacs.contains($0.key) }
-
-        for shared in sharedDevices {
-            let mac = shared.device.macAddress
-            let wrapper: DeviceWithState
-            if let existing = deviceMap[mac] {
-                if existing.device != shared.device {
-                    existing.device = shared.device
-                }
-                if existing.stateInfo != shared.stateInfo {
-                    existing.stateInfo = shared.stateInfo
-                }
-                if existing.websocketStatus != shared.websocketStatus {
-                    existing.websocketStatus = shared.websocketStatus
-                }
-                if existing.availableUpdateVersion != shared.updateVersionTag {
-                    existing.availableUpdateVersion = shared.updateVersionTag
-                }
-                wrapper = existing
-            } else {
-                let newDevice = DeviceWithState(initialDevice: shared.device)
-                newDevice.stateInfo = shared.stateInfo
-                newDevice.websocketStatus = shared.websocketStatus
-                newDevice.availableUpdateVersion = shared.updateVersionTag
-                deviceMap[mac] = newDevice
-                wrapper = newDevice
-            }
-
-            updatedList.append(wrapper)
-        }
-
-        self.allDevicesWithState = updatedList
+        self.allDevicesWithState = partitionCache.sync(sharedDevices)
         self.updateFilteredDevices(currentTime: Date())
         self.widgetSnapshotStore.sync(devices: sharedDevices)
     }
@@ -355,26 +315,17 @@ extension DeviceWebsocketListViewModel {
     }
 
     func updateFilteredDevices(currentTime: Date = Date()) {
-        let currentTimeMillis = Int64(currentTime.timeIntervalSince1970 * 1000.0)
-        let partitioned = PartitionedDevicesKt.partitionDevices(
-            devices: latestSharedDevices,
-            showHiddenDevices: showHiddenDevices,
-            currentTimeMillis: currentTimeMillis,
-            offlineGracePeriodMs: Self.offlineGracePeriodMs
-        )
-        let visible = partitioned.visible.compactMap { deviceMap[$0.device.macAddress] }
-        let online = partitioned.online.compactMap { deviceMap[$0.device.macAddress] }
-        let offline = partitioned.offline.compactMap { deviceMap[$0.device.macAddress] }
+        let partitioned = partitionCache.partition(showHiddenDevices: showHiddenDevices, currentTime: currentTime)
 
         // Only update if content changed to avoid unnecessary SwiftUI view body evaluations
-        if self.visibleDevices != visible {
-            self.visibleDevices = visible
+        if self.visibleDevices != partitioned.visible {
+            self.visibleDevices = partitioned.visible
         }
-        if self.onlineDevices != online {
-            self.onlineDevices = online
+        if self.onlineDevices != partitioned.online {
+            self.onlineDevices = partitioned.online
         }
-        if self.offlineDevices != offline {
-            self.offlineDevices = offline
+        if self.offlineDevices != partitioned.offline {
+            self.offlineDevices = partitioned.offline
         }
     }
 

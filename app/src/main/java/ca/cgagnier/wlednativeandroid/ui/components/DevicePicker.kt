@@ -49,9 +49,7 @@ sealed interface DeviceSelectionMode {
 data class DevicePickerConfig(
     val showOfflineDevicesLast: Boolean = true,
     val showHiddenDevices: Boolean = false,
-    val currentTime: Long = 0L,
     val titleStyle: TextStyle? = null,
-    val emptyMessage: String? = null,
 )
 
 @Composable
@@ -62,19 +60,18 @@ fun DevicePickerList(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     config: DevicePickerConfig = DevicePickerConfig(),
 ) {
-    val fallbackCurrentTime = remember { System.currentTimeMillis() }
-    val resolvedCurrentTime = if (config.currentTime > 0L) config.currentTime else fallbackCurrentTime
-    val partitioned = remember(devices, config.showHiddenDevices, resolvedCurrentTime) {
+    val currentTime = remember { System.currentTimeMillis() }
+    val partitioned = remember(devices, config.showHiddenDevices, currentTime) {
         partitionDevices(
             devices = devices,
             showHiddenDevices = config.showHiddenDevices,
-            currentTimeMillis = resolvedCurrentTime,
+            currentTimeMillis = currentTime,
         )
     }
 
     if (partitioned.visible.isEmpty()) {
         EmptyDevicePickerState(
-            message = config.emptyMessage ?: stringResource(R.string.you_dont_have_any_visible_devices),
+            message = stringResource(R.string.you_dont_have_any_visible_devices),
             modifier = modifier,
         )
         return
@@ -89,7 +86,7 @@ fun DevicePickerList(
 
     LazyColumn(modifier = listModifier, contentPadding = contentPadding) {
         if (config.showOfflineDevicesLast) {
-            pickerDeviceItems(partitioned.online, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
+            pickerDeviceItems(partitioned.online, selectionMode, currentTime, resolvedTitleStyle)
             if (partitioned.offline.isNotEmpty()) {
                 item(key = "offline_label", contentType = "section_header") {
                     Text(
@@ -99,10 +96,10 @@ fun DevicePickerList(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
-                pickerDeviceItems(partitioned.offline, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
+                pickerDeviceItems(partitioned.offline, selectionMode, currentTime, resolvedTitleStyle)
             }
         } else {
-            pickerDeviceItems(partitioned.visible, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
+            pickerDeviceItems(partitioned.visible, selectionMode, currentTime, resolvedTitleStyle)
         }
     }
 }

@@ -19,6 +19,8 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
+import ca.cgagnier.wlednativeandroid.ui.components.ActiveSoundSyncTargets
+import ca.cgagnier.wlednativeandroid.ui.components.resolveActiveSoundSyncTargets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
@@ -251,6 +253,7 @@ data class SoundSyncUiState(
         get() = partitionDevices(
             devices = allDevices,
             showHiddenDevices = showHiddenDevices,
+            // Only .visible is read here, which is unaffected by the offline grace period.
             currentTimeMillis = 0L,
         ).visible
 
@@ -267,6 +270,14 @@ data class SoundSyncUiState(
 
     val canStart: Boolean
         get() = sendMode == SoundSyncSendMode.MULTICAST || selectedDevices.isNotEmpty()
+
+    val activeSoundSyncTargets: ActiveSoundSyncTargets
+        get() = resolveActiveSoundSyncTargets(
+            isRunning = isRunning,
+            sendMode = sendMode,
+            selectedDeviceMacs = selectedDeviceMacs,
+            showHiddenDevices = showHiddenDevices,
+        )
 }
 
 internal fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)

@@ -19,7 +19,7 @@ fun resolveSoundSyncUnicastAddresses(
     devices: List<DeviceWithState>,
     isPaused: Boolean,
     selectedDeviceMacs: Set<String>,
-    showHiddenDevices: Boolean = false,
+    showHiddenDevices: Boolean,
 ): List<String>? {
     if (selectedDeviceMacs.isEmpty()) return emptyList()
     if (isPaused) return null
@@ -61,7 +61,7 @@ fun DeviceConnectionManager.soundSyncUnicastAddresses(
  */
 fun DeviceConnectionManager.currentSoundSyncUnicastAddresses(
     selectedDeviceMacs: Set<String>,
-    showHiddenDevices: Boolean = false,
+    showHiddenDevices: Boolean,
 ): List<String> = resolveSoundSyncUnicastAddresses(
     devices = allDevicesWithState.value,
     isPaused = isPaused.value,

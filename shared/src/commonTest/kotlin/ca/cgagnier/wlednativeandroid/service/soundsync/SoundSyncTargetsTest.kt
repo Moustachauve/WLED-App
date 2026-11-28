@@ -22,6 +22,7 @@ class SoundSyncTargetsTest {
             devices = devices,
             isPaused = false,
             selectedDeviceMacs = setOf("01", "02", "03"),
+            showHiddenDevices = false,
         )
 
         assertEquals(listOf("192.168.1.10", "192.168.1.11"), result)
@@ -40,6 +41,7 @@ class SoundSyncTargetsTest {
             devices = devices,
             isPaused = false,
             selectedDeviceMacs = setOf("01", "02", "03", "04"),
+            showHiddenDevices = false,
         )
 
         assertEquals(listOf("192.168.1.10"), result)
@@ -72,6 +74,7 @@ class SoundSyncTargetsTest {
                 devices = devices,
                 isPaused = paused,
                 selectedDeviceMacs = emptySet(),
+                showHiddenDevices = false,
             )
             assertEquals(emptyList(), result, "paused=$paused")
         }
@@ -87,6 +90,7 @@ class SoundSyncTargetsTest {
             devices = devices,
             isPaused = true,
             selectedDeviceMacs = setOf("01"),
+            showHiddenDevices = false,
         )
 
         assertNull(result)
@@ -117,6 +121,7 @@ class SoundSyncTargetsTest {
                     devices = devices,
                     isPaused = false,
                     selectedDeviceMacs = setOf("01"),
+                    showHiddenDevices = false,
                 ),
                 "devices=$devices",
             )

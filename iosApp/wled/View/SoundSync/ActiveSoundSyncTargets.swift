@@ -11,7 +11,7 @@ struct ActiveSoundSyncTargets: Equatable, Sendable {
 
     @MainActor
     func isDeviceReceiving(_ device: DeviceWithState) -> Bool {
-        guard device.isOnline, !device.isAPMode else { return false }
+        guard device.isOnline else { return false }
         guard includeHidden || !device.device.isHidden else { return false }
         return macAddresses.contains(device.device.macAddress)
     }

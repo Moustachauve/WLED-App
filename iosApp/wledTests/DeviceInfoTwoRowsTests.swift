@@ -37,34 +37,34 @@ struct DeviceInfoTwoRowsTests {
         #expect(DeviceInfoTwoRows.batteryIconName(for: percentage) == expectedIcon)
     }
 
-    @Test func inactiveSoundSyncTargetsNeverMatches() {
-        let device = makeDevice()
-        #expect(!ActiveSoundSyncTargets.inactive.isDeviceReceiving(device))
-    }
-
-    @Test func activeSoundSyncTargetsMatchesSelectedOnlineDevice() {
-        let targets = ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"])
-        #expect(targets.isDeviceReceiving(makeDevice(mac: "AA:BB:CC:DD:EE:01")))
-        #expect(!targets.isDeviceReceiving(makeDevice(mac: "AA:BB:CC:DD:EE:02")))
-    }
-
-    @Test func activeSoundSyncTargetsExcludesOfflineAndApModeDevices() {
-        let targets = ActiveSoundSyncTargets(
-            macAddresses: ["AA:BB:CC:DD:EE:01", DeviceKt.AP_MODE_MAC_ADDRESS]
+    @Test(arguments: [
+        (ActiveSoundSyncTargets.inactive, "AA:BB:CC:DD:EE:01", true, false, false),
+        (ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"]), "AA:BB:CC:DD:EE:01", true, false, true),
+        (ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"]), "AA:BB:CC:DD:EE:02", true, false, false),
+        (ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"]), "AA:BB:CC:DD:EE:01", false, false, false),
+        (
+            ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"], includeHidden: false),
+            "AA:BB:CC:DD:EE:01",
+            true,
+            true,
+            false
+        ),
+        (
+            ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"], includeHidden: true),
+            "AA:BB:CC:DD:EE:01",
+            true,
+            true,
+            true
         )
-        #expect(!targets.isDeviceReceiving(makeDevice(mac: "AA:BB:CC:DD:EE:01", isOnline: false)))
-        #expect(!targets.isDeviceReceiving(makeDevice(mac: DeviceKt.AP_MODE_MAC_ADDRESS)))
-    }
-
-    @Test func activeSoundSyncTargetsRespectsIncludeHidden() {
-        let hidden = makeDevice(mac: "AA:BB:CC:DD:EE:01", isHidden: true)
-        #expect(
-            !ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"], includeHidden: false)
-                .isDeviceReceiving(hidden)
-        )
-        #expect(
-            ActiveSoundSyncTargets(macAddresses: ["AA:BB:CC:DD:EE:01"], includeHidden: true)
-                .isDeviceReceiving(hidden)
-        )
+    ])
+    func activeSoundSyncTargetsEvaluatesReceivingState(
+        targets: ActiveSoundSyncTargets,
+        mac: String,
+        isOnline: Bool,
+        isHidden: Bool,
+        expected: Bool
+    ) {
+        let device = makeDevice(mac: mac, isOnline: isOnline, isHidden: isHidden)
+        #expect(targets.isDeviceReceiving(device) == expected)
     }
 }

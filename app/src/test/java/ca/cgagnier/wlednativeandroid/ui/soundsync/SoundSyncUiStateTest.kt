@@ -7,6 +7,7 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.WebsocketStatus
+import ca.cgagnier.wlednativeandroid.ui.components.ActiveSoundSyncTargets
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -66,8 +67,16 @@ class SoundSyncUiStateTest {
         assertEquals(listOf("02", "01"), uiState.selectedDevices.map { it.device.macAddress })
     }
 
-    @Test
-    fun selectedDevices_placesOnlineBeforeOfflineWhenShowOfflineDevicesLastIsTrue() {
+    @ParameterizedTest
+    @CsvSource(
+        "true, 02, 01",
+        "false, 01, 02",
+    )
+    fun selectedDevices_ordersByShowOfflineDevicesLast(
+        showOfflineDevicesLast: Boolean,
+        firstMac: String,
+        secondMac: String,
+    ) {
         val alphaOffline = DeviceWithState(
             device = Device(macAddress = "01", address = "10.0.0.1", originalName = "Alpha"),
             websocketStatus = WebsocketStatus.DISCONNECTED,
@@ -79,29 +88,10 @@ class SoundSyncUiStateTest {
         val uiState = SoundSyncUiState(
             allDevices = listOf(alphaOffline, betaOnline),
             selectedDeviceMacs = setOf("01", "02"),
-            showOfflineDevicesLast = true,
+            showOfflineDevicesLast = showOfflineDevicesLast,
         )
 
-        assertEquals(listOf("02", "01"), uiState.selectedDevices.map { it.device.macAddress })
-    }
-
-    @Test
-    fun selectedDevices_preservesAlphabeticalOrderWhenShowOfflineDevicesLastIsFalse() {
-        val alphaOffline = DeviceWithState(
-            device = Device(macAddress = "01", address = "10.0.0.1", originalName = "Alpha"),
-            websocketStatus = WebsocketStatus.DISCONNECTED,
-        )
-        val betaOnline = DeviceWithState(
-            device = Device(macAddress = "02", address = "10.0.0.2", originalName = "Beta"),
-            websocketStatus = WebsocketStatus.CONNECTED,
-        )
-        val uiState = SoundSyncUiState(
-            allDevices = listOf(alphaOffline, betaOnline),
-            selectedDeviceMacs = setOf("01", "02"),
-            showOfflineDevicesLast = false,
-        )
-
-        assertEquals(listOf("01", "02"), uiState.selectedDevices.map { it.device.macAddress })
+        assertEquals(listOf(firstMac, secondMac), uiState.selectedDevices.map { it.device.macAddress })
     }
 
     @Test
@@ -117,5 +107,22 @@ class SoundSyncUiStateTest {
             ).canStart,
         )
         assertTrue(SoundSyncUiState(sendMode = SoundSyncSendMode.MULTICAST).canStart)
+    }
+
+    @Test
+    fun activeSoundSyncTargets_reflectsRunningSendModeAndSelection() {
+        val stopped = SoundSyncUiState(isRunning = false, selectedDeviceMacs = setOf("01"))
+        val unicast = SoundSyncUiState(
+            isRunning = true,
+            sendMode = SoundSyncSendMode.UNICAST,
+            selectedDeviceMacs = setOf("01"),
+            showHiddenDevices = true,
+        )
+
+        assertEquals(ActiveSoundSyncTargets.None, stopped.activeSoundSyncTargets)
+        assertEquals(
+            ActiveSoundSyncTargets.Selected(macAddresses = setOf("01"), includeHidden = true),
+            unicast.activeSoundSyncTargets,
+        )
     }
 }

@@ -165,7 +165,7 @@ private fun FlexBoxScope.DeviceStatusBadges(device: DeviceWithState, updateTag: 
     if (device.device.isHidden) {
         Icon(
             painter = painterResource(R.drawable.ic_baseline_visibility_off_24),
-            contentDescription = stringResource(R.string.description_back_button),
+            contentDescription = null,
             modifier = Modifier
                 .flex { shrink(0f) }
                 .padding(start = 4.dp)
