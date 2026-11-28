@@ -96,6 +96,13 @@ struct DeviceView: View {
         .onChange(of: device.device.address) {
             isWebViewError = false
         }
+        .onChange(of: isWebViewError) { _, isError in
+            if isError {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    pageColor = nil
+                }
+            }
+        }
         .onDisappear {
             postUpdateReloadTask?.cancel()
             postUpdateReloadTask = nil

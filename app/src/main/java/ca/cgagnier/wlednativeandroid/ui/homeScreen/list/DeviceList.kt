@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -590,7 +591,7 @@ private fun SummaryBar(total: Int, onCount: Int, hasOnlineDevices: Boolean, onAl
     ) {
         Text(
             // French: "allumé" for 0 and 1, "allumés" from 2 (Android plural rules)
-            LocalContext.current.resources.getQuantityString(R.plurals.il_summary, onCount, total, onCount),
+            pluralStringResource(R.plurals.il_summary, onCount, total, onCount),
             color = IlSummaryColor,
             fontSize = 13.sp,
             modifier = Modifier.weight(1f),
