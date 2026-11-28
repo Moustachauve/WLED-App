@@ -205,6 +205,32 @@ class SoundSyncManagerTest {
     }
 
     @Test
+    fun deviceListObservation_preservesTargetsOnForegroundResumeBeforeReconnect() = runTest {
+        val onlineDevice = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
+        val devicesFlow = MutableStateFlow(listOf(onlineDevice))
+        val isPausedFlow = MutableStateFlow(false)
+        val sender = FakeSoundSyncPacketSender()
+        val manager = createManager(
+            audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
+            sender = sender,
+            devicesFlow = devicesFlow,
+            isPausedFlow = isPausedFlow,
+        )
+
+        manager.start(gain = 1.0f)
+        advanceUntilIdle()
+
+        isPausedFlow.value = true
+        devicesFlow.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
+        advanceUntilIdle()
+
+        isPausedFlow.value = false
+        advanceUntilIdle()
+
+        assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
+    }
+
+    @Test
     fun stop_resetsRunningAndVisualizationState() = runTest {
         val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
         val sender = FakeSoundSyncPacketSender()

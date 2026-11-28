@@ -173,7 +173,7 @@ class MicrophoneAudioSource(
         onAudioData: (FloatArray) -> Unit,
     ) {
         val floatBuffer = FloatArray(readChunkSamples)
-        val previousPriority = runCatching { Process.getThreadPriority(Process.myTid()) }.getOrNull()
+        val previousPriority = Process.getThreadPriority(Process.myTid())
         runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO) }
         try {
             while (isActive && _isRunning.value) {
@@ -187,9 +187,7 @@ class MicrophoneAudioSource(
                 }
             }
         } finally {
-            previousPriority?.let { priority ->
-                runCatching { Process.setThreadPriority(priority) }
-            }
+            runCatching { Process.setThreadPriority(previousPriority) }
             runCatching { record.stop() }
             runCatching { record.release() }
         }

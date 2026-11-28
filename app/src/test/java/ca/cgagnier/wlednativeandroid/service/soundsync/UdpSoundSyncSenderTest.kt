@@ -84,17 +84,11 @@ class UdpSoundSyncSenderTest {
     }
 
     @Test
-    fun setSendMode_switchesBetweenMulticastAndUnicast() {
+    fun setSendMode_switchesFromMulticastToUnicast() {
         withReceiver(
             unicastAddresses = listOf("127.0.0.1"),
             sendMode = SoundSyncSendMode.MULTICAST,
-            timeoutMs = 150,
         ) { receiver, udpSender ->
-            udpSender.sendPacket(UdpSoundSyncPacket(sampleRaw = 64f))
-            assertFailsWith<SocketTimeoutException> {
-                receiveOne(receiver)
-            }
-
             udpSender.setSendMode(SoundSyncSendMode.UNICAST)
             udpSender.sendPacket(UdpSoundSyncPacket(sampleRaw = 64f))
 

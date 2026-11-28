@@ -481,10 +481,11 @@ private fun AgcModeSection(
     ) {
         Column {
             Spacer(modifier = Modifier.height(12.dp))
-            AgcModeSelectorRow(
+            SegmentedModeRow(
                 modes = modes,
                 selectedMode = agcMode,
                 onModeSelected = onAgcModeChanged,
+                labelResId = { it.labelResId() },
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -497,7 +498,12 @@ private fun AgcModeSection(
 }
 
 @Composable
-private fun AgcModeSelectorRow(modes: List<AgcMode>, selectedMode: AgcMode, onModeSelected: (AgcMode) -> Unit) {
+private fun <T> SegmentedModeRow(
+    modes: List<T>,
+    selectedMode: T,
+    onModeSelected: (T) -> Unit,
+    labelResId: (T) -> Int,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -518,7 +524,7 @@ private fun AgcModeSelectorRow(modes: List<AgcMode>, selectedMode: AgcMode, onMo
                     .semantics { role = Role.RadioButton },
             ) {
                 Text(
-                    text = stringResource(mode.labelResId()),
+                    text = stringResource(labelResId(mode)),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -622,36 +628,14 @@ private fun NetworkCard(
 
 @Composable
 private fun SendModeSection(sendMode: SoundSyncSendMode, onSendModeChanged: (SoundSyncSendMode) -> Unit) {
-    val modes = SoundSyncSendMode.entries
     SectionTitle(stringResource(R.string.sound_sync_send_mode))
     Spacer(modifier = Modifier.height(8.dp))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-    ) {
-        modes.forEachIndexed { index, mode ->
-            ToggleButton(
-                checked = sendMode == mode,
-                onCheckedChange = { checked -> if (checked) onSendModeChanged(mode) },
-                shapes = when (index) {
-                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { role = Role.RadioButton },
-            ) {
-                Text(
-                    text = stringResource(mode.labelResId()),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
+    SegmentedModeRow(
+        modes = SoundSyncSendMode.entries,
+        selectedMode = sendMode,
+        onModeSelected = onSendModeChanged,
+        labelResId = { it.labelResId() },
+    )
     Spacer(modifier = Modifier.height(6.dp))
     Text(
         text = stringResource(sendMode.descriptionResId()),

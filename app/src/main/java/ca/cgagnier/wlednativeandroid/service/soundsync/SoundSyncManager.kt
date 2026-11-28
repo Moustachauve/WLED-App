@@ -1,7 +1,6 @@
 package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import android.content.Context
-import android.net.wifi.WifiManager
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.MicrophoneAudioSource
@@ -58,7 +57,7 @@ data class SoundSyncState(
  */
 @Suppress("LongParameterList")
 class SoundSyncManager(
-    private val context: Context,
+    context: Context,
     private val deviceConnectionManager: DeviceConnectionManager,
     coroutineScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
@@ -87,7 +86,6 @@ class SoundSyncManager(
 
     @Volatile
     private var udpSender: SoundSyncPacketSender? = null
-    private var multicastLock: WifiManager.MulticastLock? = null
     private var deviceListJob: Job? = null
     private var audioMonitorJob: Job? = null
 
@@ -120,14 +118,14 @@ class SoundSyncManager(
         }
 
         val clampedPort = port.coerceIn(UdpSoundSyncPacket.MIN_PORT, UdpSoundSyncPacket.MAX_PORT)
-        val initialEffectiveGain = configureProcessorForStart(gain, agcEnabled, agcMode, squelch, clampedPort, sendMode)
+        val initialEffectiveGain = configureProcessorForStart(gain, agcEnabled, agcMode, squelch)
+        _state.update { it.copy(port = clampedPort, sendMode = sendMode, error = null) }
 
         if (!audioSource.hasPermission()) {
             _state.update { it.copy(error = SoundSyncError.PERMISSION_REQUIRED) }
             return false
         }
 
-        syncMulticastLock(sendMode)
         udpSender = senderFactory(clampedPort, sendMode)
         startObservingDevices()
         _state.update {
@@ -154,15 +152,7 @@ class SoundSyncManager(
         return true
     }
 
-    @Suppress("LongParameterList") // Mirrors start() configuration fields cleanly in a single helper.
-    private fun configureProcessorForStart(
-        gain: Float,
-        agcEnabled: Boolean,
-        agcMode: AgcMode,
-        squelch: Int,
-        clampedPort: Int,
-        sendMode: SoundSyncSendMode,
-    ): Float {
+    private fun configureProcessorForStart(gain: Float, agcEnabled: Boolean, agcMode: AgcMode, squelch: Int): Float {
         var clampedGain = 0f
         var clampedSquelch = 0
         val initialEffectiveGain = synchronized(processorLock) {
@@ -183,9 +173,6 @@ class SoundSyncManager(
                 agcEnabled = agcEnabled,
                 agcMode = agcMode,
                 squelch = clampedSquelch,
-                port = clampedPort,
-                sendMode = sendMode,
-                error = null,
             )
         }
         return initialEffectiveGain
@@ -254,17 +241,6 @@ class SoundSyncManager(
     fun setSendMode(mode: SoundSyncSendMode) {
         _state.update { it.copy(sendMode = mode) }
         udpSender?.setSendMode(mode)
-        if (_state.value.isRunning) {
-            syncMulticastLock(mode)
-        }
-    }
-
-    private fun syncMulticastLock(mode: SoundSyncSendMode) {
-        if (mode == SoundSyncSendMode.MULTICAST) {
-            acquireMulticastLock()
-        } else {
-            releaseMulticastLock()
-        }
     }
 
     @Synchronized
@@ -300,26 +276,6 @@ class SoundSyncManager(
         udpSender?.sendPacket(packet)
     }
 
-    private fun acquireMulticastLock() {
-        releaseMulticastLock()
-        runCatching {
-            val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            wifiManager?.createMulticastLock(TAG)?.apply {
-                setReferenceCounted(false)
-                acquire()
-            }?.let { multicastLock = it }
-        }.onFailure { logger.w(it) { "Failed to acquire multicast lock" } }
-    }
-
-    private fun releaseMulticastLock() {
-        runCatching {
-            multicastLock?.let { lock ->
-                if (lock.isHeld) lock.release()
-            }
-        }
-        multicastLock = null
-    }
-
     private fun startMonitoringAudioSource() {
         audioMonitorJob?.cancel()
         audioMonitorJob = managerScope.launch {
@@ -348,6 +304,5 @@ class SoundSyncManager(
         deviceListJob = null
         udpSender?.close()
         udpSender = null
-        releaseMulticastLock()
     }
 }
