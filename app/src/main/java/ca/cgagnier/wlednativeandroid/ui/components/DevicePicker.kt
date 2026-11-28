@@ -2,7 +2,6 @@ package ca.cgagnier.wlednativeandroid.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,7 +30,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
@@ -51,7 +49,6 @@ sealed interface DeviceSelectionMode {
 data class DevicePickerConfig(
     val showOfflineDevicesLast: Boolean = true,
     val showHiddenDevices: Boolean = false,
-    val showDeviceStatus: Boolean = true,
     val currentTime: Long = 0L,
     val titleStyle: TextStyle? = null,
     val emptyMessage: String? = null,
@@ -91,8 +88,8 @@ fun DevicePickerList(
     }
 
     LazyColumn(modifier = listModifier, contentPadding = contentPadding) {
-        if (config.showOfflineDevicesLast && config.showDeviceStatus) {
-            pickerDeviceItems(partitioned.online, selectionMode, resolvedCurrentTime, resolvedTitleStyle, true)
+        if (config.showOfflineDevicesLast) {
+            pickerDeviceItems(partitioned.online, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
             if (partitioned.offline.isNotEmpty()) {
                 item(key = "offline_label", contentType = "section_header") {
                     Text(
@@ -102,16 +99,10 @@ fun DevicePickerList(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
-                pickerDeviceItems(partitioned.offline, selectionMode, resolvedCurrentTime, resolvedTitleStyle, true)
+                pickerDeviceItems(partitioned.offline, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
             }
         } else {
-            pickerDeviceItems(
-                partitioned.visible,
-                selectionMode,
-                resolvedCurrentTime,
-                resolvedTitleStyle,
-                config.showDeviceStatus,
-            )
+            pickerDeviceItems(partitioned.visible, selectionMode, resolvedCurrentTime, resolvedTitleStyle)
         }
     }
 }
@@ -136,7 +127,6 @@ private fun LazyListScope.pickerDeviceItems(
     selectionMode: DeviceSelectionMode,
     currentTime: Long,
     titleStyle: TextStyle,
-    showDeviceStatus: Boolean,
 ) {
     items(
         items = devices,
@@ -146,7 +136,6 @@ private fun LazyListScope.pickerDeviceItems(
         DevicePickerRow(
             device = device,
             selectionMode = selectionMode,
-            showDeviceStatus = showDeviceStatus,
             currentTime = currentTime,
             titleStyle = titleStyle,
         )
@@ -158,7 +147,6 @@ private fun LazyListScope.pickerDeviceItems(
 private fun DevicePickerRow(
     device: DeviceWithState,
     selectionMode: DeviceSelectionMode,
-    showDeviceStatus: Boolean,
     currentTime: Long,
     titleStyle: TextStyle,
 ) {
@@ -181,12 +169,12 @@ private fun DevicePickerRow(
             Checkbox(checked = isSelected, onCheckedChange = null)
             Spacer(modifier = Modifier.width(12.dp))
         }
-        DevicePickerRowBody(
-            device = device,
-            showDeviceStatus = showDeviceStatus,
-            currentTime = currentTime,
-            titleStyle = titleStyle,
+        DeviceInfoTwoRows(
             modifier = Modifier.weight(1f),
+            device = device,
+            currentTime = currentTime,
+            nameMaxLines = 1,
+            titleStyle = titleStyle,
         )
         if (selectionMode is DeviceSelectionMode.Single && isSelected) {
             Spacer(modifier = Modifier.width(12.dp))
@@ -194,41 +182,6 @@ private fun DevicePickerRow(
                 painter = painterResource(R.drawable.baseline_check_24),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DevicePickerRowBody(
-    device: DeviceWithState,
-    showDeviceStatus: Boolean,
-    currentTime: Long,
-    titleStyle: TextStyle,
-    modifier: Modifier = Modifier,
-) {
-    if (showDeviceStatus) {
-        DeviceInfoTwoRows(
-            modifier = modifier,
-            device = device,
-            currentTime = currentTime,
-            nameMaxLines = 1,
-            titleStyle = titleStyle,
-        )
-    } else {
-        Column(modifier = modifier) {
-            Text(
-                text = deviceName(device.device),
-                style = titleStyle,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = device.device.address,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }

@@ -7,14 +7,27 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -24,10 +37,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,10 +55,7 @@ import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.di.IO_DISPATCHER
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
-import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
-import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerConfig
-import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerList
-import ca.cgagnier.wlednativeandroid.ui.components.DeviceSelectionMode
+import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.theme.WLEDNativeTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
@@ -47,6 +63,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
+
+private const val SELECTED_ROW_BACKGROUND_ALPHA = 0.35f
 
 class WledWidgetConfigureActivity : ComponentActivity() {
 
@@ -161,32 +179,111 @@ fun ConfigurationScreen(
             }
         },
     ) { padding ->
-        if (devices == null) return@Scaffold
+        when {
+            devices == null -> Unit
 
-        val layoutDirection = LocalLayoutDirection.current
-        val pickerDevices = remember(devices) { devices.map { DeviceWithState(device = it) } }
+            devices.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .holidayParticles()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.you_dont_have_any_visible_devices),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
 
-        DevicePickerList(
-            devices = pickerDevices,
-            selectionMode = DeviceSelectionMode.Single(
+            else -> DeviceSelectionList(
+                devices = devices,
                 selectedMacAddress = selectedMacAddress,
-                onDeviceSelected = { onDeviceSelected(it.device) },
-            ),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = padding.calculateTopPadding())
-                .holidayParticles()
-                .consumeWindowInsets(padding),
-            contentPadding = PaddingValues(
-                start = padding.calculateStartPadding(layoutDirection),
-                end = padding.calculateEndPadding(layoutDirection),
-                bottom = padding.calculateBottomPadding(),
-            ),
-            config = DevicePickerConfig(
-                showOfflineDevicesLast = false,
-                showHiddenDevices = true,
-                showDeviceStatus = false,
-            ),
-        )
+                padding = padding,
+                onDeviceSelected = onDeviceSelected,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeviceSelectionList(
+    devices: List<Device>,
+    selectedMacAddress: String?,
+    padding: PaddingValues,
+    onDeviceSelected: (Device) -> Unit,
+) {
+    val layoutDirection = LocalLayoutDirection.current
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = padding.calculateTopPadding())
+            .holidayParticles()
+            .consumeWindowInsets(padding)
+            .selectableGroup(),
+        contentPadding = PaddingValues(
+            start = padding.calculateStartPadding(layoutDirection),
+            end = padding.calculateEndPadding(layoutDirection),
+            bottom = padding.calculateBottomPadding(),
+        ),
+    ) {
+        items(devices, key = { it.macAddress }) { device ->
+            DeviceItem(
+                device = device,
+                isSelected = device.macAddress == selectedMacAddress,
+                onClick = { onDeviceSelected(device) },
+            )
+            HorizontalDivider()
+        }
+    }
+}
+
+@Composable
+fun DeviceItem(device: Device, isSelected: Boolean = false, onClick: () -> Unit) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = SELECTED_ROW_BACKGROUND_ALPHA)
+    } else {
+        Color.Transparent
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(backgroundColor)
+            .selectable(
+                selected = isSelected,
+                onClick = onClick,
+                role = Role.RadioButton,
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = deviceName(device),
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = device.address,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (isSelected) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                painter = painterResource(R.drawable.baseline_check_24),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }

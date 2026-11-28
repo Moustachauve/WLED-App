@@ -1062,7 +1062,6 @@ private fun SoundSyncDevicePickerBody(
             config = DevicePickerConfig(
                 showOfflineDevicesLast = uiState.showOfflineDevicesLast,
                 showHiddenDevices = uiState.showHiddenDevices,
-                showDeviceStatus = true,
                 titleStyle = MaterialTheme.typography.titleMedium,
             ),
         )
