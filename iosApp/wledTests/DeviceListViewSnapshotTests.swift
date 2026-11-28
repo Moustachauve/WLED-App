@@ -30,34 +30,30 @@ struct DeviceListViewSnapshotTests {
     @Test func testDeviceListWinterHolidaysLightSnapshot() async throws {
         try await assertDeviceListSnapshot(
             style: .light,
-            date: CalendarDate(month: 12, dayOfMonth: 25),
-            precision: 0.99
+            date: CalendarDate(month: 12, dayOfMonth: 25)
         )
     }
 
     @Test func testDeviceListWinterHolidaysDarkSnapshot() async throws {
         try await assertDeviceListSnapshot(
             style: .dark,
-            date: CalendarDate(month: 12, dayOfMonth: 25),
-            precision: 0.99
+            date: CalendarDate(month: 12, dayOfMonth: 25)
         )
     }
 
     @Test func testDeviceListNewYearDarkSnapshot() async throws {
         try await assertDeviceListSnapshot(
             style: .dark,
-            date: CalendarDate(month: 12, dayOfMonth: 31),
-            precision: 0.99
+            date: CalendarDate(month: 12, dayOfMonth: 31)
         )
     }
 
     // MARK: - Helpers
 
-    /// Holiday snapshots pass `precision: 0.99` to absorb Liquid Glass toolbar refraction above the string lights.
+    /// Uses `precision: 0.99` to absorb Liquid Glass toolbar refraction jitter.
     private func assertDeviceListSnapshot(
         style: UIUserInterfaceStyle,
         date: CalendarDate = CalendarDate(month: 6, dayOfMonth: 15),
-        precision: Float = 0.998,
         fileID: StaticString = #fileID,
         file: StaticString = #filePath,
         testName: String = #function,
@@ -72,7 +68,7 @@ struct DeviceListViewSnapshotTests {
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
-                precision: precision,
+                precision: 0.99,
                 layout: .device(config: .iPhone13Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
             ),
