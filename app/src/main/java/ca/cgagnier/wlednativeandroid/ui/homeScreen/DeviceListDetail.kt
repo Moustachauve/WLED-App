@@ -83,15 +83,41 @@ fun DeviceListDetail(
     val isWLEDCaptivePortal by viewModel.isWLEDCaptivePortal.collectAsStateWithLifecycle()
     val isAddDeviceDialogVisible by viewModel.isAddDeviceDialogVisible.collectAsStateWithLifecycle()
 
-    val navigateToDetail: (DeviceWithState) -> Unit = { device ->
-        coroutineScope.launch {
-            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, device.device.macAddress)
+    val navigateToDetail: (DeviceWithState) -> Unit = remember(navigator, coroutineScope) {
+        { device ->
+            coroutineScope.launch {
+                navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, device.device.macAddress)
+            }
         }
     }
-    val navigateToEdit: (DeviceWithState) -> Unit = { device ->
-        coroutineScope.launch {
-            navigator.navigateTo(ListDetailPaneScaffoldRole.Extra, device.device.macAddress)
+    val navigateToEdit: (DeviceWithState) -> Unit = remember(navigator, coroutineScope) {
+        { device ->
+            coroutineScope.launch {
+                navigator.navigateTo(ListDetailPaneScaffoldRole.Extra, device.device.macAddress)
+            }
         }
+    }
+    val listActions = remember(
+        navigator,
+        coroutineScope,
+        viewModel,
+        actions.openSoundSync,
+        localNetworkPermission.requestLocalNetworkAccess,
+        drawerState,
+    ) {
+        DeviceListActions(
+            onItemClick = navigateToDetail,
+            onAddDevice = { viewModel.showAddDeviceDialog() },
+            onOpenSoundSync = actions.openSoundSync,
+            onShowHiddenDevices = { viewModel.toggleShowHiddenDevices() },
+            onRequestLocalNetworkAccess = localNetworkPermission.requestLocalNetworkAccess,
+            onRefresh = { viewModel.startDiscoveryServiceTimed() },
+            onItemEdit = {
+                navigateToDetail(it)
+                navigateToEdit(it)
+            },
+            onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
+        )
     }
 
     ModalNavigationDrawer(
@@ -123,19 +149,7 @@ fun DeviceListDetail(
                             selectedDevice = selectedDevice,
                             isWLEDCaptivePortal = isWLEDCaptivePortal,
                             isLocalNetworkDenied = localNetworkPermission.isDenied,
-                            actions = DeviceListActions(
-                                onItemClick = navigateToDetail,
-                                onAddDevice = { viewModel.showAddDeviceDialog() },
-                                onOpenSoundSync = actions.openSoundSync,
-                                onShowHiddenDevices = { viewModel.toggleShowHiddenDevices() },
-                                onRequestLocalNetworkAccess = localNetworkPermission.requestLocalNetworkAccess,
-                                onRefresh = { viewModel.startDiscoveryServiceTimed() },
-                                onItemEdit = {
-                                    navigateToDetail(it)
-                                    navigateToEdit(it)
-                                },
-                                onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
-                            ),
+                            actions = listActions,
                         )
                     }
                 },

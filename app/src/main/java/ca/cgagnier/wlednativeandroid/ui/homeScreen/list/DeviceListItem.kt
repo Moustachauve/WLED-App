@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -64,6 +65,8 @@ import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardContainerColor
 import kotlin.math.roundToInt
 
 private const val SWIPE_TO_TRANSLUCENT_MS = 150
+private const val SWIPE_HAPTIC_MIN_PROGRESS = 0.01f
+private const val SWIPE_HAPTIC_MAX_PROGRESS = 0.99f
 
 @Composable
 fun DeviceListItem(
@@ -125,8 +128,9 @@ fun DeviceListItem(
                         )
                     }
                     BrightnessSlider(
-                        stateInfo?.state?.brightness ?: 0,
-                        onBrightnessChanged,
+                        brightness = stateInfo?.state?.brightness ?: 0,
+                        haptic = haptic,
+                        onBrightnessChanged = onBrightnessChanged,
                     )
                 }
             }
@@ -153,9 +157,9 @@ private fun swipeCardContainerColor(baseColor: Color, swipeToDismissBoxState: Sw
 private fun BrightnessSlider(
     // Receive the brightness value directly
     brightness: Int,
+    haptic: HapticFeedback,
     onBrightnessChanged: (brightness: Int) -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
     var sliderPosition by remember(brightness) { mutableFloatStateOf(brightness.toFloat()) }
     SliderWithLabel(
         value = sliderPosition,
@@ -180,90 +184,93 @@ private fun SwipeBox(
     onDismiss: (SwipeToDismissBoxValue) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
-    LaunchedEffect(key1 = swipeToDismissBoxState.targetValue, block = {
-        if (swipeToDismissBoxState.progress in 0.01..0.99) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    if (swipeToDismissBoxState.dismissDirection != SwipeToDismissBoxValue.Settled) {
+        val haptic = LocalHapticFeedback.current
+        LaunchedEffect(key1 = swipeToDismissBoxState.targetValue) {
+            if (swipeToDismissBoxState.progress in SWIPE_HAPTIC_MIN_PROGRESS..SWIPE_HAPTIC_MAX_PROGRESS) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
         }
-    })
+    }
 
     SwipeToDismissBox(
         modifier = modifier,
         state = swipeToDismissBoxState,
         onDismiss = onDismiss,
         backgroundContent = {
-            if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.Settled) {
-                return@SwipeToDismissBox
-            }
-            val color by animateColorAsState(
-                when (swipeToDismissBoxState.targetValue) {
-                    SwipeToDismissBoxValue.Settled -> MaterialTheme.colorScheme.surfaceDim
-                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.tertiaryContainer
-                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                },
-                label = "ColorAnimation",
-            )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 6.dp)
-                    .background(color, shape = CardDefaults.shape),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
-                        val penIcon =
-                            if (swipeToDismissBoxState.targetValue ==
-                                SwipeToDismissBoxValue.StartToEnd
-                            ) {
-                                R.drawable.baseline_edit_24
-                            } else {
-                                R.drawable.outline_edit_24
-                            }
-                        Crossfade(
-                            modifier = Modifier.padding(end = 16.dp),
-                            targetState = penIcon,
-                            label = "pen icon",
-                        ) {
-                            Icon(
-                                painter = painterResource(it),
-                                contentDescription = stringResource(R.string.description_back_button),
-                            )
-                        }
-                    }
-                    DeviceInfoTwoRows(
-                        modifier = Modifier.weight(1f),
-                        device = device,
-                    )
-                    if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
-                        val deleteIcon =
-                            if (swipeToDismissBoxState.targetValue ==
-                                SwipeToDismissBoxValue.EndToStart
-                            ) {
-                                R.drawable.baseline_delete_24
-                            } else {
-                                R.drawable.outline_delete_24
-                            }
-                        Crossfade(
-                            modifier = Modifier.padding(start = 16.dp),
-                            targetState = deleteIcon,
-                            label = "delete icon",
-                        ) {
-                            Icon(
-                                painter = painterResource(it),
-                                contentDescription = stringResource(R.string.description_back_button),
-                            )
-                        }
-                    }
-                }
-            }
+            SwipeBoxBackground(device = device, swipeToDismissBoxState = swipeToDismissBoxState)
         },
     ) {
         content()
+    }
+}
+
+@Composable
+private fun SwipeBoxBackground(device: DeviceWithState, swipeToDismissBoxState: SwipeToDismissBoxState) {
+    if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.Settled) {
+        return
+    }
+    val color by animateColorAsState(
+        when (swipeToDismissBoxState.targetValue) {
+            SwipeToDismissBoxValue.Settled -> MaterialTheme.colorScheme.surfaceDim
+            SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.tertiaryContainer
+            SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+        },
+        label = "ColorAnimation",
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(bottom = 6.dp)
+            .background(color, shape = CardDefaults.shape),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
+                SwipeActionIcon(
+                    activeIconRes = R.drawable.baseline_edit_24,
+                    inactiveIconRes = R.drawable.outline_edit_24,
+                    isActive = swipeToDismissBoxState.targetValue == SwipeToDismissBoxValue.StartToEnd,
+                    modifier = Modifier.padding(end = 16.dp),
+                )
+            }
+            DeviceInfoTwoRows(
+                modifier = Modifier.weight(1f),
+                device = device,
+            )
+            if (swipeToDismissBoxState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                SwipeActionIcon(
+                    activeIconRes = R.drawable.baseline_delete_24,
+                    inactiveIconRes = R.drawable.outline_delete_24,
+                    isActive = swipeToDismissBoxState.targetValue == SwipeToDismissBoxValue.EndToStart,
+                    modifier = Modifier.padding(start = 16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwipeActionIcon(
+    activeIconRes: Int,
+    inactiveIconRes: Int,
+    isActive: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val iconRes = if (isActive) activeIconRes else inactiveIconRes
+    Crossfade(
+        modifier = modifier,
+        targetState = iconRes,
+        label = "swipe action icon",
+    ) {
+        Icon(
+            painter = painterResource(it),
+            contentDescription = stringResource(R.string.description_back_button),
+        )
     }
 }
 

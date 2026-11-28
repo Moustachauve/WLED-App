@@ -2,9 +2,13 @@ package ca.cgagnier.wlednativeandroid.ui.theme
 
 import android.app.Activity
 import android.os.Build
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -12,10 +16,15 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -25,8 +34,8 @@ import ca.cgagnier.wlednativeandroid.model.getColorFromState
 import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.repository.ThemeSettings
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
-import com.materialkolor.DynamicMaterialTheme
 import com.materialkolor.PaletteStyle
+import com.materialkolor.dynamicColorScheme
 import com.materialkolor.rememberDynamicColorScheme
 import org.koin.androidx.compose.koinViewModel
 
@@ -365,6 +374,123 @@ private fun holidayColorScheme(holidayTheme: HolidayTheme, darkTheme: Boolean): 
     )
 }
 
+private const val DEVICE_COLOR_SCHEME_CACHE_SIZE = 64
+private const val DEVICE_COLOR_SCHEME_CACHE_LOAD_FACTOR = 0.75f
+
+private data class DeviceColorSchemeKey(val seedColorArgb: Int, val isDark: Boolean, val style: PaletteStyle)
+
+private class LastRenderedSchemeHolder(var scheme: ColorScheme)
+
+private val deviceColorSchemeCache = object : LinkedHashMap<DeviceColorSchemeKey, ColorScheme>(
+    DEVICE_COLOR_SCHEME_CACHE_SIZE,
+    DEVICE_COLOR_SCHEME_CACHE_LOAD_FACTOR,
+    true,
+) {
+    override fun removeEldestEntry(eldest: Map.Entry<DeviceColorSchemeKey, ColorScheme>): Boolean =
+        size > DEVICE_COLOR_SCHEME_CACHE_SIZE
+}
+
+internal fun clearDeviceColorSchemeCache() {
+    synchronized(deviceColorSchemeCache) {
+        deviceColorSchemeCache.clear()
+    }
+}
+
+internal fun getCachedDeviceColorScheme(seedColorArgb: Int, isDark: Boolean, style: PaletteStyle): ColorScheme {
+    val key = DeviceColorSchemeKey(seedColorArgb = seedColorArgb, isDark = isDark, style = style)
+    synchronized(deviceColorSchemeCache) {
+        deviceColorSchemeCache[key]?.let { return it }
+    }
+    val computed = dynamicColorScheme(
+        seedColor = Color(seedColorArgb),
+        isDark = isDark,
+        style = style,
+    )
+    synchronized(deviceColorSchemeCache) {
+        deviceColorSchemeCache[key]?.let { return it }
+        deviceColorSchemeCache[key] = computed
+        return computed
+    }
+}
+
+@Composable
+private fun rememberAnimatedDeviceColorScheme(targetScheme: ColorScheme): ColorScheme {
+    var settledScheme by remember { mutableStateOf(targetScheme) }
+    val renderedHolder = remember { LastRenderedSchemeHolder(targetScheme) }
+
+    if (settledScheme == targetScheme && renderedHolder.scheme == targetScheme) {
+        return targetScheme
+    }
+
+    val startScheme = remember(targetScheme) { renderedHolder.scheme }
+    val progress = remember(targetScheme) { Animatable(0f) }
+    LaunchedEffect(targetScheme) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(stiffness = Spring.StiffnessLow),
+        )
+        settledScheme = targetScheme
+    }
+    return lerpColorScheme(startScheme, targetScheme, progress.value).also {
+        renderedHolder.scheme = it
+    }
+}
+
+internal fun lerpColorScheme(start: ColorScheme, stop: ColorScheme, fraction: Float): ColorScheme {
+    if (fraction <= 0f) return start
+    if (fraction >= 1f) return stop
+    return start.copy(
+        primary = lerp(start.primary, stop.primary, fraction),
+        onPrimary = lerp(start.onPrimary, stop.onPrimary, fraction),
+        primaryContainer = lerp(start.primaryContainer, stop.primaryContainer, fraction),
+        onPrimaryContainer = lerp(start.onPrimaryContainer, stop.onPrimaryContainer, fraction),
+        inversePrimary = lerp(start.inversePrimary, stop.inversePrimary, fraction),
+        secondary = lerp(start.secondary, stop.secondary, fraction),
+        onSecondary = lerp(start.onSecondary, stop.onSecondary, fraction),
+        secondaryContainer = lerp(start.secondaryContainer, stop.secondaryContainer, fraction),
+        onSecondaryContainer = lerp(start.onSecondaryContainer, stop.onSecondaryContainer, fraction),
+        tertiary = lerp(start.tertiary, stop.tertiary, fraction),
+        onTertiary = lerp(start.onTertiary, stop.onTertiary, fraction),
+        tertiaryContainer = lerp(start.tertiaryContainer, stop.tertiaryContainer, fraction),
+        onTertiaryContainer = lerp(start.onTertiaryContainer, stop.onTertiaryContainer, fraction),
+        background = lerp(start.background, stop.background, fraction),
+        onBackground = lerp(start.onBackground, stop.onBackground, fraction),
+        surface = lerp(start.surface, stop.surface, fraction),
+        onSurface = lerp(start.onSurface, stop.onSurface, fraction),
+        surfaceVariant = lerp(start.surfaceVariant, stop.surfaceVariant, fraction),
+        onSurfaceVariant = lerp(start.onSurfaceVariant, stop.onSurfaceVariant, fraction),
+        surfaceTint = lerp(start.surfaceTint, stop.surfaceTint, fraction),
+        inverseSurface = lerp(start.inverseSurface, stop.inverseSurface, fraction),
+        inverseOnSurface = lerp(start.inverseOnSurface, stop.inverseOnSurface, fraction),
+        error = lerp(start.error, stop.error, fraction),
+        onError = lerp(start.onError, stop.onError, fraction),
+        errorContainer = lerp(start.errorContainer, stop.errorContainer, fraction),
+        onErrorContainer = lerp(start.onErrorContainer, stop.onErrorContainer, fraction),
+        outline = lerp(start.outline, stop.outline, fraction),
+        outlineVariant = lerp(start.outlineVariant, stop.outlineVariant, fraction),
+        scrim = lerp(start.scrim, stop.scrim, fraction),
+        surfaceBright = lerp(start.surfaceBright, stop.surfaceBright, fraction),
+        surfaceDim = lerp(start.surfaceDim, stop.surfaceDim, fraction),
+        surfaceContainer = lerp(start.surfaceContainer, stop.surfaceContainer, fraction),
+        surfaceContainerHigh = lerp(start.surfaceContainerHigh, stop.surfaceContainerHigh, fraction),
+        surfaceContainerHighest = lerp(start.surfaceContainerHighest, stop.surfaceContainerHighest, fraction),
+        surfaceContainerLow = lerp(start.surfaceContainerLow, stop.surfaceContainerLow, fraction),
+        surfaceContainerLowest = lerp(start.surfaceContainerLowest, stop.surfaceContainerLowest, fraction),
+        primaryFixed = lerp(start.primaryFixed, stop.primaryFixed, fraction),
+        primaryFixedDim = lerp(start.primaryFixedDim, stop.primaryFixedDim, fraction),
+        onPrimaryFixed = lerp(start.onPrimaryFixed, stop.onPrimaryFixed, fraction),
+        onPrimaryFixedVariant = lerp(start.onPrimaryFixedVariant, stop.onPrimaryFixedVariant, fraction),
+        secondaryFixed = lerp(start.secondaryFixed, stop.secondaryFixed, fraction),
+        secondaryFixedDim = lerp(start.secondaryFixedDim, stop.secondaryFixedDim, fraction),
+        onSecondaryFixed = lerp(start.onSecondaryFixed, stop.onSecondaryFixed, fraction),
+        onSecondaryFixedVariant = lerp(start.onSecondaryFixedVariant, stop.onSecondaryFixedVariant, fraction),
+        tertiaryFixed = lerp(start.tertiaryFixed, stop.tertiaryFixed, fraction),
+        tertiaryFixedDim = lerp(start.tertiaryFixedDim, stop.tertiaryFixedDim, fraction),
+        onTertiaryFixed = lerp(start.onTertiaryFixed, stop.onTertiaryFixed, fraction),
+        onTertiaryFixedVariant = lerp(start.onTertiaryFixedVariant, stop.onTertiaryFixedVariant, fraction),
+    )
+}
+
 fun getColorFromDeviceState(state: State?): Int = getColorFromState(state) ?: android.graphics.Color.WHITE
 
 @Composable
@@ -378,14 +504,19 @@ fun DeviceTheme(device: DeviceWithState, content: @Composable () -> Unit) {
 
 @Composable
 fun DeviceTheme(device: DeviceWithState, darkTheme: Boolean, content: @Composable () -> Unit) {
-    val stateInfo = device.stateInfo
-
-    DynamicMaterialTheme(
-        seedColor = Color(getColorFromDeviceState(stateInfo?.state)),
-        isDark = darkTheme,
-        style = if (device.isOnline) PaletteStyle.Vibrant else PaletteStyle.Neutral,
-        animate = true,
-    ) {
-        content()
+    val seedColorArgb = getColorFromDeviceState(device.stateInfo?.state)
+    val style = if (device.isOnline) PaletteStyle.Vibrant else PaletteStyle.Neutral
+    val targetScheme = remember(seedColorArgb, darkTheme, style) {
+        getCachedDeviceColorScheme(
+            seedColorArgb = seedColorArgb,
+            isDark = darkTheme,
+            style = style,
+        )
     }
+    val animatedScheme = rememberAnimatedDeviceColorScheme(targetScheme)
+
+    MaterialTheme(
+        colorScheme = animatedScheme,
+        content = content,
+    )
 }

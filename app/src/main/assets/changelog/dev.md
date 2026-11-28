@@ -14,3 +14,4 @@ Shrink home screen widgets down to a compact 1x1 power tile right alongside your
 - Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates.
 - Refreshed the UI with Material 3 Expressive styling, wavy progress indicators, and blurred dialog backdrops on Android 12 and newer.
 - Fixed home screen widget power and refresh buttons not working while Battery Saver is on.
+- Improved device list scrolling smoothness and reduced idle CPU usage, especially with many offline devices.
