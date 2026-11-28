@@ -67,6 +67,7 @@ SKIP_KMP_BUILD=1 xcodebuild test \
 *   **Focused PRs:** Keep PRs small and single-purpose. Split large multi-step migrations into stacked PRs rather than creating 1,000+ line diffs, and do not bundle unrelated drive-by changes.
 *   **PR Labels:** Apply both a categorization label (`feature`, `enhancement`, `bug`, `fix`, `documentation`, `chore`, `refactor`) and a versioning label (`major`, `minor`, `patch`).
 *   **CI Checks:** Do not poll `gh pr checks` in a tight loop; use `gh pr checks --watch` or wait for user feedback.
+*   **Illumidel Branch (Manual Deployment Only):** On the `illumidel` branch, CI and GitHub Actions release workflows (such as `.github/workflows/release.yml`) are not used. All release builds and store deployments are performed manually by the user, so do not suggest triggering CI workflows or GitHub release tags, and manage version/build numbers directly in `gradle/libs.versions.toml` and `iosApp/wled.xcodeproj/project.pbxproj`.
 
 ## 5. Project Structure & Navigation Pointers
 *   `shared/src/commonMain/kotlin/ca/cgagnier/wlednativeandroid/` - Shared KMP code:

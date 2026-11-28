@@ -1,4 +1,0 @@
-- Redesigned controller list with glowing status cards, brightness sliders, and a Turn all on/off shortcut.
-- Controller screen now adapts to your 1.6.4 page theme colour and extends seamlessly to the bottom of the screen.
-- Added update prompts when new controller firmware is available.
-- Faster discovery and improved connection stability on Android and iOS.
