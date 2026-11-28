@@ -31,7 +31,6 @@
     <string name="battery_percentage">电量：</string>
     <string name="refresh_page">刷新页面</string>
     <string name="edit_device">编辑设备</string>
-    <string name="edit_device_with_name">编辑设备 - <xliff:g example="WLED" id="device_name">%1$s</xliff:g></string>
     <string name="device_is_visible">设备可见</string>
     <string name="device_is_hidden">设备隐藏</string>
     <string name="hidden_status">（隐藏）</string>

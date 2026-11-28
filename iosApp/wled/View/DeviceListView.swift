@@ -493,9 +493,7 @@ struct ConfirmDeleteDeviceDialog: View {
                 Text("Delete Device?")
                     .font(.title3.bold())
 
-                Card(style: .device(color: device.currentColor)) {
-                    DeviceInfoTwoRows(device: device)
-                }
+                DeviceInfoCard(device: device)
 
                 HStack {
                     Spacer()

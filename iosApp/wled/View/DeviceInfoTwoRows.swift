@@ -10,6 +10,7 @@ import Shared
 
 struct DeviceInfoTwoRows: View {
     var device: DeviceWithState
+    var showWebsocketStatus: Bool = true
     @Environment(\.activeSoundSyncTargets) private var activeSoundSyncTargets
     @ScaledMetric(relativeTo: .subheadline) private var soundSyncIconSize: CGFloat = 15
 
@@ -26,7 +27,9 @@ struct DeviceInfoTwoRows: View {
                 }
             }
             HStack(spacing: 4) {
-                WebsocketStatusIndicator(currentStatus: device.websocketStatus)
+                if showWebsocketStatus {
+                    WebsocketStatusIndicator(currentStatus: device.websocketStatus)
+                }
                 Text(device.device.address)
                     .lineLimit(1)
                     .fixedSize()

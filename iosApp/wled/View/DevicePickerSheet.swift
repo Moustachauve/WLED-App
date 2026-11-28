@@ -59,13 +59,9 @@ struct DevicePickerSheet: View {
                 } else {
                     List {
                         if showOfflineDevicesLast {
-                            if !onlineDevices.isEmpty {
-                                Section {
-                                    deviceRows(for: onlineDevices)
-                                }
-                            }
+                            deviceRows(for: onlineDevices)
                             if !offlineDevices.isEmpty {
-                                Section("Offline Devices") {
+                                Section(header: Text("Offline Devices")) {
                                     deviceRows(for: offlineDevices)
                                 }
                             }
@@ -73,6 +69,7 @@ struct DevicePickerSheet: View {
                             deviceRows(for: visibleDevices)
                         }
                     }
+                    .listStyle(.plain)
                 }
             }
             .navigationTitle(title)
@@ -117,14 +114,18 @@ struct DevicePickerSheet: View {
             Button {
                 handleTap(on: device)
             } label: {
-                HStack(spacing: 12) {
+                DeviceInfoCard(
+                    device: device,
+                    showWebsocketStatus: false,
+                    isSelected: isSelected
+                ) {
                     if case .multi = selectionMode {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                             .font(.title3)
                             .accessibilityHidden(true)
                     }
-                    DeviceInfoTwoRows(device: device)
+                } trailing: {
                     if case .single = selectionMode, isSelected {
                         Image(systemName: "checkmark")
                             .foregroundStyle(.tint)
@@ -132,10 +133,13 @@ struct DevicePickerSheet: View {
                             .accessibilityHidden(true)
                     }
                 }
-                .contentShape(Rectangle())
+                .contentShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
         }
     }
 

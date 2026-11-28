@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,10 +47,9 @@ import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.PartitionedDevices
 import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
-import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoCard
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncToolbarIcon
-import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import kotlinx.coroutines.delay
@@ -497,14 +495,10 @@ fun ConfirmDeleteDialog(device: DeviceWithState? = null, onConfirm: () -> Unit, 
                 Text(text = stringResource(R.string.deleting_device))
             },
             text = {
-                DeviceTheme(device) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        DeviceInfoTwoRows(
-                            modifier = Modifier.padding(16.dp),
-                            device = device,
-                        )
-                    }
-                }
+                DeviceInfoCard(
+                    device = device,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             },
             onDismissRequest = {
                 onDismiss()

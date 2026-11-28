@@ -24,11 +24,9 @@ struct DeviceEditView: View {
     var body: some View {
         Form {
             Section {
-                Card(style: .device(color: device.currentColor)) {
-                    DeviceInfoTwoRows(device: device)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                DeviceInfoCard(device: device)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
             }
 
             Section("Custom Name") {
