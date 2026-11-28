@@ -74,7 +74,7 @@ final class SoundSyncViewModel {
 
     private let soundSyncManager: any SoundSyncManaging
     private let userPreferencesRepository: UserPreferencesRepository
-    private let deviceRepository: DeviceRepository
+    private let deviceConnectionManager: DeviceConnectionManager
     private let openSettings: @MainActor () -> Void
     @ObservationIgnored private(set) var deviceObservationTask: Task<Void, Never>?
     @ObservationIgnored private var gainUpdateTask: Task<Void, Never>?
@@ -86,12 +86,12 @@ final class SoundSyncViewModel {
     init(
         soundSyncManager: any SoundSyncManaging = SoundSyncManager.shared,
         userPreferencesRepository: UserPreferencesRepository,
-        deviceRepository: DeviceRepository,
+        deviceConnectionManager: DeviceConnectionManager,
         openSettings: @escaping @MainActor () -> Void = SoundSyncViewModel.defaultOpenAppSettings
     ) {
         self.soundSyncManager = soundSyncManager
         self.userPreferencesRepository = userPreferencesRepository
-        self.deviceRepository = deviceRepository
+        self.deviceConnectionManager = deviceConnectionManager
         self.openSettings = openSettings
         self.recordPermission = soundSyncManager.recordPermissionStatus()
     }
@@ -133,8 +133,7 @@ final class SoundSyncViewModel {
             guard granted else { return }
         }
 
-        let devices = await deviceRepository.allDevices.firstValue() ?? []
-        let addresses = Self.visibleAddresses(from: devices)
+        let addresses = deviceConnectionManager.currentSoundSyncUnicastAddresses()
         // Reset any invalid or incomplete text entry back to the last valid port before starting.
         if portText != String(port) {
             portText = String(port)
@@ -332,9 +331,9 @@ final class SoundSyncViewModel {
         deviceObservationTask?.cancel()
         deviceObservationTask = Task { [weak self] in
             guard let self else { return }
-            for await devices in self.deviceRepository.allDevices {
+            for await addresses in self.deviceConnectionManager.soundSyncUnicastAddresses() {
                 guard !Task.isCancelled else { break }
-                await self.soundSyncManager.updateDeviceAddresses(Self.visibleAddresses(from: devices))
+                await self.soundSyncManager.updateDeviceAddresses(addresses)
             }
         }
     }
@@ -347,11 +346,5 @@ final class SoundSyncViewModel {
     private static func defaultOpenAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
-    }
-
-    private static func visibleAddresses(from devices: [Shared.Device]) -> [String] {
-        devices
-            .filter { !$0.isHidden }
-            .map { $0.address }
     }
 }

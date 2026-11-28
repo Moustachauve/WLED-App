@@ -64,6 +64,15 @@ class FftAnalyzer(private val fftSize: Int = DEFAULT_FFT_SIZE, private val sampl
         (HANN_SCALE * (HANN_ONE - cos(TWO_PI * i / (fftSize - HANN_ONE_INT)))).toFloat()
     }
 
+    // Precomputed radix-2 twiddle factors so fft() avoids trig calls per frame
+    private val halfFftSize = fftSize / NYQUIST_DIVISOR
+    private val twiddleRealTable = FloatArray(halfFftSize) { k ->
+        cos(-TWO_PI * k / fftSize).toFloat()
+    }
+    private val twiddleImagTable = FloatArray(halfFftSize) { k ->
+        sin(-TWO_PI * k / fftSize).toFloat()
+    }
+
     // Scratch buffers for FFT and linear-domain channel smoothing (reused across calls)
     private val realBuffer = FloatArray(fftSize)
     private val imagBuffer = FloatArray(fftSize)
@@ -163,11 +172,14 @@ class FftAnalyzer(private val fftSize: Int = DEFAULT_FFT_SIZE, private val sampl
         val fallWeight = 1f - (1f - FFT_FALL_WEIGHT).pow(normalizedFrames)
         for (ch in 0 until FFT_CHANNEL_COUNT) {
             val range = channelBinRanges[ch]
+            val startBin = range.first
+            val endBin = range.last
             var sum = 0f
-            for (bin in range) {
+            for (bin in startBin..endBin) {
                 sum += magnitudes[bin]
             }
-            val avgMagnitude = sum / range.count() * wledChannelBinScale * GEQ_CHANNEL_DAMPING[ch]
+            val binCount = endBin - startBin + 1
+            val avgMagnitude = sum / binCount * wledChannelBinScale * GEQ_CHANNEL_DAMPING[ch]
             val currentLinear = avgMagnitude * FFT_RESULT_PINK[ch] * FFT_DOWNSCALE
             val previousLinear = smoothedLinearChannels[ch]
             val weight = if (currentLinear >= previousLinear) riseWeight else fallWeight
@@ -235,22 +247,26 @@ class FftAnalyzer(private val fftSize: Int = DEFAULT_FFT_SIZE, private val sampl
         var size = FFT_INITIAL_STAGE_SIZE
         while (size <= n) {
             val halfSize = size / FFT_STAGE_MULTIPLIER
-            val angleStep = -TWO_PI / size
+            val twiddleStep = n / size
             for (k in 0 until halfSize) {
-                val angle = angleStep * k
-                val twiddleReal = cos(angle).toFloat()
-                val twiddleImag = sin(angle).toFloat()
+                val twiddleIndex = k * twiddleStep
+                val twiddleReal = twiddleRealTable[twiddleIndex]
+                val twiddleImag = twiddleImagTable[twiddleIndex]
 
-                for (i in 0 until n step size) {
-                    val evenReal = real[i + k]
-                    val evenImag = imag[i + k]
-                    val oddReal = real[i + k + halfSize] * twiddleReal - imag[i + k + halfSize] * twiddleImag
-                    val oddImag = real[i + k + halfSize] * twiddleImag + imag[i + k + halfSize] * twiddleReal
+                var i = 0
+                while (i < n) {
+                    val evenIndex = i + k
+                    val oddIndex = evenIndex + halfSize
+                    val evenReal = real[evenIndex]
+                    val evenImag = imag[evenIndex]
+                    val oddReal = real[oddIndex] * twiddleReal - imag[oddIndex] * twiddleImag
+                    val oddImag = real[oddIndex] * twiddleImag + imag[oddIndex] * twiddleReal
 
-                    real[i + k] = evenReal + oddReal
-                    imag[i + k] = evenImag + oddImag
-                    real[i + k + halfSize] = evenReal - oddReal
-                    imag[i + k + halfSize] = evenImag - oddImag
+                    real[evenIndex] = evenReal + oddReal
+                    imag[evenIndex] = evenImag + oddImag
+                    real[oddIndex] = evenReal - oddReal
+                    imag[oddIndex] = evenImag - oddImag
+                    i += size
                 }
             }
             size *= FFT_STAGE_MULTIPLIER

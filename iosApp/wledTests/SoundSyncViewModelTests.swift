@@ -238,18 +238,46 @@ struct SoundSyncViewModelTests {
     }
 
     @Test func startFiltersOutHiddenDevicesAndUpdatesRunningState() async throws {
-        let visibleDevice = Shared.Device(
+        let visibleOnline = Shared.Device(
             macAddress: "aabbccddeeff",
             address: "192.168.1.50",
             isHidden: false
         )
-        let hiddenDevice = Shared.Device(
+        let hiddenOnline = Shared.Device(
             macAddress: "112233445566",
             address: "192.168.1.51",
             isHidden: true
         )
-        try await database.deviceRepository.insert(device: visibleDevice)
-        try await database.deviceRepository.insert(device: hiddenDevice)
+        try await insertDevicesAndSetStatuses([
+            (visibleOnline, .connected),
+            (hiddenOnline, .connected)
+        ])
+
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+
+        await viewModel.start()
+
+        #expect(viewModel.isRunning)
+        #expect(await manager.lastStartedAddresses == ["192.168.1.50"])
+        await viewModel.stop()
+    }
+
+    @Test func startFiltersOutOfflineDevices() async throws {
+        let onlineDevice = Shared.Device(
+            macAddress: "aabbccddeeff",
+            address: "192.168.1.50",
+            isHidden: false
+        )
+        let offlineDevice = Shared.Device(
+            macAddress: "112233445566",
+            address: "192.168.1.52",
+            isHidden: false
+        )
+        try await insertDevicesAndSetStatuses([
+            (onlineDevice, .connected),
+            (offlineDevice, .disconnected)
+        ])
 
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
@@ -317,20 +345,43 @@ struct SoundSyncViewModelTests {
         try await waitUntil { !viewModel.isRunning }
         #expect(viewModel.deviceObservationTask == nil)
     }
+}
 
-    private func makeViewModel(
+// MARK: - Helpers
+
+private extension SoundSyncViewModelTests {
+    func insertDevicesAndSetStatuses(
+        _ entries: [(device: Shared.Device, status: Shared.WebsocketStatus)]
+    ) async throws {
+        for (device, _) in entries {
+            try await database.deviceRepository.insert(device: device)
+        }
+        try await waitUntil { self.database.deviceConnectionManager.allDevicesWithState.value.count == entries.count }
+        for (device, status) in entries {
+            database.deviceConnectionManager.updateDeviceState(
+                deviceWithState: Shared.DeviceWithState(
+                    device: device,
+                    stateInfo: nil,
+                    websocketStatus: status,
+                    updateVersionTag: nil
+                )
+            )
+        }
+    }
+
+    func makeViewModel(
         manager: FakeSoundSyncManager,
         openSettings: @escaping @MainActor () -> Void = {}
     ) -> SoundSyncViewModel {
         SoundSyncViewModel(
             soundSyncManager: manager,
             userPreferencesRepository: database.userPreferencesRepository,
-            deviceRepository: database.deviceRepository,
+            deviceConnectionManager: database.deviceConnectionManager,
             openSettings: openSettings
         )
     }
 
-    private func runObserveUntil(
+    func runObserveUntil(
         viewModel: SoundSyncViewModel,
         manager: FakeSoundSyncManager,
         condition: @escaping @MainActor () -> Bool

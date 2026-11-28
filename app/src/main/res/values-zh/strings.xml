@@ -162,6 +162,11 @@
     <string name="sound_sync_port">UDP 端口</string>
     <string name="sound_sync_port_description">用于发送音频数据的 UDP 端口。必须与 WLED 设备音频同步设置中的端口一致（默认：11988）。</string>
     <string name="sound_sync_port_error">请输入 1 到 65535 之间的有效端口</string>
+    <string name="sound_sync_send_mode">传输模式</string>
+    <string name="sound_sync_send_mode_unicast">单播</string>
+    <string name="sound_sync_send_mode_multicast">组播</string>
+    <string name="sound_sync_send_mode_unicast_description">直接向每个在线的 WLED 设备发送音频数据。在大多数 Wi-Fi 网络和 VLAN 中都能稳定工作。</string>
+    <string name="sound_sync_send_mode_multicast_description">向同一网络中的所有 WLED 设备发送单个组播流 (239.0.0.1)。如果您的路由器支持组播，适合大量设备的场景。</string>
     <string name="sound_sync_start">开始声音同步</string>
     <string name="sound_sync_stop">停止声音同步</string>
     <string name="sound_sync_running">声音同步正在运行</string>

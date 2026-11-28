@@ -387,7 +387,7 @@ private extension DeviceListView {
         if soundSyncViewModel == nil {
             soundSyncViewModel = SoundSyncViewModel(
                 userPreferencesRepository: database.userPreferencesRepository,
-                deviceRepository: database.deviceRepository
+                deviceConnectionManager: database.deviceConnectionManager
             )
         }
     }

@@ -2,7 +2,7 @@ package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.MicrophoneAudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
@@ -44,6 +44,7 @@ data class SoundSyncState(
     val agcMode: AgcMode = AgcMode.NORMAL,
     val squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
     val port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
+    val sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
     val error: SoundSyncError? = null,
 )
 
@@ -52,17 +53,18 @@ data class SoundSyncState(
  * for the sound sync feature.
  *
  * Manages the lifecycle of [AudioSource], runs [SoundSyncProcessor] on incoming
- * samples, and sends UDP Sound Sync V2 packets at up to 50fps to the multicast group and
- * known device addresses.
+ * samples, and sends UDP Sound Sync V2 packets at up to 50fps using the configured
+ * [SoundSyncSendMode].
  */
 @Suppress("LongParameterList")
 class SoundSyncManager(
     private val context: Context,
-    private val deviceRepository: DeviceRepository,
+    private val deviceConnectionManager: DeviceConnectionManager,
     coroutineScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     audioSource: AudioSource? = null,
-    private val senderFactory: (port: Int) -> SoundSyncPacketSender = { port -> UdpSoundSyncSender(port = port) },
+    private val senderFactory: (port: Int, sendMode: SoundSyncSendMode) -> SoundSyncPacketSender =
+        { port, sendMode -> UdpSoundSyncSender(port = port, sendMode = sendMode) },
 ) {
     private val managerScope = CoroutineScope(
         coroutineScope.coroutineContext + SupervisorJob(coroutineScope.coroutineContext[Job]) + ioDispatcher,
@@ -99,8 +101,11 @@ class SoundSyncManager(
      * @param agcMode Automatic gain control preset mode.
      * @param squelch Noise gate threshold (`0..100`).
      * @param port UDP port for sending sound sync packets (`1..65535`).
+     * @param sendMode UDP delivery mode ([SoundSyncSendMode.UNICAST] or [SoundSyncSendMode.MULTICAST]).
      * @return `true` if started successfully.
      */
+    // Parameters kept flat so callers and existing tests configure start options directly.
+    @Suppress("LongParameterList")
     @Synchronized
     fun start(
         gain: Float,
@@ -108,44 +113,22 @@ class SoundSyncManager(
         agcMode: AgcMode = AgcMode.NORMAL,
         squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
         port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
+        sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
     ): Boolean {
         if (_state.value.isRunning) {
             stop()
         }
 
         val clampedPort = port.coerceIn(UdpSoundSyncPacket.MIN_PORT, UdpSoundSyncPacket.MAX_PORT)
-        var clampedGain = 0f
-        var clampedSquelch = 0
-        val initialEffectiveGain = synchronized(processorLock) {
-            capturedSamples = 0L
-            processor.reset()
-            processor.configureSampleRate(audioSource.sampleRate)
-            processor.setGain(gain)
-            processor.setAgcEnabled(agcEnabled)
-            processor.setAgcMode(agcMode)
-            processor.setSquelch(squelch)
-            clampedGain = processor.gain
-            clampedSquelch = processor.squelch
-            processor.effectiveGain
-        }
-        _state.update {
-            it.copy(
-                gain = clampedGain,
-                agcEnabled = agcEnabled,
-                agcMode = agcMode,
-                squelch = clampedSquelch,
-                port = clampedPort,
-                error = null,
-            )
-        }
+        val initialEffectiveGain = configureProcessorForStart(gain, agcEnabled, agcMode, squelch, clampedPort, sendMode)
 
         if (!audioSource.hasPermission()) {
             _state.update { it.copy(error = SoundSyncError.PERMISSION_REQUIRED) }
             return false
         }
 
-        acquireMulticastLock()
-        udpSender = senderFactory(clampedPort)
+        syncMulticastLock(sendMode)
+        udpSender = senderFactory(clampedPort, sendMode)
         startObservingDevices()
         _state.update {
             it.copy(
@@ -169,6 +152,43 @@ class SoundSyncManager(
         startMonitoringAudioSource()
         logger.i { "Sound sync started" }
         return true
+    }
+
+    @Suppress("LongParameterList") // Mirrors start() configuration fields cleanly in a single helper.
+    private fun configureProcessorForStart(
+        gain: Float,
+        agcEnabled: Boolean,
+        agcMode: AgcMode,
+        squelch: Int,
+        clampedPort: Int,
+        sendMode: SoundSyncSendMode,
+    ): Float {
+        var clampedGain = 0f
+        var clampedSquelch = 0
+        val initialEffectiveGain = synchronized(processorLock) {
+            capturedSamples = 0L
+            processor.reset()
+            processor.configureSampleRate(audioSource.sampleRate)
+            processor.setGain(gain)
+            processor.setAgcEnabled(agcEnabled)
+            processor.setAgcMode(agcMode)
+            processor.setSquelch(squelch)
+            clampedGain = processor.gain
+            clampedSquelch = processor.squelch
+            processor.effectiveGain
+        }
+        _state.update {
+            it.copy(
+                gain = clampedGain,
+                agcEnabled = agcEnabled,
+                agcMode = agcMode,
+                squelch = clampedSquelch,
+                port = clampedPort,
+                sendMode = sendMode,
+                error = null,
+            )
+        }
+        return initialEffectiveGain
     }
 
     /** Stops sound sync and releases active capture/network resources. */
@@ -229,6 +249,24 @@ class SoundSyncManager(
         _state.update { it.copy(squelch = clamped) }
     }
 
+    /** Updates the UDP delivery mode (unicast vs multicast), even while actively running. */
+    @Synchronized
+    fun setSendMode(mode: SoundSyncSendMode) {
+        _state.update { it.copy(sendMode = mode) }
+        udpSender?.setSendMode(mode)
+        if (_state.value.isRunning) {
+            syncMulticastLock(mode)
+        }
+    }
+
+    private fun syncMulticastLock(mode: SoundSyncSendMode) {
+        if (mode == SoundSyncSendMode.MULTICAST) {
+            acquireMulticastLock()
+        } else {
+            releaseMulticastLock()
+        }
+    }
+
     @Synchronized
     fun destroy() {
         stop()
@@ -245,7 +283,6 @@ class SoundSyncManager(
             val emitted = processor.process(samples, nowMs) ?: return
             emitted to processor.effectiveGain
         }
-        udpSender?.sendPacket(packet)
         if (_state.value.isRunning) {
             _latestPacket.value = packet
             if (_state.value.agcEnabled) {
@@ -260,6 +297,7 @@ class SoundSyncManager(
                 }
             }
         }
+        udpSender?.sendPacket(packet)
     }
 
     private fun acquireMulticastLock() {
@@ -297,8 +335,7 @@ class SoundSyncManager(
     private fun startObservingDevices() {
         deviceListJob?.cancel()
         deviceListJob = managerScope.launch {
-            deviceRepository.allDevices.collect { devices ->
-                val addresses = devices.filter { !it.isHidden }.map { it.address }
+            deviceConnectionManager.soundSyncUnicastAddresses().collect { addresses ->
                 udpSender?.updateUnicastAddresses(addresses)
             }
         }

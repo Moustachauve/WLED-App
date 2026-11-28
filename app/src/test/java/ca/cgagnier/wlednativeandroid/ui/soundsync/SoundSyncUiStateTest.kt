@@ -1,5 +1,6 @@
 package ca.cgagnier.wlednativeandroid.ui.soundsync
 
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
@@ -19,6 +20,7 @@ class SoundSyncUiStateTest {
         assertEquals(AgcMode.NORMAL, uiState.agcMode)
         assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, uiState.squelch)
         assertEquals(UdpSoundSyncPacket.DEFAULT_PORT, uiState.port)
+        assertEquals(SoundSyncSendMode.UNICAST, uiState.sendMode)
     }
 
     @ParameterizedTest

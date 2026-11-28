@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.DataStore
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.shared.currentTimeMillis
@@ -37,6 +38,9 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
     }.distinctUntilChanged()
     val soundSyncPort: Flow<Int> = dataStore.data.map {
         it.soundSyncPort
+    }.distinctUntilChanged()
+    val soundSyncSendMode: Flow<SoundSyncSendMode> = dataStore.data.map {
+        it.soundSyncSendMode
     }.distinctUntilChanged()
     val soundSyncBetaEnabled: Flow<Boolean> = dataStore.data.map {
         it.soundSyncBetaEnabled
@@ -154,6 +158,16 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
         dataStore.updateData {
             it.copy(
                 soundSyncPort = port,
+                dateLastWritten = currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun updateSoundSyncSendMode(mode: SoundSyncSendMode) {
+        logger.d { "updateSoundSyncSendMode" }
+        dataStore.updateData {
+            it.copy(
+                soundSyncSendMode = mode,
                 dateLastWritten = currentTimeMillis(),
             )
         }

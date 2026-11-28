@@ -17,6 +17,7 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
+  "soundSyncSendMode": "UNICAST",
   "soundSyncBetaEnabled": false,
   "holidayThemesEnabled": true,
   "holidayThemeOverride": null
@@ -40,6 +41,7 @@
   "soundSyncAgcMode": "NORMAL",
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
+  "soundSyncSendMode": "UNICAST",
   "soundSyncBetaEnabled": false,
   "holidayThemesEnabled": true,
   "holidayThemeOverride": null

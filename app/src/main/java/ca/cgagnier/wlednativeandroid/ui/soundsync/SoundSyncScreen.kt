@@ -93,6 +93,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncError
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncIconVisualizer
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
@@ -126,6 +127,7 @@ data class SoundSyncActions(
     val onSquelchChanged: (Int) -> Unit = {},
     val onSquelchChangeFinished: () -> Unit = {},
     val onSquelchStepped: (Int) -> Unit = {},
+    val onSendModeChanged: (SoundSyncSendMode) -> Unit = {},
     val onPortFocusLost: () -> Unit = {},
 )
 
@@ -181,6 +183,7 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
             onSquelchChanged = { viewModel.setSquelch(it) },
             onSquelchChangeFinished = { viewModel.saveSquelch() },
             onSquelchStepped = { viewModel.stepSquelch(it) },
+            onSendModeChanged = { viewModel.setSendMode(it) },
             onPortFocusLost = { viewModel.resetInvalidPort() },
         )
     }
@@ -272,9 +275,11 @@ fun SoundSyncContent(
                     uiState = uiState,
                     actions = actions,
                 )
-                PortCard(
+                NetworkCard(
+                    sendMode = uiState.sendMode,
                     portState = portState,
                     isRunning = uiState.isRunning,
+                    onSendModeChanged = actions.onSendModeChanged,
                     onPortFocusLost = actions.onPortFocusLost,
                 )
             }
@@ -592,40 +597,111 @@ private val PortInputTransformation: InputTransformation = InputTransformation
     }
     .maxLengthTrim(MAX_PORT_DIGITS)
 
+// TODO: Move delivery mode (and port) under an "Advanced" section later.
 @Composable
-private fun PortCard(portState: TextFieldState, isRunning: Boolean, onPortFocusLost: () -> Unit) {
+private fun NetworkCard(
+    sendMode: SoundSyncSendMode,
+    portState: TextFieldState,
+    isRunning: Boolean,
+    onSendModeChanged: (SoundSyncSendMode) -> Unit,
+    onPortFocusLost: () -> Unit,
+) {
+    SoundSyncCard {
+        SendModeSection(
+            sendMode = sendMode,
+            onSendModeChanged = onSendModeChanged,
+        )
+        SectionDivider()
+        PortSection(
+            portState = portState,
+            isRunning = isRunning,
+            onPortFocusLost = onPortFocusLost,
+        )
+    }
+}
+
+@Composable
+private fun SendModeSection(sendMode: SoundSyncSendMode, onSendModeChanged: (SoundSyncSendMode) -> Unit) {
+    val modes = SoundSyncSendMode.entries
+    SectionTitle(stringResource(R.string.sound_sync_send_mode))
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        modes.forEachIndexed { index, mode ->
+            ToggleButton(
+                checked = sendMode == mode,
+                onCheckedChange = { checked -> if (checked) onSendModeChanged(mode) },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { role = Role.RadioButton },
+            ) {
+                Text(
+                    text = stringResource(mode.labelResId()),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        text = stringResource(sendMode.descriptionResId()),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun PortSection(portState: TextFieldState, isRunning: Boolean, onPortFocusLost: () -> Unit) {
     val portLabel = stringResource(R.string.sound_sync_port)
     var isFocused by remember { mutableStateOf(false) }
     val isPortValid = isRunning || portState.text.toString().toValidPortOrNull() != null
 
-    SoundSyncCard {
-        SectionTitle(portLabel)
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            state = portState,
-            enabled = !isRunning,
-            lineLimits = TextFieldLineLimits.SingleLine,
-            isError = !isPortValid,
-            placeholder = { Text(UdpSoundSyncPacket.DEFAULT_PORT.toString()) },
-            inputTransformation = PortInputTransformation,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = portLabel }
-                .onFocusChanged { focusState ->
-                    if (isFocused && !focusState.isFocused) onPortFocusLost()
-                    isFocused = focusState.isFocused
-                },
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = stringResource(
-                if (isPortValid) R.string.sound_sync_port_description else R.string.sound_sync_port_error,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isPortValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-        )
-    }
+    SectionTitle(portLabel)
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedTextField(
+        state = portState,
+        enabled = !isRunning,
+        lineLimits = TextFieldLineLimits.SingleLine,
+        isError = !isPortValid,
+        placeholder = { Text(UdpSoundSyncPacket.DEFAULT_PORT.toString()) },
+        inputTransformation = PortInputTransformation,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = portLabel }
+            .onFocusChanged { focusState ->
+                if (isFocused && !focusState.isFocused) onPortFocusLost()
+                isFocused = focusState.isFocused
+            },
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        text = stringResource(
+            if (isPortValid) R.string.sound_sync_port_description else R.string.sound_sync_port_error,
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (isPortValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+    )
+}
+
+private fun SoundSyncSendMode.labelResId(): Int = when (this) {
+    SoundSyncSendMode.UNICAST -> R.string.sound_sync_send_mode_unicast
+    SoundSyncSendMode.MULTICAST -> R.string.sound_sync_send_mode_multicast
+}
+
+private fun SoundSyncSendMode.descriptionResId(): Int = when (this) {
+    SoundSyncSendMode.UNICAST -> R.string.sound_sync_send_mode_unicast_description
+    SoundSyncSendMode.MULTICAST -> R.string.sound_sync_send_mode_multicast_description
 }
 
 private fun AgcMode.labelResId(): Int = when (this) {

@@ -2,10 +2,12 @@ package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import android.content.Context
 import ca.cgagnier.wlednativeandroid.model.Device
-import ca.cgagnier.wlednativeandroid.repository.DeviceRepository
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.service.websocket.WebsocketStatus
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -15,7 +17,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -83,6 +84,23 @@ class SoundSyncManagerTest {
     }
 
     @Test
+    fun processAudioSamples_updatesLatestPacketBeforeCallingSender() = runTest {
+        val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
+        lateinit var manager: SoundSyncManager
+        var latestSmthDuringSend = -1f
+        val sender = FakeSoundSyncPacketSender(
+            onSend = { latestSmthDuringSend = manager.latestPacket.value.sampleSmth },
+        )
+        manager = createManager(audioSource = audioSource, sender = sender)
+        manager.start(gain = 3.0f, agcEnabled = false)
+
+        val sineSamples = FloatArray(512) { i -> sin(2.0 * PI * 440.0 * i / audioSource.sampleRate).toFloat() }
+        audioSource.emitSamples(sineSamples)
+
+        assertTrue(latestSmthDuringSend > 0f)
+    }
+
+    @Test
     fun processAudioSamples_whenAgcEnabled_updatesEffectiveGainAndPreservesManualGain() = runTest {
         val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
         val manager = createManager(audioSource = audioSource)
@@ -109,19 +127,81 @@ class SoundSyncManagerTest {
     }
 
     @Test
-    fun start_passesConfiguredPortToSenderFactory() = runTest {
+    fun start_passesConfiguredPortAndSendModeToSenderFactory() = runTest {
         val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
         var capturedPort = 0
+        var capturedMode: SoundSyncSendMode? = null
         val manager = createManager(
             audioSource = audioSource,
-            onSenderCreated = { port -> capturedPort = port },
+            onSenderCreated = { port, mode ->
+                capturedPort = port
+                capturedMode = mode
+            },
         )
 
-        val started = manager.start(gain = 1.0f, port = 12345)
+        val started = manager.start(gain = 1.0f, port = 12345, sendMode = SoundSyncSendMode.MULTICAST)
 
         assertTrue(started)
         assertEquals(12345, capturedPort)
+        assertEquals(SoundSyncSendMode.MULTICAST, capturedMode)
         assertEquals(12345, manager.state.value.port)
+        assertEquals(SoundSyncSendMode.MULTICAST, manager.state.value.sendMode)
+    }
+
+    @Test
+    fun setSendMode_updatesStateAndForwardsToSenderWhileRunning() = runTest {
+        val audioSource = FakeAudioSource(permissionGranted = true, startResult = true)
+        val sender = FakeSoundSyncPacketSender()
+        val manager = createManager(audioSource = audioSource, sender = sender)
+        manager.start(gain = 1.0f, sendMode = SoundSyncSendMode.UNICAST)
+
+        manager.setSendMode(SoundSyncSendMode.MULTICAST)
+
+        assertEquals(SoundSyncSendMode.MULTICAST, manager.state.value.sendMode)
+        assertEquals(SoundSyncSendMode.MULTICAST, sender.sendMode)
+    }
+
+    @Test
+    fun start_observesOnlyOnlineVisibleDevicesForUnicast() = runTest {
+        val onlineVisible = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED, isHidden = false)
+        val offlineVisible = deviceWithState("02", "192.168.1.11", WebsocketStatus.DISCONNECTED, isHidden = false)
+        val onlineHidden = deviceWithState("03", "192.168.1.12", WebsocketStatus.CONNECTED, isHidden = true)
+        val devicesFlow = MutableStateFlow(listOf(onlineVisible, offlineVisible, onlineHidden))
+        val sender = FakeSoundSyncPacketSender()
+        val manager = createManager(
+            audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
+            sender = sender,
+            devicesFlow = devicesFlow,
+        )
+
+        manager.start(gain = 1.0f)
+        advanceUntilIdle()
+
+        assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
+    }
+
+    @Test
+    fun deviceListObservation_preservesTargetsWhenPausedForBackground() = runTest {
+        val onlineDevice = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
+        val devicesFlow = MutableStateFlow(listOf(onlineDevice))
+        val isPausedFlow = MutableStateFlow(false)
+        val sender = FakeSoundSyncPacketSender()
+        val manager = createManager(
+            audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
+            sender = sender,
+            devicesFlow = devicesFlow,
+            isPausedFlow = isPausedFlow,
+        )
+
+        manager.start(gain = 1.0f)
+        advanceUntilIdle()
+        assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
+
+        isPausedFlow.value = true
+        devicesFlow.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
+        advanceUntilIdle()
+
+        assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
     }
 
     @Test
@@ -157,25 +237,38 @@ class SoundSyncManagerTest {
         assertEquals(SoundSyncError.CAPTURE_FAILED, manager.state.value.error)
     }
 
+    private fun deviceWithState(
+        mac: String,
+        address: String,
+        status: WebsocketStatus,
+        isHidden: Boolean = false,
+    ): DeviceWithState = DeviceWithState(
+        device = Device(macAddress = mac, address = address, isHidden = isHidden),
+        websocketStatus = status,
+    )
+
     private fun TestScope.createManager(
         audioSource: AudioSource,
         sender: FakeSoundSyncPacketSender = FakeSoundSyncPacketSender(),
-        onSenderCreated: (Int) -> Unit = {},
+        devicesFlow: MutableStateFlow<List<DeviceWithState>> = MutableStateFlow(emptyList()),
+        isPausedFlow: MutableStateFlow<Boolean> = MutableStateFlow(false),
+        onSenderCreated: (Int, SoundSyncSendMode) -> Unit = { _, _ -> },
     ): SoundSyncManager {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher + SupervisorJob())
         val context = mockk<Context>(relaxed = true)
-        val deviceRepository = mockk<DeviceRepository> {
-            every { allDevices } returns flowOf(emptyList<Device>())
+        val deviceConnectionManager = mockk<DeviceConnectionManager> {
+            every { allDevicesWithState } returns devicesFlow.asStateFlow()
+            every { isPaused } returns isPausedFlow.asStateFlow()
         }
         val manager = SoundSyncManager(
             context = context,
-            deviceRepository = deviceRepository,
+            deviceConnectionManager = deviceConnectionManager,
             coroutineScope = scope,
             ioDispatcher = dispatcher,
             audioSource = audioSource,
-            senderFactory = { port ->
-                onSenderCreated(port)
+            senderFactory = { port, mode ->
+                onSenderCreated(port, mode)
                 sender
             },
         )
@@ -186,19 +279,26 @@ class SoundSyncManagerTest {
         return manager
     }
 
-    private class FakeSoundSyncPacketSender : SoundSyncPacketSender {
+    private class FakeSoundSyncPacketSender(private val onSend: () -> Unit = {}) : SoundSyncPacketSender {
         val sentPackets = mutableListOf<UdpSoundSyncPacket>()
         var unicastAddresses: List<String> = emptyList()
+            private set
+        var sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST
             private set
         var isClosed: Boolean = false
             private set
 
         override fun sendPacket(packet: UdpSoundSyncPacket) {
+            onSend()
             sentPackets.add(packet)
         }
 
         override fun updateUnicastAddresses(addresses: List<String>) {
             unicastAddresses = addresses
+        }
+
+        override fun setSendMode(mode: SoundSyncSendMode) {
+            sendMode = mode
         }
 
         override fun close() {

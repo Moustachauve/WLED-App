@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.repository
 
 import androidx.datastore.core.CorruptionException
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.test.TestJson
 import com.diffplug.selfie.Selfie.expectSelfie
@@ -116,6 +117,17 @@ class UserPreferencesSerializerTest {
 
         assertEquals(null, deserialized.holidayThemeOverride)
         assertEquals(false, deserialized.holidayThemesEnabled)
+        assertEquals(ThemeSettings.Dark, deserialized.theme)
+    }
+
+    @Test
+    fun readFrom_unknownSendMode_coercesToUnicastAndPreservesOtherFields() = runTest {
+        val json = """{"theme":"Dark","soundSyncPort":12345,"soundSyncSendMode":"BROADCAST"}"""
+        val buffer = Buffer().writeUtf8(json)
+        val deserialized = serializer.readFrom(buffer)
+
+        assertEquals(SoundSyncSendMode.UNICAST, deserialized.soundSyncSendMode)
+        assertEquals(12345, deserialized.soundSyncPort)
         assertEquals(ThemeSettings.Dark, deserialized.theme)
     }
 }

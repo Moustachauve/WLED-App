@@ -2,7 +2,7 @@
 Celebrate the season right inside the app with festive accents, twinkling header lights, falling snow for the Winter Holidays, and fireworks for New Year. Toggle Holiday Themes or pick an override anytime in Settings.
 
 ### Sound Sync (Beta)
-Turn your phone into a live audio-reactive controller for your WLED strips over UDP Sound Sync, even in the background with a live notification for quick controls. Fine-tune gain, Automatic Gain Control presets, squelch, and a custom UDP port, then enable Sound Sync (Beta) in Settings to try it early.
+Turn your phone into a live audio-reactive controller for your WLED strips over UDP Sound Sync, even in the background with a live notification for quick controls. Fine-tune gain, Automatic Gain Control presets, squelch, Unicast/Multicast delivery, and a custom UDP port, then enable Sound Sync (Beta) in Settings to try it early.
 
 ### Firmware Version Browser
 Take full control over what runs on your strips. Open Edit Device and tap Other Versions & Sources to browse Stable and Beta releases from Official WLED, QuinLED, and MoonModules, read release notes, pick your exact board binary, and install or downgrade to any version.
