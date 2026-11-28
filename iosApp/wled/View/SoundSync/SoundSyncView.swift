@@ -6,12 +6,14 @@ private typealias State = SwiftUI.State
 private let chartHeight: CGFloat = 120
 private let channelMaxValue: Float = 255
 private let barGapRatio: CGFloat = 0.15
+private let maxDisplayedTargetDevices = 2
 
 struct SoundSyncView: View {
 
     @Bindable var viewModel: SoundSyncViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showDevicePicker: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -61,12 +63,29 @@ struct SoundSyncView: View {
                     viewModel.refreshPermissionState()
                 }
             }
+            .sheet(isPresented: $showDevicePicker) {
+                DevicePickerSheet(
+                    visibleDevices: viewModel.visibleDevices,
+                    onlineDevices: viewModel.onlineDevices,
+                    offlineDevices: viewModel.offlineDevices,
+                    showOfflineDevicesLast: viewModel.showOfflineDevicesLast,
+                    selectionMode: .multi(
+                        selectedMacs: viewModel.selectedDeviceMacs,
+                        onSave: { selectedMacs in
+                            viewModel.setSelectedDeviceMacs(selectedMacs)
+                        }
+                    ),
+                    title: "Select Target Devices"
+                )
+            }
         }
     }
+}
 
-    // MARK: - Sections
+// MARK: - Sections
 
-    private var descriptionSection: some View {
+private extension SoundSyncView {
+    var descriptionSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
@@ -81,13 +100,66 @@ struct SoundSyncView: View {
                     }
                 }
 
+                Divider()
+
+                targetDevicesSection
+
                 startStopControls
             }
             .padding(.vertical, 4)
         }
     }
 
-    private var gainSection: some View {
+    var targetDevicesSection: some View {
+        Button {
+            showDevicePicker = true
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Target Devices")
+                        .font(.headline)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Text(viewModel.selectedDevices.isEmpty ? "Select" : "Change")
+                            .font(.subheadline)
+                            .foregroundStyle(.tint)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                if viewModel.selectedDevices.isEmpty {
+                    Text(
+                        viewModel.visibleDevices.isEmpty
+                            ? "No WLED devices available yet."
+                            : "Choose which devices receive Sound Sync audio."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                } else {
+                    let displayed = Array(viewModel.selectedDevices.prefix(maxDisplayedTargetDevices))
+                    let remaining = viewModel.selectedDevices.count - displayed.count
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(displayed) { device in
+                            DeviceInfoTwoRows(device: device)
+                        }
+                        if remaining > 0 {
+                            Text("and \(remaining) more")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    var gainSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Gain")
@@ -199,7 +271,7 @@ struct SoundSyncView: View {
         }
     }
 
-    private var portSection: some View {
+    var portSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -231,7 +303,7 @@ struct SoundSyncView: View {
         }
     }
 
-    private var visualizationSection: some View {
+    var visualizationSection: some View {
         Section("Frequency visualization") {
             FrequencyVisualizationView(
                 fftChannels: viewModel.fftChannels,
@@ -241,7 +313,7 @@ struct SoundSyncView: View {
         }
     }
 
-    private func errorSection(_ message: String) -> some View {
+    func errorSection(_ message: String) -> some View {
         Section {
             Text("Sound sync error: \(message)")
                 .foregroundStyle(.red)
@@ -249,7 +321,7 @@ struct SoundSyncView: View {
     }
 
     @ViewBuilder
-    private var startStopControls: some View {
+    var startStopControls: some View {
         if viewModel.isRunning {
             VStack(spacing: 8) {
                 Text("Sound sync is running")
@@ -290,6 +362,7 @@ struct SoundSyncView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!viewModel.canStart)
         }
     }
 }

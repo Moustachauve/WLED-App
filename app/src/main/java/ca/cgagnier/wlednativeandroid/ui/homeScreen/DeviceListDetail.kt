@@ -19,6 +19,7 @@ import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneSca
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import ca.cgagnier.wlednativeandroid.model.AP_MODE_MAC_ADDRESS
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.NavigationEvent
+import ca.cgagnier.wlednativeandroid.ui.components.LocalActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.detail.DeviceDetail
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceAdd.DeviceAdd
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.deviceEdit.DeviceEdit
@@ -80,6 +82,7 @@ fun DeviceListDetail(
     val selectedDevice = rememberSelectedDevice(devices, selectedDeviceMacAddress)
 
     val showSoundSync by deviceWebsocketListViewModel.soundSyncBetaEnabled.collectAsStateWithLifecycle()
+    val activeSoundSyncTargets by deviceWebsocketListViewModel.activeSoundSyncTargets.collectAsStateWithLifecycle()
     val isWLEDCaptivePortal by viewModel.isWLEDCaptivePortal.collectAsStateWithLifecycle()
     val isAddDeviceDialogVisible by viewModel.isAddDeviceDialogVisible.collectAsStateWithLifecycle()
 
@@ -120,75 +123,77 @@ fun DeviceListDetail(
         )
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
-        drawerContent = {
-            ModalDrawerSheet {
-                DrawerSheetContent(
-                    coroutineScope = coroutineScope,
-                    drawerState = drawerState,
-                    showSoundSync = showSoundSync,
-                    viewModel = viewModel,
-                    actions = actions,
-                )
-            }
-        },
-    ) {
-        Scaffold { innerPadding ->
-            NavigableListDetailPaneScaffold(
-                modifier = modifier
-                    .padding(innerPadding)
-                    .consumeWindowInsets(innerPadding)
-                    .imePadding(),
-                navigator = navigator,
-                defaultBackBehavior = BackNavigationBehavior.PopUntilScaffoldValueChange,
-                listPane = {
-                    AnimatedPane {
-                        DeviceList(
-                            selectedDevice = selectedDevice,
-                            isWLEDCaptivePortal = isWLEDCaptivePortal,
-                            isLocalNetworkDenied = localNetworkPermission.isDenied,
-                            actions = listActions,
-                        )
-                    }
-                },
-                detailPane = {
-                    AnimatedPane {
-                        selectedDevice?.let { device ->
-                            DeviceDetail(
-                                device = device,
-                                onItemEdit = { navigateToEdit(device) },
-                                canNavigateBack = navigator.canNavigateBack(),
-                                navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
-                            )
-                        } ?: SelectDeviceView()
-                    }
-                },
-                extraPane = {
-                    AnimatedPane {
-                        selectedDevice?.let { device ->
-                            DeviceEdit(
-                                device = device,
-                                canNavigateBack = navigator.canNavigateBack(),
-                                navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
-                                onBrowseVersions = {
-                                    actions.openFirmwareBrowser(device.device.macAddress)
-                                },
+    CompositionLocalProvider(LocalActiveSoundSyncTargets provides activeSoundSyncTargets) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen,
+            drawerContent = {
+                ModalDrawerSheet {
+                    DrawerSheetContent(
+                        coroutineScope = coroutineScope,
+                        drawerState = drawerState,
+                        showSoundSync = showSoundSync,
+                        viewModel = viewModel,
+                        actions = actions,
+                    )
+                }
+            },
+        ) {
+            Scaffold { innerPadding ->
+                NavigableListDetailPaneScaffold(
+                    modifier = modifier
+                        .padding(innerPadding)
+                        .consumeWindowInsets(innerPadding)
+                        .imePadding(),
+                    navigator = navigator,
+                    defaultBackBehavior = BackNavigationBehavior.PopUntilScaffoldValueChange,
+                    listPane = {
+                        AnimatedPane {
+                            DeviceList(
+                                selectedDevice = selectedDevice,
+                                isWLEDCaptivePortal = isWLEDCaptivePortal,
+                                isLocalNetworkDenied = localNetworkPermission.isDenied,
+                                actions = listActions,
                             )
                         }
-                    }
-                },
-            )
+                    },
+                    detailPane = {
+                        AnimatedPane {
+                            selectedDevice?.let { device ->
+                                DeviceDetail(
+                                    device = device,
+                                    onItemEdit = { navigateToEdit(device) },
+                                    canNavigateBack = navigator.canNavigateBack(),
+                                    navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                )
+                            } ?: SelectDeviceView()
+                        }
+                    },
+                    extraPane = {
+                        AnimatedPane {
+                            selectedDevice?.let { device ->
+                                DeviceEdit(
+                                    device = device,
+                                    canNavigateBack = navigator.canNavigateBack(),
+                                    navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                    onBrowseVersions = {
+                                        actions.openFirmwareBrowser(device.device.macAddress)
+                                    },
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+
+            BackHandler(enabled = drawerState.isOpen) {
+                coroutineScope.launch { drawerState.close() }
+            }
         }
 
-        BackHandler(enabled = drawerState.isOpen) {
-            coroutineScope.launch { drawerState.close() }
+        if (isAddDeviceDialogVisible) {
+            DeviceAdd(onDismissRequest = { viewModel.hideAddDeviceDialog() })
         }
-    }
-
-    if (isAddDeviceDialogVisible) {
-        DeviceAdd(onDismissRequest = { viewModel.hideAddDeviceDialog() })
     }
 }
 

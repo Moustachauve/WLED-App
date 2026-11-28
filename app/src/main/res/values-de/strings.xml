@@ -167,8 +167,21 @@
     <string name="sound_sync_send_mode">Übertragungsmodus</string>
     <string name="sound_sync_send_mode_unicast">Unicast</string>
     <string name="sound_sync_send_mode_multicast">Multicast</string>
-    <string name="sound_sync_send_mode_unicast_description">Sendet Audiodaten direkt an jedes Online-WLED-Gerät. Funktioniert zuverlässig in den meisten WLANs und VLANs.</string>
+    <string name="sound_sync_send_mode_unicast_description">Sendet Audiodaten direkt an jedes ausgewählte Online-WLED-Gerät. Funktioniert zuverlässig in den meisten WLANs und VLANs.</string>
     <string name="sound_sync_send_mode_multicast_description">Sendet einen einzelnen Multicast-Stream (239.0.0.1) an alle WLED-Geräte im selben Netzwerk. Ideal für große Setups, sofern dein Router Multicast unterstützt.</string>
+    <string name="sound_sync_target_devices">Zielgeräte</string>
+    <string name="sound_sync_select_devices">Auswählen</string>
+    <string name="sound_sync_change_devices">Ändern</string>
+    <string name="sound_sync_select_target_devices">Zielgeräte auswählen</string>
+    <string name="sound_sync_select_all">Alle auswählen</string>
+    <string name="sound_sync_deselect_all">Alle abwählen</string>
+    <string name="sound_sync_no_devices_selected">Wähle aus, welche Geräte Sound-Sync-Audio empfangen.</string>
+    <string name="sound_sync_no_devices_available">Noch keine WLED-Geräte verfügbar.</string>
+    <string name="sound_sync_multicast_all_devices">Multicast sendet Audio automatisch an alle WLED-Geräte in deinem Netzwerk.</string>
+    <plurals name="sound_sync_and_more_devices">
+        <item quantity="one">und %d weiteres</item>
+        <item quantity="other">und %d weitere</item>
+    </plurals>
     <string name="sound_sync_start">Sound Sync starten</string>
     <string name="sound_sync_stop">Sound Sync stoppen</string>
     <string name="sound_sync_running">Sound Sync läuft</string>

@@ -16,12 +16,12 @@ struct SoundSyncViewSnapshotTests {
         self.database = AppDatabase(inMemory: true)
     }
 
-    @Test func testSoundSyncLightSnapshot() {
-        assertSoundSyncSnapshot(style: .light)
+    @Test func testSoundSyncLightSnapshot() async throws {
+        try await assertSoundSyncSnapshot(style: .light)
     }
 
-    @Test func testSoundSyncDarkSnapshot() {
-        assertSoundSyncSnapshot(style: .dark)
+    @Test func testSoundSyncDarkSnapshot() async throws {
+        try await assertSoundSyncSnapshot(style: .dark)
     }
 
     // MARK: - Helpers
@@ -33,13 +33,27 @@ struct SoundSyncViewSnapshotTests {
         testName: String = #function,
         line: UInt = #line,
         column: UInt = #column
-    ) {
+    ) async throws {
+        let device1 = Shared.Device(
+            macAddress: "aabbccddeeff",
+            address: "192.168.1.10",
+            isHidden: false,
+            originalName: "Living Room"
+        )
+        let device2 = Shared.Device(
+            macAddress: "112233445566",
+            address: "192.168.1.11",
+            isHidden: false,
+            originalName: "Desk Strip"
+        )
+        try await database.insertDevicesAndSetStatuses([(device1, .connected), (device2, .disconnected)])
         let viewModel = SoundSyncViewModel(
             soundSyncManager: FakeSoundSyncManager(permission: .granted),
             userPreferencesRepository: database.userPreferencesRepository,
             deviceConnectionManager: database.deviceConnectionManager
         )
         viewModel.agcEnabled = true
+        viewModel.selectedDeviceMacs = ["aabbccddeeff", "112233445566"]
         let view = SoundSyncView(viewModel: viewModel)
 
         let deviceConfig = ViewImageConfig(

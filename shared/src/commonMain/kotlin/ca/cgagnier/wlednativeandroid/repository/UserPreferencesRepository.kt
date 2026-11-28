@@ -42,6 +42,9 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
     val soundSyncSendMode: Flow<SoundSyncSendMode> = dataStore.data.map {
         it.soundSyncSendMode
     }.distinctUntilChanged()
+    val soundSyncTargetMacs: Flow<Set<String>> = dataStore.data.map {
+        it.soundSyncTargetMacs
+    }.distinctUntilChanged()
     val soundSyncBetaEnabled: Flow<Boolean> = dataStore.data.map {
         it.soundSyncBetaEnabled
     }.distinctUntilChanged()
@@ -168,6 +171,16 @@ class UserPreferencesRepository(private val dataStore: DataStore<UserPreferences
         dataStore.updateData {
             it.copy(
                 soundSyncSendMode = mode,
+                dateLastWritten = currentTimeMillis(),
+            )
+        }
+    }
+
+    suspend fun updateSoundSyncTargetMacs(macAddresses: Set<String>) {
+        logger.d { "updateSoundSyncTargetMacs" }
+        dataStore.updateData {
+            it.copy(
+                soundSyncTargetMacs = macAddresses,
                 dateLastWritten = currentTimeMillis(),
             )
         }

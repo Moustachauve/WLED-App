@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import android.content.Context
 import ca.cgagnier.wlednativeandroid.model.Device
+import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
@@ -162,16 +163,20 @@ class SoundSyncManagerTest {
     }
 
     @Test
-    fun start_observesOnlyOnlineVisibleDevicesForUnicast() = runTest {
-        val onlineVisible = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED, isHidden = false)
-        val offlineVisible = deviceWithState("02", "192.168.1.11", WebsocketStatus.DISCONNECTED, isHidden = false)
+    fun start_observesOnlySelectedOnlineVisibleDevicesForUnicast() = runTest {
+        val onlineSelected = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED, isHidden = false)
+        val onlineUnselected = deviceWithState("04", "192.168.1.13", WebsocketStatus.CONNECTED, isHidden = false)
+        val offlineSelected = deviceWithState("02", "192.168.1.11", WebsocketStatus.DISCONNECTED, isHidden = false)
         val onlineHidden = deviceWithState("03", "192.168.1.12", WebsocketStatus.CONNECTED, isHidden = true)
-        val devicesFlow = MutableStateFlow(listOf(onlineVisible, offlineVisible, onlineHidden))
+        val deviceFlows = DeviceFlows(
+            devices = MutableStateFlow(listOf(onlineSelected, onlineUnselected, offlineSelected, onlineHidden)),
+            targetMacs = MutableStateFlow(setOf("01", "02", "03")),
+        )
         val sender = FakeSoundSyncPacketSender()
         val manager = createManager(
             audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
             sender = sender,
-            devicesFlow = devicesFlow,
+            deviceFlows = deviceFlows,
         )
 
         manager.start(gain = 1.0f)
@@ -180,25 +185,62 @@ class SoundSyncManagerTest {
         assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
     }
 
-    @Test
-    fun deviceListObservation_preservesTargetsWhenPausedForBackground() = runTest {
-        val onlineDevice = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
-        val devicesFlow = MutableStateFlow(listOf(onlineDevice))
-        val isPausedFlow = MutableStateFlow(false)
+    private fun kotlinx.coroutines.test.TestScope.startedSender(deviceFlows: DeviceFlows): FakeSoundSyncPacketSender {
         val sender = FakeSoundSyncPacketSender()
         val manager = createManager(
             audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
             sender = sender,
-            devicesFlow = devicesFlow,
-            isPausedFlow = isPausedFlow,
+            deviceFlows = deviceFlows,
         )
-
         manager.start(gain = 1.0f)
         advanceUntilIdle()
+        return sender
+    }
+
+    @Test
+    fun deviceListObservation_addsTargetWhenSelectedOfflineDeviceComesOnline() = runTest {
+        val device1 = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
+        val device2 = deviceWithState("02", "192.168.1.11", WebsocketStatus.DISCONNECTED)
+        val deviceFlows = DeviceFlows(
+            devices = MutableStateFlow(listOf(device1, device2)),
+            targetMacs = MutableStateFlow(setOf("01", "02")),
+        )
+        val sender = startedSender(deviceFlows)
         assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
 
-        isPausedFlow.value = true
-        devicesFlow.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
+        deviceFlows.devices.value = listOf(device1, device2.copy(websocketStatus = WebsocketStatus.CONNECTED))
+        advanceUntilIdle()
+        assertEquals(listOf("192.168.1.10", "192.168.1.11"), sender.unicastAddresses)
+    }
+
+    @Test
+    fun deviceListObservation_updatesTargetsWhenSelectionChanges() = runTest {
+        val device1 = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
+        val device2 = deviceWithState("02", "192.168.1.11", WebsocketStatus.CONNECTED)
+        val deviceFlows = DeviceFlows(
+            devices = MutableStateFlow(listOf(device1, device2)),
+            targetMacs = MutableStateFlow(setOf("01", "02")),
+        )
+        val sender = startedSender(deviceFlows)
+        assertEquals(listOf("192.168.1.10", "192.168.1.11"), sender.unicastAddresses)
+
+        deviceFlows.targetMacs.value = setOf("02")
+        advanceUntilIdle()
+        assertEquals(listOf("192.168.1.11"), sender.unicastAddresses)
+    }
+
+    @Test
+    fun deviceListObservation_preservesTargetsWhenPausedForBackground() = runTest {
+        val onlineDevice = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
+        val deviceFlows = DeviceFlows(
+            devices = MutableStateFlow(listOf(onlineDevice)),
+            targetMacs = MutableStateFlow(setOf("01")),
+        )
+        val sender = startedSender(deviceFlows)
+        assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
+
+        deviceFlows.isPaused.value = true
+        deviceFlows.devices.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
         advanceUntilIdle()
 
         assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
@@ -207,24 +249,17 @@ class SoundSyncManagerTest {
     @Test
     fun deviceListObservation_preservesTargetsOnForegroundResumeBeforeReconnect() = runTest {
         val onlineDevice = deviceWithState("01", "192.168.1.10", WebsocketStatus.CONNECTED)
-        val devicesFlow = MutableStateFlow(listOf(onlineDevice))
-        val isPausedFlow = MutableStateFlow(false)
-        val sender = FakeSoundSyncPacketSender()
-        val manager = createManager(
-            audioSource = FakeAudioSource(permissionGranted = true, startResult = true),
-            sender = sender,
-            devicesFlow = devicesFlow,
-            isPausedFlow = isPausedFlow,
+        val deviceFlows = DeviceFlows(
+            devices = MutableStateFlow(listOf(onlineDevice)),
+            targetMacs = MutableStateFlow(setOf("01")),
         )
+        val sender = startedSender(deviceFlows)
 
-        manager.start(gain = 1.0f)
+        deviceFlows.isPaused.value = true
+        deviceFlows.devices.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
         advanceUntilIdle()
 
-        isPausedFlow.value = true
-        devicesFlow.value = listOf(onlineDevice.copy(websocketStatus = WebsocketStatus.DISCONNECTED))
-        advanceUntilIdle()
-
-        isPausedFlow.value = false
+        deviceFlows.isPaused.value = false
         advanceUntilIdle()
 
         assertEquals(listOf("192.168.1.10"), sender.unicastAddresses)
@@ -273,23 +308,33 @@ class SoundSyncManagerTest {
         websocketStatus = status,
     )
 
+    private data class DeviceFlows(
+        val devices: MutableStateFlow<List<DeviceWithState>> = MutableStateFlow(emptyList()),
+        val isPaused: MutableStateFlow<Boolean> = MutableStateFlow(false),
+        val targetMacs: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
+    )
+
     private fun TestScope.createManager(
         audioSource: AudioSource,
         sender: FakeSoundSyncPacketSender = FakeSoundSyncPacketSender(),
-        devicesFlow: MutableStateFlow<List<DeviceWithState>> = MutableStateFlow(emptyList()),
-        isPausedFlow: MutableStateFlow<Boolean> = MutableStateFlow(false),
+        deviceFlows: DeviceFlows = DeviceFlows(),
         onSenderCreated: (Int, SoundSyncSendMode) -> Unit = { _, _ -> },
     ): SoundSyncManager {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = CoroutineScope(dispatcher + SupervisorJob())
         val context = mockk<Context>(relaxed = true)
         val deviceConnectionManager = mockk<DeviceConnectionManager> {
-            every { allDevicesWithState } returns devicesFlow.asStateFlow()
-            every { isPaused } returns isPausedFlow.asStateFlow()
+            every { allDevicesWithState } returns deviceFlows.devices.asStateFlow()
+            every { isPaused } returns deviceFlows.isPaused.asStateFlow()
+        }
+        val preferencesRepository = mockk<UserPreferencesRepository> {
+            every { soundSyncTargetMacs } returns deviceFlows.targetMacs.asStateFlow()
+            every { showHiddenDevices } returns MutableStateFlow(false)
         }
         val manager = SoundSyncManager(
             context = context,
             deviceConnectionManager = deviceConnectionManager,
+            preferencesRepository = preferencesRepository,
             coroutineScope = scope,
             ioDispatcher = dispatcher,
             audioSource = audioSource,

@@ -145,6 +145,7 @@ struct DeviceListView: View {
             }
         }
         .environment(\.activeHolidayTheme, viewModel.activeHolidayTheme)
+        .environment(\.activeSoundSyncTargets, soundSyncViewModel?.activeSoundSyncTargets ?? .inactive)
         .tint(viewModel.activeHolidayTheme?.accentColor)
         .onChange(of: viewModel.theme, initial: true) { _, newTheme in
             newTheme.applyToWindows()

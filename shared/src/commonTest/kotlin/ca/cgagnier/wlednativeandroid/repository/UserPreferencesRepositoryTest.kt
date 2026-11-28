@@ -71,6 +71,7 @@ class UserPreferencesRepositoryTest {
         assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, repo.soundSyncSquelch.first())
         assertEquals(UdpSoundSyncPacket.DEFAULT_PORT, repo.soundSyncPort.first())
         assertEquals(SoundSyncSendMode.UNICAST, repo.soundSyncSendMode.first())
+        assertEquals(emptySet(), repo.soundSyncTargetMacs.first())
         assertFalse(repo.soundSyncBetaEnabled.first())
         assertTrue(repo.holidayThemesEnabled.first())
         assertNull(repo.holidayThemeOverride.first())
@@ -164,6 +165,13 @@ class UserPreferencesRepositoryTest {
     fun updateSoundSyncSendMode_updatesFlow() = withRepository { repo ->
         repo.updateSoundSyncSendMode(SoundSyncSendMode.MULTICAST)
         assertEquals(SoundSyncSendMode.MULTICAST, repo.soundSyncSendMode.first())
+    }
+
+    @Test
+    fun updateSoundSyncTargetMacs_updatesFlow() = withRepository { repo ->
+        val selected = setOf("AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02")
+        repo.updateSoundSyncTargetMacs(selected)
+        assertEquals(selected, repo.soundSyncTargetMacs.first())
     }
 
     @Test

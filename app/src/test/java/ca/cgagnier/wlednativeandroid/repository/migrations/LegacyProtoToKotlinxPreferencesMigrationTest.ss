@@ -18,6 +18,7 @@
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
   "soundSyncSendMode": "UNICAST",
+  "soundSyncTargetMacs": [],
   "soundSyncBetaEnabled": false,
   "holidayThemesEnabled": true,
   "holidayThemeOverride": null
@@ -42,6 +43,7 @@
   "soundSyncSquelch": 10,
   "soundSyncPort": 11988,
   "soundSyncSendMode": "UNICAST",
+  "soundSyncTargetMacs": [],
   "soundSyncBetaEnabled": false,
   "holidayThemesEnabled": true,
   "holidayThemeOverride": null

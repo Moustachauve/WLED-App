@@ -10,20 +10,26 @@ import kotlin.test.assertNull
 class SoundSyncTargetsTest {
 
     @Test
-    fun resolveSoundSyncUnicastAddresses_includesOnlineVisibleDevicesAndDeduplicates() {
+    fun resolveSoundSyncUnicastAddresses_includesSelectedOnlineVisibleDevicesAndDeduplicates() {
         val devices = listOf(
             deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.CONNECTED),
             deviceWithState(mac = "02", address = "192.168.1.11", status = WebsocketStatus.CONNECTED),
             deviceWithState(mac = "03", address = "192.168.1.10", status = WebsocketStatus.CONNECTED),
+            deviceWithState(mac = "04", address = "192.168.1.12", status = WebsocketStatus.CONNECTED),
         )
 
-        val result = resolveSoundSyncUnicastAddresses(devices, isPaused = false)
+        val result = resolveSoundSyncUnicastAddresses(
+            devices = devices,
+            isPaused = false,
+            selectedDeviceMacs = setOf("01", "02", "03"),
+            showHiddenDevices = false,
+        )
 
         assertEquals(listOf("192.168.1.10", "192.168.1.11"), result)
     }
 
     @Test
-    fun resolveSoundSyncUnicastAddresses_excludesOfflineConnectingAndHiddenDevices() {
+    fun resolveSoundSyncUnicastAddresses_excludesOfflineConnectingAndHiddenDevicesWhenAnotherVisibleIsOnline() {
         val devices = listOf(
             deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.CONNECTED),
             deviceWithState(mac = "02", address = "192.168.1.11", status = WebsocketStatus.DISCONNECTED),
@@ -31,24 +37,67 @@ class SoundSyncTargetsTest {
             deviceWithState(mac = "04", address = "192.168.1.13", status = WebsocketStatus.CONNECTED, isHidden = true),
         )
 
-        val result = resolveSoundSyncUnicastAddresses(devices, isPaused = false)
+        val result = resolveSoundSyncUnicastAddresses(
+            devices = devices,
+            isPaused = false,
+            selectedDeviceMacs = setOf("01", "02", "03", "04"),
+            showHiddenDevices = false,
+        )
 
         assertEquals(listOf("192.168.1.10"), result)
     }
 
     @Test
-    fun resolveSoundSyncUnicastAddresses_returnsNullWhenPaused() {
+    fun resolveSoundSyncUnicastAddresses_includesSelectedHiddenDeviceWhenShowHiddenIsTrue() {
+        val devices = listOf(
+            deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.CONNECTED, isHidden = true),
+        )
+
+        val result = resolveSoundSyncUnicastAddresses(
+            devices = devices,
+            isPaused = false,
+            selectedDeviceMacs = setOf("01"),
+            showHiddenDevices = true,
+        )
+
+        assertEquals(listOf("192.168.1.10"), result)
+    }
+
+    @Test
+    fun resolveSoundSyncUnicastAddresses_returnsEmptyListWhenSelectionIsEmptyEvenIfPausedOrOffline() {
+        val devices = listOf(
+            deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.CONNECTED),
+        )
+
+        listOf(false, true).forEach { paused ->
+            val result = resolveSoundSyncUnicastAddresses(
+                devices = devices,
+                isPaused = paused,
+                selectedDeviceMacs = emptySet(),
+                showHiddenDevices = false,
+            )
+            assertEquals(emptyList(), result, "paused=$paused")
+        }
+    }
+
+    @Test
+    fun resolveSoundSyncUnicastAddresses_returnsNullWhenPausedWithSelection() {
         val devices = listOf(
             deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.DISCONNECTED),
         )
 
-        val result = resolveSoundSyncUnicastAddresses(devices, isPaused = true)
+        val result = resolveSoundSyncUnicastAddresses(
+            devices = devices,
+            isPaused = true,
+            selectedDeviceMacs = setOf("01"),
+            showHiddenDevices = false,
+        )
 
         assertNull(result)
     }
 
     @Test
-    fun resolveSoundSyncUnicastAddresses_returnsNullWhenNoVisibleDeviceIsOnline() {
+    fun resolveSoundSyncUnicastAddresses_returnsNullWhenNoVisibleDeviceIsOnlineWithSelection() {
         val cases = listOf(
             listOf(
                 deviceWithState(mac = "01", address = "192.168.1.10", status = WebsocketStatus.CONNECTING),
@@ -67,7 +116,15 @@ class SoundSyncTargetsTest {
         )
 
         cases.forEach { devices ->
-            assertNull(resolveSoundSyncUnicastAddresses(devices, isPaused = false), "devices=$devices")
+            assertNull(
+                resolveSoundSyncUnicastAddresses(
+                    devices = devices,
+                    isPaused = false,
+                    selectedDeviceMacs = setOf("01"),
+                    showHiddenDevices = false,
+                ),
+                "devices=$devices",
+            )
         }
     }
 

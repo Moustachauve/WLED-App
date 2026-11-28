@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
+import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncError
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
@@ -16,6 +17,10 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncService
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
+import ca.cgagnier.wlednativeandroid.ui.components.ActiveSoundSyncTargets
+import ca.cgagnier.wlednativeandroid.ui.components.resolveActiveSoundSyncTargets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
@@ -29,10 +34,25 @@ class SoundSyncViewModel(
     private val context: Context,
     private val soundSyncManager: SoundSyncManager,
     private val preferencesRepository: UserPreferencesRepository,
+    private val deviceConnectionManager: DeviceConnectionManager,
 ) : ViewModel() {
 
     private val hasRecordAudioPermission = MutableStateFlow(soundSyncManager.hasRecordAudioPermission())
     val portState = TextFieldState(initialText = UdpSoundSyncPacket.DEFAULT_PORT.toString())
+
+    private val deviceSelectionFlow = combine(
+        deviceConnectionManager.allDevicesWithState,
+        preferencesRepository.soundSyncTargetMacs,
+        preferencesRepository.showOfflineDevicesLast,
+        preferencesRepository.showHiddenDevices,
+    ) { allDevices, targetMacs, showOfflineLast, showHidden ->
+        DeviceSelectionSnapshot(
+            allDevices = allDevices,
+            selectedDeviceMacs = targetMacs,
+            showOfflineDevicesLast = showOfflineLast,
+            showHiddenDevices = showHidden,
+        )
+    }
 
     init {
         viewModelScope.launch {
@@ -70,7 +90,8 @@ class SoundSyncViewModel(
         soundSyncManager.state,
         hasRecordAudioPermission,
         preferencesRepository.soundSyncPort,
-    ) { state, hasPermission, savedPort ->
+        deviceSelectionFlow,
+    ) { state, hasPermission, savedPort, selection ->
         SoundSyncUiState(
             isRunning = state.isRunning,
             gain = state.gain,
@@ -82,6 +103,10 @@ class SoundSyncViewModel(
             sendMode = state.sendMode,
             error = state.error,
             hasRecordAudioPermission = hasPermission,
+            allDevices = selection.allDevices,
+            selectedDeviceMacs = selection.selectedDeviceMacs,
+            showOfflineDevicesLast = selection.showOfflineDevicesLast,
+            showHiddenDevices = selection.showHiddenDevices,
         )
     }.stateIn(
         viewModelScope,
@@ -98,6 +123,7 @@ class SoundSyncViewModel(
                 sendMode = current.sendMode,
                 error = current.error,
                 hasRecordAudioPermission = hasRecordAudioPermission.value,
+                allDevices = deviceConnectionManager.allDevicesWithState.value,
             )
         },
     )
@@ -105,6 +131,7 @@ class SoundSyncViewModel(
     val latestPacket: StateFlow<UdpSoundSyncPacket> = soundSyncManager.latestPacket
 
     fun start() {
+        if (!uiState.value.canStart) return
         if (!soundSyncManager.hasRecordAudioPermission()) {
             refreshPermissionState()
             return
@@ -162,6 +189,12 @@ class SoundSyncViewModel(
         }
     }
 
+    fun setSelectedDeviceMacs(macAddresses: Set<String>) {
+        viewModelScope.launch {
+            preferencesRepository.updateSoundSyncTargetMacs(macAddresses)
+        }
+    }
+
     fun stepSquelch(delta: Int) {
         soundSyncManager.setSquelch(soundSyncManager.state.value.squelch + delta)
         saveSquelch()
@@ -184,6 +217,13 @@ class SoundSyncViewModel(
         hasRecordAudioPermission.update { soundSyncManager.hasRecordAudioPermission() }
     }
 
+    private data class DeviceSelectionSnapshot(
+        val allDevices: List<DeviceWithState>,
+        val selectedDeviceMacs: Set<String>,
+        val showOfflineDevicesLast: Boolean,
+        val showHiddenDevices: Boolean,
+    )
+
     private companion object {
         /** Timeout for WhileSubscribed in milliseconds. */
         const val STATE_FLOW_TIMEOUT_MS = 5000L
@@ -201,9 +241,43 @@ data class SoundSyncUiState(
     val sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
     val error: SoundSyncError? = null,
     val hasRecordAudioPermission: Boolean = false,
+    val allDevices: List<DeviceWithState> = emptyList(),
+    val selectedDeviceMacs: Set<String> = emptySet(),
+    val showOfflineDevicesLast: Boolean = true,
+    val showHiddenDevices: Boolean = false,
 ) {
     val displayedGain: Float
         get() = if (isRunning && agcEnabled) effectiveGain else gain
+
+    val visibleDevices: List<DeviceWithState>
+        get() = partitionDevices(
+            devices = allDevices,
+            showHiddenDevices = showHiddenDevices,
+            // Only .visible is read here, which is unaffected by the offline grace period.
+            currentTimeMillis = 0L,
+        ).visible
+
+    val selectedDevices: List<DeviceWithState>
+        get() {
+            val selected = visibleDevices.filter { it.device.macAddress in selectedDeviceMacs }
+            return if (showOfflineDevicesLast) {
+                val (online, offline) = selected.partition { it.isOnline }
+                online + offline
+            } else {
+                selected
+            }
+        }
+
+    val canStart: Boolean
+        get() = sendMode == SoundSyncSendMode.MULTICAST || selectedDevices.isNotEmpty()
+
+    val activeSoundSyncTargets: ActiveSoundSyncTargets
+        get() = resolveActiveSoundSyncTargets(
+            isRunning = isRunning,
+            sendMode = sendMode,
+            selectedDeviceMacs = selectedDeviceMacs,
+            showHiddenDevices = showHiddenDevices,
+        )
 }
 
 internal fun String.toValidPortOrNull(): Int? = toIntOrNull()?.takeIf(UdpSoundSyncPacket::isValidPort)

@@ -165,8 +165,20 @@
     <string name="sound_sync_send_mode">传输模式</string>
     <string name="sound_sync_send_mode_unicast">单播</string>
     <string name="sound_sync_send_mode_multicast">组播</string>
-    <string name="sound_sync_send_mode_unicast_description">直接向每个在线的 WLED 设备发送音频数据。在大多数 Wi-Fi 网络和 VLAN 中都能稳定工作。</string>
+    <string name="sound_sync_send_mode_unicast_description">直接向每个已选定的在线 WLED 设备发送音频数据。在大多数 Wi-Fi 网络和 VLAN 中都能稳定工作。</string>
     <string name="sound_sync_send_mode_multicast_description">向同一网络中的所有 WLED 设备发送单个组播流 (239.0.0.1)。如果您的路由器支持组播，适合大量设备的场景。</string>
+    <string name="sound_sync_target_devices">目标设备</string>
+    <string name="sound_sync_select_devices">选择</string>
+    <string name="sound_sync_change_devices">更改</string>
+    <string name="sound_sync_select_target_devices">选择目标设备</string>
+    <string name="sound_sync_select_all">全选</string>
+    <string name="sound_sync_deselect_all">取消全选</string>
+    <string name="sound_sync_no_devices_selected">选择要接收声音同步音频的设备。</string>
+    <string name="sound_sync_no_devices_available">暂无可用的 WLED 设备。</string>
+    <string name="sound_sync_multicast_all_devices">组播会自动向同一网络中的所有 WLED 设备发送音频。</string>
+    <plurals name="sound_sync_and_more_devices">
+        <item quantity="other">以及另外 %d 个</item>
+    </plurals>
     <string name="sound_sync_start">开始声音同步</string>
     <string name="sound_sync_stop">停止声音同步</string>
     <string name="sound_sync_running">声音同步正在运行</string>

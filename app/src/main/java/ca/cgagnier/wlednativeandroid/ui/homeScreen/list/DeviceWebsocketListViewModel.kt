@@ -8,8 +8,12 @@ import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.ui.components.ActiveSoundSyncTargets
+import ca.cgagnier.wlednativeandroid.ui.components.resolveActiveSoundSyncTargets
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -60,6 +64,23 @@ class DeviceWebsocketListViewModel(
             )
 
     val soundSyncPacket: StateFlow<UdpSoundSyncPacket> = soundSyncManager.latestPacket
+
+    val activeSoundSyncTargets: StateFlow<ActiveSoundSyncTargets> = combine(
+        soundSyncManager.state.map { it.isRunning to it.sendMode }.distinctUntilChanged(),
+        userPreferencesRepository.soundSyncTargetMacs,
+        userPreferencesRepository.showHiddenDevices,
+    ) { (isRunning, sendMode), selectedMacs, showHidden ->
+        resolveActiveSoundSyncTargets(
+            isRunning = isRunning,
+            sendMode = sendMode,
+            selectedDeviceMacs = selectedMacs,
+            showHiddenDevices = showHidden,
+        )
+    }.distinctUntilChanged().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
+        initialValue = ActiveSoundSyncTargets.None,
+    )
 
     val isPaused: StateFlow<Boolean> = deviceConnectionManager.isPaused
 

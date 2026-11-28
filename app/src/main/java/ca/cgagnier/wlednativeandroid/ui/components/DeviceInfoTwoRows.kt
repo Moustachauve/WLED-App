@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlexAlignItems
 import androidx.compose.foundation.layout.FlexBox
+import androidx.compose.foundation.layout.FlexBoxScope
 import androidx.compose.foundation.layout.FlexDirection
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -84,6 +86,7 @@ fun DeviceInfoTwoRows(
     // Used to update the lastSeen message frequently, leave 0 for no updates
     currentTime: Long = 0,
     nameMaxLines: Int = 2,
+    titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
 ) {
     val updateTag = device.updateVersionTag
 
@@ -91,7 +94,7 @@ fun DeviceInfoTwoRows(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 deviceName(device.device),
-                style = MaterialTheme.typography.titleLarge,
+                style = titleStyle,
                 maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -120,50 +123,62 @@ fun DeviceInfoTwoRows(
                 device,
                 modifier = Modifier.flex { shrink(0f) },
             )
+            deviceSoundSyncImage(
+                device,
+                modifier = Modifier.flex { shrink(0f) },
+            )
             deviceBatteryPercentageImage(
                 device,
                 modifier = Modifier.flex { shrink(0f) },
             )
-
-            if (updateTag != null) {
-                Icon(
-                    painter = painterResource(R.drawable.baseline_download_24),
-                    contentDescription = stringResource(R.string.network_status),
-                    modifier = Modifier
-                        .flex { shrink(0f) }
-                        .padding(start = 4.dp)
-                        .size(20.dp),
-                )
-            }
-            if (!device.isOnline) {
-                OfflineSinceText(
-                    device.device,
-                    currentTime = currentTime,
-                    modifier = Modifier
-                        .flex { shrink(1f) }
-                        .allowShrinkBelowMinIntrinsic()
-                        .padding(start = 4.dp),
-                )
-            }
-            if (device.device.isHidden) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_baseline_visibility_off_24),
-                    contentDescription = stringResource(R.string.description_back_button),
-                    modifier = Modifier
-                        .flex { shrink(0f) }
-                        .padding(start = 4.dp)
-                        .size(16.dp),
-                )
-                Text(
-                    stringResource(R.string.hidden_status),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .flex { shrink(0f) }
-                        .padding(start = 4.dp),
-                )
-            }
+            DeviceStatusBadges(
+                device = device,
+                updateTag = updateTag,
+                currentTime = currentTime,
+            )
         }
+    }
+}
+
+@Composable
+private fun FlexBoxScope.DeviceStatusBadges(device: DeviceWithState, updateTag: String?, currentTime: Long) {
+    if (updateTag != null) {
+        Icon(
+            painter = painterResource(R.drawable.baseline_download_24),
+            contentDescription = stringResource(R.string.network_status),
+            modifier = Modifier
+                .flex { shrink(0f) }
+                .padding(start = 4.dp)
+                .size(20.dp),
+        )
+    }
+    if (!device.isOnline) {
+        OfflineSinceText(
+            device.device,
+            currentTime = currentTime,
+            modifier = Modifier
+                .flex { shrink(1f) }
+                .allowShrinkBelowMinIntrinsic()
+                .padding(start = 4.dp),
+        )
+    }
+    if (device.device.isHidden) {
+        Icon(
+            painter = painterResource(R.drawable.ic_baseline_visibility_off_24),
+            contentDescription = null,
+            modifier = Modifier
+                .flex { shrink(0f) }
+                .padding(start = 4.dp)
+                .size(16.dp),
+        )
+        Text(
+            stringResource(R.string.hidden_status),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .flex { shrink(0f) }
+                .padding(start = 4.dp),
+        )
     }
 }
 
