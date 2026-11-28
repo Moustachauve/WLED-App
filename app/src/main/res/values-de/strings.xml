@@ -164,6 +164,11 @@
     <string name="sound_sync_port">UDP-Port</string>
     <string name="sound_sync_port_description">UDP-Port für das Senden von Audiodaten. Muss mit dem Port in den Audio-Sync-Einstellungen deiner WLED-Geräte übereinstimmen (Standard: 11988).</string>
     <string name="sound_sync_port_error">Gib einen gültigen Port zwischen 1 und 65535 ein</string>
+    <string name="sound_sync_send_mode">Übertragungsmodus</string>
+    <string name="sound_sync_send_mode_unicast">Unicast</string>
+    <string name="sound_sync_send_mode_multicast">Multicast</string>
+    <string name="sound_sync_send_mode_unicast_description">Sendet Audiodaten direkt an jedes Online-WLED-Gerät. Funktioniert zuverlässig in den meisten WLANs und VLANs.</string>
+    <string name="sound_sync_send_mode_multicast_description">Sendet einen einzelnen Multicast-Stream (239.0.0.1) an alle WLED-Geräte im selben Netzwerk. Ideal für große Setups, sofern dein Router Multicast unterstützt.</string>
     <string name="sound_sync_start">Sound Sync starten</string>
     <string name="sound_sync_stop">Sound Sync stoppen</string>
     <string name="sound_sync_running">Sound Sync läuft</string>

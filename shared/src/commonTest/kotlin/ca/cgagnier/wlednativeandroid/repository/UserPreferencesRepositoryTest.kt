@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
@@ -69,6 +70,7 @@ class UserPreferencesRepositoryTest {
         assertEquals(AgcMode.NORMAL, repo.soundSyncAgcMode.first())
         assertEquals(SoundSyncProcessor.DEFAULT_SQUELCH, repo.soundSyncSquelch.first())
         assertEquals(UdpSoundSyncPacket.DEFAULT_PORT, repo.soundSyncPort.first())
+        assertEquals(SoundSyncSendMode.UNICAST, repo.soundSyncSendMode.first())
         assertFalse(repo.soundSyncBetaEnabled.first())
         assertTrue(repo.holidayThemesEnabled.first())
         assertNull(repo.holidayThemeOverride.first())
@@ -156,6 +158,12 @@ class UserPreferencesRepositoryTest {
     fun updateSoundSyncPort_updatesFlow() = withRepository { repo ->
         repo.updateSoundSyncPort(12000)
         assertEquals(12000, repo.soundSyncPort.first())
+    }
+
+    @Test
+    fun updateSoundSyncSendMode_updatesFlow() = withRepository { repo ->
+        repo.updateSoundSyncSendMode(SoundSyncSendMode.MULTICAST)
+        assertEquals(SoundSyncSendMode.MULTICAST, repo.soundSyncSendMode.first())
     }
 
     @Test

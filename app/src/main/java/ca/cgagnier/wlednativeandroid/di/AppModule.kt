@@ -136,7 +136,7 @@ val appModule: Module = module {
     single {
         SoundSyncManager(
             context = androidContext(),
-            deviceRepository = get(),
+            deviceConnectionManager = get(),
             coroutineScope = get(),
             ioDispatcher = get(IO_DISPATCHER),
         )

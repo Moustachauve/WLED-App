@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncError
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncManager
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncService
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
@@ -41,6 +42,7 @@ class SoundSyncViewModel(
                 soundSyncManager.setAgcEnabled(preferencesRepository.soundSyncAgcEnabled.first())
                 soundSyncManager.setAgcMode(preferencesRepository.soundSyncAgcMode.first())
                 soundSyncManager.setSquelch(preferencesRepository.soundSyncSquelch.first())
+                soundSyncManager.setSendMode(preferencesRepository.soundSyncSendMode.first())
             }
             val initialPort = if (soundSyncManager.state.value.isRunning) {
                 soundSyncManager.state.value.port
@@ -77,6 +79,7 @@ class SoundSyncViewModel(
             agcMode = state.agcMode,
             squelch = state.squelch,
             port = if (state.isRunning) state.port else savedPort,
+            sendMode = state.sendMode,
             error = state.error,
             hasRecordAudioPermission = hasPermission,
         )
@@ -92,6 +95,7 @@ class SoundSyncViewModel(
                 agcMode = current.agcMode,
                 squelch = current.squelch,
                 port = current.port,
+                sendMode = current.sendMode,
                 error = current.error,
                 hasRecordAudioPermission = hasRecordAudioPermission.value,
             )
@@ -151,6 +155,13 @@ class SoundSyncViewModel(
         soundSyncManager.setSquelch(squelch)
     }
 
+    fun setSendMode(mode: SoundSyncSendMode) {
+        soundSyncManager.setSendMode(mode)
+        viewModelScope.launch {
+            preferencesRepository.updateSoundSyncSendMode(mode)
+        }
+    }
+
     fun stepSquelch(delta: Int) {
         soundSyncManager.setSquelch(soundSyncManager.state.value.squelch + delta)
         saveSquelch()
@@ -187,6 +198,7 @@ data class SoundSyncUiState(
     val agcMode: AgcMode = AgcMode.NORMAL,
     val squelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
     val port: Int = UdpSoundSyncPacket.DEFAULT_PORT,
+    val sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
     val error: SoundSyncError? = null,
     val hasRecordAudioPermission: Boolean = false,
 ) {

@@ -474,7 +474,7 @@ private extension AgcMode {
     SoundSyncView(
         viewModel: SoundSyncViewModel(
             userPreferencesRepository: AppDatabase.shared.userPreferencesRepository,
-            deviceRepository: AppDatabase.shared.deviceRepository
+            deviceConnectionManager: AppDatabase.shared.deviceConnectionManager
         )
     )
 }

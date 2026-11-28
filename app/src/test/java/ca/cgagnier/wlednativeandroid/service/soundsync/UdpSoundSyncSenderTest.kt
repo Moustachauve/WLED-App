@@ -69,6 +69,41 @@ class UdpSoundSyncSenderTest {
     }
 
     @Test
+    fun sendPacket_inMulticastMode_doesNotSendToUnicastTargets() {
+        withReceiver(
+            unicastAddresses = listOf("127.0.0.1"),
+            sendMode = SoundSyncSendMode.MULTICAST,
+            timeoutMs = 150,
+        ) { receiver, udpSender ->
+            udpSender.sendPacket(UdpSoundSyncPacket(sampleRaw = 64f))
+
+            assertFailsWith<SocketTimeoutException> {
+                receiveOne(receiver)
+            }
+        }
+    }
+
+    @Test
+    fun setSendMode_switchesBetweenMulticastAndUnicast() {
+        withReceiver(
+            unicastAddresses = listOf("127.0.0.1"),
+            sendMode = SoundSyncSendMode.MULTICAST,
+            timeoutMs = 150,
+        ) { receiver, udpSender ->
+            udpSender.sendPacket(UdpSoundSyncPacket(sampleRaw = 64f))
+            assertFailsWith<SocketTimeoutException> {
+                receiveOne(receiver)
+            }
+
+            udpSender.setSendMode(SoundSyncSendMode.UNICAST)
+            udpSender.sendPacket(UdpSoundSyncPacket(sampleRaw = 64f))
+
+            val received = receiveOne(receiver)
+            assertEquals(UdpSoundSyncPacket.PACKET_SIZE, received.size)
+        }
+    }
+
+    @Test
     fun sendPacket_afterClose_doesNotSendDatagram() {
         withReceiver(
             unicastAddresses = listOf("127.0.0.1"),
@@ -96,6 +131,7 @@ class UdpSoundSyncSenderTest {
 
     private fun withReceiver(
         unicastAddresses: List<String>,
+        sendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
         timeoutMs: Int = 2000,
         block: (DatagramSocket, UdpSoundSyncSender) -> Unit,
     ) {
@@ -105,7 +141,7 @@ class UdpSoundSyncSenderTest {
                 multicastAddress = "239.0.0.1",
                 port = receiver.localPort,
                 unicastAddresses = unicastAddresses,
-                sendMulticast = false,
+                sendMode = sendMode,
             )
             sender = udpSender
             block(receiver, udpSender)

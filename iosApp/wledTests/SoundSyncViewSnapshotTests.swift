@@ -37,7 +37,7 @@ struct SoundSyncViewSnapshotTests {
         let viewModel = SoundSyncViewModel(
             soundSyncManager: FakeSoundSyncManager(permission: .granted),
             userPreferencesRepository: database.userPreferencesRepository,
-            deviceRepository: database.deviceRepository
+            deviceConnectionManager: database.deviceConnectionManager
         )
         viewModel.agcEnabled = true
         let view = SoundSyncView(viewModel: viewModel)

@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Process
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
 import co.touchlab.kermit.Logger
@@ -172,6 +173,8 @@ class MicrophoneAudioSource(
         onAudioData: (FloatArray) -> Unit,
     ) {
         val floatBuffer = FloatArray(readChunkSamples)
+        val previousPriority = runCatching { Process.getThreadPriority(Process.myTid()) }.getOrNull()
+        runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO) }
         try {
             while (isActive && _isRunning.value) {
                 val samplesRead = record.read(floatBuffer, 0, readChunkSamples, AudioRecord.READ_BLOCKING)
@@ -184,6 +187,9 @@ class MicrophoneAudioSource(
                 }
             }
         } finally {
+            previousPriority?.let { priority ->
+                runCatching { Process.setThreadPriority(priority) }
+            }
             runCatching { record.stop() }
             runCatching { record.release() }
         }

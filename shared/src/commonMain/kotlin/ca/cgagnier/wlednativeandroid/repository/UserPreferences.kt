@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.repository
 
 import ca.cgagnier.wlednativeandroid.domain.HolidayTheme
+import ca.cgagnier.wlednativeandroid.service.soundsync.SoundSyncSendMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
@@ -25,6 +26,7 @@ data class UserPreferences(
     val soundSyncAgcMode: AgcMode = AgcMode.NORMAL,
     val soundSyncSquelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
     val soundSyncPort: Int = UdpSoundSyncPacket.DEFAULT_PORT,
+    val soundSyncSendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
     val soundSyncBetaEnabled: Boolean = false,
     val holidayThemesEnabled: Boolean = true,
     val holidayThemeOverride: HolidayTheme? = null,
