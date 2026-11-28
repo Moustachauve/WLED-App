@@ -18,8 +18,13 @@ struct Settings: View {
     @Binding var soundSyncBetaEnabled: Bool
     var onShowChangelog: (() -> Void)?
     /// Injectable so snapshot tests don't change with every release.
-    var appVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-    var buildNumber: String = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1.0"
+    var appVersion: String = Bundle.main.appVersionName
+    var buildNumber: String = Bundle.main.appBuildNumber
+    #if DEBUG
+    var isDebugBuild: Bool = true
+    #else
+    var isDebugBuild: Bool = false
+    #endif
 
     // Environment to dismiss the sheet
     @Environment(\.dismiss) private var dismiss
@@ -104,7 +109,13 @@ struct Settings: View {
                 } footer: {
                     VStack(alignment: .center) {
                         Text("Made by Moustachauve")
-                        Text("Version \(appVersion) (\(buildNumber))")
+                        HStack(spacing: 6) {
+                            let versionText = String(localized: "Version \(appVersion) (\(buildNumber))")
+                            Text(isDebugBuild ? "\(versionText) - debug" : versionText)
+                            if Bundle.isBetaVersion(appVersion) {
+                                BetaBadgeView(style: .inline)
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }

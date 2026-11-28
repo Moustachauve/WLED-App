@@ -10,6 +10,7 @@ struct DeviceListView: View {
     @State private var changelogViewModel: ChangelogViewModel
     @State private var soundSyncViewModel: SoundSyncViewModel?
     private let database: AppDatabase
+    private let isBetaBuild: Bool
 
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
@@ -36,13 +37,15 @@ struct DeviceListView: View {
         changelogViewModel: ChangelogViewModel = ChangelogViewModel(),
         soundSyncViewModel: SoundSyncViewModel? = nil,
         database: AppDatabase = .shared,
-        navigation: DeviceListNavigation = DeviceListNavigation()
+        navigation: DeviceListNavigation = DeviceListNavigation(),
+        isBetaBuild: Bool = Bundle.isBetaVersion(Bundle.main.appVersionName)
     ) {
         _viewModel = State(wrappedValue: viewModel)
         _changelogViewModel = State(wrappedValue: changelogViewModel)
         _soundSyncViewModel = State(wrappedValue: soundSyncViewModel)
         self.database = database
         _navigation = State(wrappedValue: navigation)
+        self.isBetaBuild = isBetaBuild
     }
 
     // Allow injecting a specific database (defaulting to shared for the actual app)
@@ -324,19 +327,19 @@ struct DeviceListView: View {
             .holidayFormSurface(grouped: false)
         }
     }
+}
 
-    private var placeholderAkemi: some View {
+// MARK: - Toolbar & Actions
+
+private extension DeviceListView {
+    var placeholderAkemi: some View {
         Image(.akemi042CheerfulRgb)
             .resizable()
             .scaledToFit()
             .frame(width: 120)
             .accessibilityHidden(true)
     }
-}
 
-// MARK: - Toolbar & Actions
-
-private extension DeviceListView {
     @ToolbarContentBuilder
     var toolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
@@ -345,6 +348,12 @@ private extension DeviceListView {
                 .scaledToFit()
                 .padding(3)
                 .frame(height: 50)
+                .overlay(alignment: .bottomTrailing) {
+                    if isBetaBuild {
+                        BetaBadgeView(style: .logoOverlay)
+                            .offset(x: 4, y: -2)
+                    }
+                }
         }
         ToolbarItemGroup(placement: .primaryAction) {
             // 1. Add Button (Direct Access)

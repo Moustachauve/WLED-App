@@ -59,6 +59,8 @@
 	<true/>
 	<key>UILaunchScreens</key>
 	<dict/>
+	<key>WLEDVersionName</key>
+	<string>$(APP_VERSION_NAME)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 </dict>

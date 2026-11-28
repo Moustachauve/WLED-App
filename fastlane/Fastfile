@@ -406,6 +406,7 @@ platform :ios do
       version_xcargs = [
         "SKIP_KMP_BUILD=1",
         "MARKETING_VERSION=#{marketing_version}",
+        "APP_VERSION_NAME=#{version_name}",
         "CURRENT_PROJECT_VERSION=#{version_code}",
         "-skipPackagePluginValidation",
         "-skipMacroValidation"

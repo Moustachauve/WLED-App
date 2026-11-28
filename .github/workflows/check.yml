@@ -229,6 +229,23 @@ jobs:
           sys.exit(1 if errors else 0)
           PY
 
+      - name: Verify iOS and Android version metadata are in sync
+        run: |
+          set -euo pipefail
+          TOML_VERSION=$(grep -E '^app_versionName\s*=' gradle/libs.versions.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          TOML_CODE=$(grep -E '^app_versionCode\s*=' gradle/libs.versions.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          EXPECTED_MARKETING="${TOML_VERSION%%-*}"
+          PBXPROJ="iosApp/wled.xcodeproj/project.pbxproj"
+
+          APP_VERSIONS=$(grep -E '^[[:space:]]*APP_VERSION_NAME[[:space:]]*=' "$PBXPROJ" | sed -E 's/.*=[[:space:]]*"?([^";]+)"?;.*/\1/' | sort -u)
+          MARKETING_VERSIONS=$(grep -E '^[[:space:]]*MARKETING_VERSION[[:space:]]*=' "$PBXPROJ" | sed -E 's/.*=[[:space:]]*"?([^";]+)"?;.*/\1/' | grep -vx '1\.0' | sort -u)
+          PROJECT_CODES=$(grep -E '^[[:space:]]*CURRENT_PROJECT_VERSION[[:space:]]*=' "$PBXPROJ" | sed -E 's/.*=[[:space:]]*"?([^";]+)"?;.*/\1/' | grep -vx '1' | sort -u)
+
+          if [ "$APP_VERSIONS" != "$TOML_VERSION" ] || [ "$MARKETING_VERSIONS" != "$EXPECTED_MARKETING" ] || [ "$PROJECT_CODES" != "$TOML_CODE" ]; then
+            echo "::error file=$PBXPROJ::iOS version metadata out of sync with gradle/libs.versions.toml (expected APP_VERSION_NAME=$TOML_VERSION, MARKETING_VERSION=$EXPECTED_MARKETING, CURRENT_PROJECT_VERSION=$TOML_CODE)."
+            exit 1
+          fi
+
       - name: Verify production changelogs are promoted before merging to main
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: |

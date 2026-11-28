@@ -47,7 +47,8 @@ struct SettingsSnapshotTests {
             soundSyncBetaEnabled: .constant(false),
             onShowChangelog: {},
             appVersion: "7.2.0",
-            buildNumber: "100"
+            buildNumber: "100",
+            isDebugBuild: false
         )
         .environment(\.activeHolidayTheme, holidayTheme)
         .environment(\.holidayAnimationStaticTime, 2.4)
