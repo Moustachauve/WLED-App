@@ -109,9 +109,11 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRowsStyle
 import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerConfig
 import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerList
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceSelectionMode
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceStatusVisibility
 import ca.cgagnier.wlednativeandroid.ui.components.LocalActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
@@ -979,7 +981,10 @@ private fun TargetDevicesSummary(
             DeviceInfoTwoRows(
                 device = device,
                 nameMaxLines = 1,
-                titleStyle = MaterialTheme.typography.titleMedium,
+                style = DeviceInfoTwoRowsStyle(
+                    titleStyle = MaterialTheme.typography.titleMedium,
+                    statusVisibility = DeviceStatusVisibility.WithoutWebsocket,
+                ),
             )
         }
         if (remainingCount > 0) {

@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -38,7 +37,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -65,8 +63,8 @@ import ca.cgagnier.wlednativeandroid.model.wledapi.State
 import ca.cgagnier.wlednativeandroid.model.wledapi.Wifi
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.WebsocketStatus
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoCard
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceVisibleSwitch
-import ca.cgagnier.wlednativeandroid.ui.components.deviceName
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDetailsDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateDisclaimerDialog
 import ca.cgagnier.wlednativeandroid.ui.homeScreen.update.UpdateInstallingDialog
@@ -159,7 +157,6 @@ fun DeviceEditContent(
         topBar = {
             HolidayTopBar {
                 DeviceEditAppBar(
-                    device = device,
                     canNavigateBack = canNavigateBack,
                     navigateUp = navigateUp,
                 )
@@ -182,13 +179,11 @@ fun DeviceEditContent(
                     .verticalScroll(rememberScrollState())
                     .padding(12.dp),
             ) {
-                val addressState = remember(device.device.address) { TextFieldState(device.device.address) }
-                OutlinedTextField(
-                    state = addressState,
-                    enabled = false,
-                    label = { Text(stringResource(R.string.ip_address_or_url)) },
-                    lineLimits = TextFieldLineLimits.SingleLine,
-                    modifier = Modifier.fillMaxWidth(),
+                DeviceInfoCard(
+                    device = device,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
                 )
                 CustomNameTextField(device.device, actions.onCustomNameChange)
                 DeviceVisibleSwitch(
@@ -249,21 +244,13 @@ fun DeviceEditContent(
 // Private sub-composables
 // ---------------------------------------------------------------------------
 
-/** Top app bar showing the device name and an optional close button. */
+/** Top app bar with an optional close button. */
 @Composable
-fun DeviceEditAppBar(
-    modifier: Modifier = Modifier,
-    device: DeviceWithState,
-    canNavigateBack: Boolean,
-    navigateUp: () -> Unit,
-) {
+fun DeviceEditAppBar(modifier: Modifier = Modifier, canNavigateBack: Boolean, navigateUp: () -> Unit) {
     TopAppBar(
         title = {
             Text(
-                text = stringResource(
-                    R.string.edit_device_with_name,
-                    deviceName(device.device),
-                ),
+                text = stringResource(R.string.edit_device),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

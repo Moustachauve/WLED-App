@@ -34,7 +34,6 @@
     <string name="battery_percentage">Batterie:</string>
     <string name="refresh_page">Seite aktualisieren</string>
     <string name="edit_device">Gerät bearbeiten</string>
-    <string name="edit_device_with_name">Gerät bearbeiten - <xliff:g example="WLED" id="device_name">%1$s</xliff:g></string>
     <string name="device_is_visible">Gerät ist sichtbar</string>
     <string name="device_is_hidden">Gerät ist verborgen</string>
     <string name="hidden_status">(Verborgen)</string>

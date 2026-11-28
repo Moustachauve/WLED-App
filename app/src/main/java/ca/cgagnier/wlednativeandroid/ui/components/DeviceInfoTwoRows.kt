@@ -33,6 +33,7 @@ import androidx.compose.material3.TooltipDefaults.rememberTooltipPositionProvide
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.toPath
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -79,6 +80,18 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+enum class DeviceStatusVisibility {
+    Full,
+    WithoutWebsocket,
+    None,
+}
+
+@Immutable
+data class DeviceInfoTwoRowsStyle(
+    val titleStyle: TextStyle? = null,
+    val statusVisibility: DeviceStatusVisibility = DeviceStatusVisibility.Full,
+)
+
 @Composable
 fun DeviceInfoTwoRows(
     modifier: Modifier = Modifier,
@@ -86,15 +99,16 @@ fun DeviceInfoTwoRows(
     // Used to update the lastSeen message frequently, leave 0 for no updates
     currentTime: Long = 0,
     nameMaxLines: Int = 2,
-    titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
+    style: DeviceInfoTwoRowsStyle = DeviceInfoTwoRowsStyle(),
 ) {
     val updateTag = device.updateVersionTag
+    val resolvedTitleStyle = style.titleStyle ?: MaterialTheme.typography.titleLarge
 
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 deviceName(device.device),
-                style = titleStyle,
+                style = resolvedTitleStyle,
                 maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -106,10 +120,12 @@ fun DeviceInfoTwoRows(
                 alignItems(FlexAlignItems.Center)
             },
         ) {
-            WebsocketStatusIndicator(
-                device.websocketStatus,
-                modifier = Modifier.flex { shrink(0f) },
-            )
+            if (style.statusVisibility == DeviceStatusVisibility.Full) {
+                WebsocketStatusIndicator(
+                    device.websocketStatus,
+                    modifier = Modifier.flex { shrink(0f) },
+                )
+            }
             Text(
                 device.device.address,
                 style = MaterialTheme.typography.labelMedium,
@@ -119,30 +135,38 @@ fun DeviceInfoTwoRows(
                     .flex { shrink(1f) }
                     .allowShrinkBelowMinIntrinsic(),
             )
-            deviceNetworkStrengthImage(
-                device,
-                modifier = Modifier.flex { shrink(0f) },
-            )
-            deviceSoundSyncImage(
-                device,
-                modifier = Modifier.flex { shrink(0f) },
-            )
-            deviceBatteryPercentageImage(
-                device,
-                modifier = Modifier.flex { shrink(0f) },
-            )
+            if (style.statusVisibility != DeviceStatusVisibility.None) {
+                deviceNetworkStrengthImage(
+                    device,
+                    modifier = Modifier.flex { shrink(0f) },
+                )
+                deviceSoundSyncImage(
+                    device,
+                    modifier = Modifier.flex { shrink(0f) },
+                )
+                deviceBatteryPercentageImage(
+                    device,
+                    modifier = Modifier.flex { shrink(0f) },
+                )
+            }
             DeviceStatusBadges(
                 device = device,
                 updateTag = updateTag,
                 currentTime = currentTime,
+                showLiveStatus = style.statusVisibility != DeviceStatusVisibility.None,
             )
         }
     }
 }
 
 @Composable
-private fun FlexBoxScope.DeviceStatusBadges(device: DeviceWithState, updateTag: String?, currentTime: Long) {
-    if (updateTag != null) {
+private fun FlexBoxScope.DeviceStatusBadges(
+    device: DeviceWithState,
+    updateTag: String?,
+    currentTime: Long,
+    showLiveStatus: Boolean,
+) {
+    if (showLiveStatus && updateTag != null) {
         Icon(
             painter = painterResource(R.drawable.baseline_download_24),
             contentDescription = stringResource(R.string.network_status),
@@ -152,7 +176,7 @@ private fun FlexBoxScope.DeviceStatusBadges(device: DeviceWithState, updateTag: 
                 .size(20.dp),
         )
     }
-    if (!device.isOnline) {
+    if (showLiveStatus && !device.isOnline) {
         OfflineSinceText(
             device.device,
             currentTime = currentTime,

@@ -143,7 +143,7 @@ private extension SoundSyncView {
 
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(displayed) { device in
-                            DeviceInfoTwoRows(device: device)
+                            DeviceInfoTwoRows(device: device, showWebsocketStatus: false)
                         }
                         if remaining > 0 {
                             Text("and \(remaining) more")

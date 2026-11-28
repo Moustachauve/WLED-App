@@ -35,7 +35,6 @@
     <string name="battery_percentage">Battery:</string>
     <string name="refresh_page">Refresh Page</string>
     <string name="edit_device">Edit Device</string>
-    <string name="edit_device_with_name">Edit Device - <xliff:g example="WLED" id="device_name">%1$s</xliff:g></string>
     <string name="device_is_visible">Device is visible</string>
     <string name="device_is_hidden">Device is Hidden</string>
     <string name="hidden_status">(Hidden)</string>

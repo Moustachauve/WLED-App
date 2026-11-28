@@ -1,13 +1,11 @@
 package ca.cgagnier.wlednativeandroid.ui.components
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -15,7 +13,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,7 +21,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -34,8 +30,6 @@ import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
-
-private const val SELECTED_ROW_BACKGROUND_ALPHA = 0.35f
 
 sealed interface DeviceSelectionMode {
     data class Single(val selectedMacAddress: String?, val onDeviceSelected: (DeviceWithState) -> Unit) :
@@ -49,6 +43,7 @@ sealed interface DeviceSelectionMode {
 data class DevicePickerConfig(
     val showOfflineDevicesLast: Boolean = true,
     val showHiddenDevices: Boolean = false,
+    val statusVisibility: DeviceStatusVisibility = DeviceStatusVisibility.WithoutWebsocket,
     val titleStyle: TextStyle? = null,
 )
 
@@ -72,42 +67,52 @@ fun DevicePickerList(
     if (partitioned.visible.isEmpty()) {
         EmptyDevicePickerState(
             message = stringResource(R.string.you_dont_have_any_visible_devices),
+            contentPadding = contentPadding,
             modifier = modifier,
         )
         return
     }
 
-    val resolvedTitleStyle = config.titleStyle ?: MaterialTheme.typography.titleLarge
+    val rowStyle = DeviceInfoTwoRowsStyle(
+        titleStyle = config.titleStyle ?: MaterialTheme.typography.titleLarge,
+        statusVisibility = config.statusVisibility,
+    )
     val listModifier = if (selectionMode is DeviceSelectionMode.Single) {
         modifier.selectableGroup()
     } else {
         modifier
     }
 
-    LazyColumn(modifier = listModifier, contentPadding = contentPadding) {
-        if (config.showOfflineDevicesLast) {
-            pickerDeviceItems(partitioned.online, selectionMode, currentTime, resolvedTitleStyle)
+    LazyColumn(
+        modifier = listModifier,
+        contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (config.showOfflineDevicesLast && config.statusVisibility != DeviceStatusVisibility.None) {
+            pickerDeviceItems(partitioned.online, selectionMode, currentTime, rowStyle)
             if (partitioned.offline.isNotEmpty()) {
                 item(key = "offline_label", contentType = "section_header") {
                     Text(
                         text = stringResource(R.string.offline_devices),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
                     )
                 }
-                pickerDeviceItems(partitioned.offline, selectionMode, currentTime, resolvedTitleStyle)
+                pickerDeviceItems(partitioned.offline, selectionMode, currentTime, rowStyle)
             }
         } else {
-            pickerDeviceItems(partitioned.visible, selectionMode, currentTime, resolvedTitleStyle)
+            pickerDeviceItems(partitioned.visible, selectionMode, currentTime, rowStyle)
         }
     }
 }
 
 @Composable
-private fun EmptyDevicePickerState(message: String, modifier: Modifier = Modifier) {
+private fun EmptyDevicePickerState(message: String, contentPadding: PaddingValues, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier
+            .padding(contentPadding)
+            .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -123,7 +128,7 @@ private fun LazyListScope.pickerDeviceItems(
     devices: List<DeviceWithState>,
     selectionMode: DeviceSelectionMode,
     currentTime: Long,
-    titleStyle: TextStyle,
+    rowStyle: DeviceInfoTwoRowsStyle,
 ) {
     items(
         items = devices,
@@ -134,9 +139,8 @@ private fun LazyListScope.pickerDeviceItems(
             device = device,
             selectionMode = selectionMode,
             currentTime = currentTime,
-            titleStyle = titleStyle,
+            rowStyle = rowStyle,
         )
-        HorizontalDivider()
     }
 }
 
@@ -145,43 +149,41 @@ private fun DevicePickerRow(
     device: DeviceWithState,
     selectionMode: DeviceSelectionMode,
     currentTime: Long,
-    titleStyle: TextStyle,
+    rowStyle: DeviceInfoTwoRowsStyle,
 ) {
     val isSelected = selectionMode.isSelected(device.device.macAddress)
-    val backgroundColor = if (isSelected && selectionMode is DeviceSelectionMode.Single) {
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = SELECTED_ROW_BACKGROUND_ALPHA)
+    val nameMaxLines = if (rowStyle.statusVisibility == DeviceStatusVisibility.None) 2 else 1
+    val leadingContent: (@Composable RowScope.() -> Unit)? = if (selectionMode is DeviceSelectionMode.Multi) {
+        { Checkbox(checked = isSelected, onCheckedChange = null) }
     } else {
-        Color.Transparent
+        null
     }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(backgroundColor)
-            .then(selectionMode.interactionModifier(device, isSelected))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (selectionMode is DeviceSelectionMode.Multi) {
-            Checkbox(checked = isSelected, onCheckedChange = null)
-            Spacer(modifier = Modifier.width(12.dp))
-        }
-        DeviceInfoTwoRows(
-            modifier = Modifier.weight(1f),
-            device = device,
-            currentTime = currentTime,
-            nameMaxLines = 1,
-            titleStyle = titleStyle,
-        )
+    val trailingContent: (@Composable RowScope.() -> Unit)? =
         if (selectionMode is DeviceSelectionMode.Single && isSelected) {
-            Spacer(modifier = Modifier.width(12.dp))
-            Icon(
-                painter = painterResource(R.drawable.baseline_check_24),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            {
+                Icon(
+                    painter = painterResource(R.drawable.baseline_check_24),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        } else {
+            null
         }
-    }
+
+    DeviceInfoCard(
+        device = device,
+        modifier = Modifier.fillMaxWidth(),
+        style = DeviceInfoCardStyle(
+            isSelected = isSelected,
+            currentTime = currentTime,
+            nameMaxLines = nameMaxLines,
+            infoStyle = rowStyle,
+            contentModifier = selectionMode.interactionModifier(device, isSelected),
+        ),
+        leadingContent = leadingContent,
+        trailingContent = trailingContent,
+    )
 }
 
 private fun DeviceSelectionMode.isSelected(mac: String): Boolean = when (this) {
