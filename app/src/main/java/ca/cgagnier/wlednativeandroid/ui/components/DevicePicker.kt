@@ -3,7 +3,6 @@ package ca.cgagnier.wlednativeandroid.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,6 +43,7 @@ data class DevicePickerConfig(
     val showOfflineDevicesLast: Boolean = true,
     val showHiddenDevices: Boolean = false,
     val statusVisibility: DeviceStatusVisibility = DeviceStatusVisibility.WithoutWebsocket,
+    val nameMaxLines: Int = 1,
     val titleStyle: TextStyle? = null,
 )
 
@@ -74,7 +74,7 @@ fun DevicePickerList(
     }
 
     val rowStyle = DeviceInfoTwoRowsStyle(
-        titleStyle = config.titleStyle ?: MaterialTheme.typography.titleLarge,
+        titleStyle = config.titleStyle,
         statusVisibility = config.statusVisibility,
     )
     val listModifier = if (selectionMode is DeviceSelectionMode.Single) {
@@ -88,8 +88,8 @@ fun DevicePickerList(
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (config.showOfflineDevicesLast && config.statusVisibility != DeviceStatusVisibility.None) {
-            pickerDeviceItems(partitioned.online, selectionMode, currentTime, rowStyle)
+        if (config.showOfflineDevicesLast) {
+            pickerDeviceItems(partitioned.online, selectionMode, currentTime, config.nameMaxLines, rowStyle)
             if (partitioned.offline.isNotEmpty()) {
                 item(key = "offline_label", contentType = "section_header") {
                     Text(
@@ -99,10 +99,16 @@ fun DevicePickerList(
                         modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
                     )
                 }
-                pickerDeviceItems(partitioned.offline, selectionMode, currentTime, rowStyle)
+                pickerDeviceItems(
+                    partitioned.offline,
+                    selectionMode,
+                    currentTime,
+                    config.nameMaxLines,
+                    rowStyle,
+                )
             }
         } else {
-            pickerDeviceItems(partitioned.visible, selectionMode, currentTime, rowStyle)
+            pickerDeviceItems(partitioned.visible, selectionMode, currentTime, config.nameMaxLines, rowStyle)
         }
     }
 }
@@ -128,6 +134,7 @@ private fun LazyListScope.pickerDeviceItems(
     devices: List<DeviceWithState>,
     selectionMode: DeviceSelectionMode,
     currentTime: Long,
+    nameMaxLines: Int,
     rowStyle: DeviceInfoTwoRowsStyle,
 ) {
     items(
@@ -139,6 +146,7 @@ private fun LazyListScope.pickerDeviceItems(
             device = device,
             selectionMode = selectionMode,
             currentTime = currentTime,
+            nameMaxLines = nameMaxLines,
             rowStyle = rowStyle,
         )
     }
@@ -149,41 +157,39 @@ private fun DevicePickerRow(
     device: DeviceWithState,
     selectionMode: DeviceSelectionMode,
     currentTime: Long,
+    nameMaxLines: Int,
     rowStyle: DeviceInfoTwoRowsStyle,
 ) {
     val isSelected = selectionMode.isSelected(device.device.macAddress)
-    val nameMaxLines = if (rowStyle.statusVisibility == DeviceStatusVisibility.None) 2 else 1
-    val leadingContent: (@Composable RowScope.() -> Unit)? = if (selectionMode is DeviceSelectionMode.Multi) {
-        { Checkbox(checked = isSelected, onCheckedChange = null) }
-    } else {
-        null
-    }
-    val trailingContent: (@Composable RowScope.() -> Unit)? =
-        if (selectionMode is DeviceSelectionMode.Single && isSelected) {
-            {
+
+    OptionalDeviceTheme(
+        device = device,
+        enabled = rowStyle.statusVisibility != DeviceStatusVisibility.None,
+    ) {
+        DeviceCardSurface(
+            modifier = Modifier.fillMaxWidth(),
+            isSelected = isSelected,
+            contentModifier = selectionMode.interactionModifier(device, isSelected),
+        ) {
+            if (selectionMode is DeviceSelectionMode.Multi) {
+                Checkbox(checked = isSelected, onCheckedChange = null)
+            }
+            DeviceInfoTwoRows(
+                modifier = Modifier.weight(1f),
+                device = device,
+                currentTime = currentTime,
+                nameMaxLines = nameMaxLines,
+                style = rowStyle,
+            )
+            if (selectionMode is DeviceSelectionMode.Single && isSelected) {
                 Icon(
                     painter = painterResource(R.drawable.baseline_check_24),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-        } else {
-            null
         }
-
-    DeviceInfoCard(
-        device = device,
-        modifier = Modifier.fillMaxWidth(),
-        style = DeviceInfoCardStyle(
-            isSelected = isSelected,
-            currentTime = currentTime,
-            nameMaxLines = nameMaxLines,
-            infoStyle = rowStyle,
-            contentModifier = selectionMode.interactionModifier(device, isSelected),
-        ),
-        leadingContent = leadingContent,
-        trailingContent = trailingContent,
-    )
+    }
 }
 
 private fun DeviceSelectionMode.isSelected(mac: String): Boolean = when (this) {

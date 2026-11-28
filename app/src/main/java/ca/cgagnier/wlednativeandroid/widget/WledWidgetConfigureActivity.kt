@@ -189,6 +189,7 @@ fun ConfigurationScreen(
                 showOfflineDevicesLast = false,
                 showHiddenDevices = true,
                 statusVisibility = DeviceStatusVisibility.None,
+                nameMaxLines = 2,
             ),
         )
     }
