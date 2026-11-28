@@ -10,6 +10,8 @@ import Shared
 
 struct DeviceInfoTwoRows: View {
     var device: DeviceWithState
+    @Environment(\.activeSoundSyncTargets) private var activeSoundSyncTargets
+    @ScaledMetric(relativeTo: .subheadline) private var soundSyncIconSize: CGFloat = 15
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -43,6 +45,17 @@ struct DeviceInfoTwoRows: View {
                     getSignalIcon(signalLevel: signalLevel)
                 }
                 .labelStyle(.iconOnly)
+                if activeSoundSyncTargets.isDeviceReceiving(device) {
+                    Label {
+                        Text("Sound Sync Active")
+                    } icon: {
+                        Image(.icSoundSyncAkemiActive)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: soundSyncIconSize, height: soundSyncIconSize)
+                    }
+                    .labelStyle(.iconOnly)
+                }
                 if let batteryPercentage = device.stateInfo?.info.userMods?.batteryPercentage?.doubleValue {
                     let roundedBattery = Int(batteryPercentage.rounded())
                     Label {

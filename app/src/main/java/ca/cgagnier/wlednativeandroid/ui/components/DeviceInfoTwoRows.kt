@@ -123,6 +123,10 @@ fun DeviceInfoTwoRows(
                 device,
                 modifier = Modifier.flex { shrink(0f) },
             )
+            deviceSoundSyncImage(
+                device,
+                modifier = Modifier.flex { shrink(0f) },
+            )
             deviceBatteryPercentageImage(
                 device,
                 modifier = Modifier.flex { shrink(0f) },

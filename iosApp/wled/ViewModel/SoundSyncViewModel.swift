@@ -80,6 +80,14 @@ final class SoundSyncViewModel {
         !selectedDevices.isEmpty
     }
 
+    var activeSoundSyncTargets: ActiveSoundSyncTargets {
+        guard isRunning else { return .inactive }
+        return ActiveSoundSyncTargets(
+            macAddresses: selectedDeviceMacs,
+            includeHidden: showHiddenDevices
+        )
+    }
+
     private var parsedValidPort: Int32? {
         guard let parsed = Int32(portText),
               UdpSoundSyncPacket.Companion.shared.isValidPort(port: parsed) else {

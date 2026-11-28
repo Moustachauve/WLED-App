@@ -65,6 +65,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,7 +111,9 @@ import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerConfig
 import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerList
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceSelectionMode
+import ca.cgagnier.wlednativeandroid.ui.components.LocalActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
+import ca.cgagnier.wlednativeandroid.ui.components.resolveActiveSoundSyncTargets
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
@@ -267,30 +270,46 @@ fun SoundSyncContent(
     latestPacketFlow: StateFlow<UdpSoundSyncPacket> = remember { MutableStateFlow(UdpSoundSyncPacket()) },
     actions: SoundSyncActions = SoundSyncActions(),
 ) {
-    Scaffold(
-        topBar = {
-            HolidayTopBar {
-                SoundSyncTopBar(navigateUp = actions.navigateUp)
+    val activeTargets = remember(
+        uiState.isRunning,
+        uiState.sendMode,
+        uiState.selectedDeviceMacs,
+        uiState.showHiddenDevices,
+    ) {
+        resolveActiveSoundSyncTargets(
+            isRunning = uiState.isRunning,
+            sendMode = uiState.sendMode,
+            selectedDeviceMacs = uiState.selectedDeviceMacs,
+            showHiddenDevices = uiState.showHiddenDevices,
+        )
+    }
+
+    CompositionLocalProvider(LocalActiveSoundSyncTargets provides activeTargets) {
+        Scaffold(
+            topBar = {
+                HolidayTopBar {
+                    SoundSyncTopBar(navigateUp = actions.navigateUp)
+                }
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
+                    .holidayParticles()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SoundSyncScrollBody(
+                    uiState = uiState,
+                    portState = portState,
+                    permanentlyDenied = permanentlyDenied,
+                    latestPacketFlow = latestPacketFlow,
+                    actions = actions,
+                )
             }
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-                .imePadding()
-                .holidayParticles()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            SoundSyncScrollBody(
-                uiState = uiState,
-                portState = portState,
-                permanentlyDenied = permanentlyDenied,
-                latestPacketFlow = latestPacketFlow,
-                actions = actions,
-            )
         }
     }
 }
