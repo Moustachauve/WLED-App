@@ -31,10 +31,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -52,9 +55,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +87,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -102,8 +109,215 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.Color as ComposeColor
 
 private const val TAG = "ui.components.DeviceWebView"
+private const val PAGE_COLOR_BRIDGE_NAME = "ilPageColorBridge"
+private const val MAX_RGB_CHANNEL = 255
+
+private const val SAFE_AREA_SCRIPT_TEMPLATE = """
+(function () {
+  if (window.__ilApplySafeBottom) return;
+  var POLY_ID = '__ilSafeAreaPolyfill';
+  var ENV_RE = /env\(\s*safe-area-inset-bottom(?:\s*,\s*[^()]*(?:\([^()]*\)[^()]*)*)?\)/gi;
+  var lastInsetPx = 0;
+
+  function ensureViewportFitCover() {
+    var m = document.querySelector('meta[name="viewport"]');
+    if (!m) {
+      m = document.createElement('meta');
+      m.name = 'viewport';
+      m.content = 'width=device-width,initial-scale=1,viewport-fit=cover';
+      (document.head || document.documentElement).appendChild(m);
+    } else {
+      var c = m.getAttribute('content') || '';
+      if (!/viewport-fit\s*=/.test(c)) {
+        m.setAttribute('content', (c ? c + ',' : '') + 'viewport-fit=cover');
+      } else if (!/viewport-fit\s*=\s*cover/i.test(c)) {
+        m.setAttribute('content', c.replace(/viewport-fit\s*=\s*[^,\s]+/i, 'viewport-fit=cover'));
+      }
+    }
+  }
+
+  function nativeBottomInset() {
+    var p = document.createElement('i');
+    p.style.cssText = 'position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom);';
+    (document.body || document.documentElement).appendChild(p);
+    var val = parseFloat(getComputedStyle(p).paddingBottom) || 0;
+    p.remove();
+    return val;
+  }
+
+  function collectRules(rules, out) {
+    for (var i = 0; i < rules.length; i++) {
+      var r = rules[i];
+      if (r.type === 1 && r.style) {
+        var raw = r.style.cssText;
+        if (!raw || raw.indexOf('safe-area-inset-bottom') === -1) continue;
+        var parts = raw.split(';');
+        var decls = [];
+        for (var j = 0; j < parts.length; j++) {
+          var part = parts[j].trim();
+          if (!part || part.indexOf('safe-area-inset-bottom') === -1) continue;
+          ENV_RE.lastIndex = 0;
+          if (!ENV_RE.test(part)) continue;
+          ENV_RE.lastIndex = 0;
+          decls.push(part.replace(ENV_RE, 'var(--app-safe-bottom, 0px)'));
+        }
+        if (decls.length) {
+          out.push(r.selectorText + '{' + decls.join(';') + '}');
+        }
+      } else if (r.cssRules && r.media) {
+        var nestedM = [];
+        collectRules(r.cssRules, nestedM);
+        if (nestedM.length) out.push('@media ' + r.media.mediaText + '{' + nestedM.join('') + '}');
+      } else if (r.cssRules && r.conditionText) {
+        var nestedS = [];
+        collectRules(r.cssRules, nestedS);
+        if (nestedS.length) out.push('@supports ' + r.conditionText + '{' + nestedS.join('') + '}');
+      }
+    }
+  }
+
+  function polyfill() {
+    var existing = document.getElementById(POLY_ID);
+    if (lastInsetPx <= 0 || nativeBottomInset() >= 1) {
+      if (existing) existing.remove();
+      return;
+    }
+    var out = [];
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      var sheet = document.styleSheets[i];
+      if (sheet.ownerNode && sheet.ownerNode.id === POLY_ID) continue;
+      try {
+        if (sheet.cssRules) collectRules(sheet.cssRules, out);
+      } catch (e) {}
+    }
+    var cssText = out.join('');
+    if (!cssText) {
+      if (existing) existing.remove();
+      return;
+    }
+    var el = existing || document.createElement('style');
+    el.id = POLY_ID;
+    if (el.textContent !== cssText) el.textContent = cssText;
+    var head = document.head || document.documentElement;
+    if (el.parentNode !== head || head.lastElementChild !== el) head.appendChild(el);
+  }
+
+  window.__ilApplySafeBottom = function (bottomInsetPx) {
+    try {
+      lastInsetPx = bottomInsetPx;
+      ensureViewportFitCover();
+      document.documentElement.style.setProperty('--app-safe-bottom', bottomInsetPx + 'px');
+      polyfill();
+      if (!window.__ilSafeAreaObserver && document.head) {
+        window.__ilSafeAreaObserver = true;
+        var timer = null;
+        function schedule() {
+          clearTimeout(timer);
+          timer = setTimeout(polyfill, 50);
+        }
+        new MutationObserver(function (mutations) {
+          for (var i = 0; i < mutations.length; i++) {
+            var nodes = mutations[i].addedNodes;
+            for (var j = 0; j < nodes.length; j++) {
+              var n = nodes[j];
+              if (n.id === POLY_ID) continue;
+              if (n.tagName === 'STYLE' || n.tagName === 'LINK') {
+                if (n.tagName === 'LINK') n.addEventListener('load', schedule);
+                schedule();
+                return;
+              }
+            }
+          }
+        }).observe(document.head, { childList: true });
+      }
+    } catch (err) {}
+  };
+})();
+"""
+
+/**
+ * Ensures `viewport-fit=cover` is set on the page, exposes `--app-safe-bottom` in CSS pixels,
+ * and polyfills `env(safe-area-inset-bottom)` via `--app-safe-bottom` when Chromium WebView
+ * reports `0px` natively, so fixed footers and overlays clear the navigation bar like on iOS.
+ */
+internal fun buildSafeAreaScript(bottomInsetPx: Int): String =
+    "$SAFE_AREA_SCRIPT_TEMPLATE\nwindow.__ilApplySafeBottom($bottomInsetPx);"
+
+/**
+ * Reads the controller page's `--bg` CSS variable (set by the IllumiDEL V1.6.4+ theme), reports it
+ * to Android, and re-reports whenever the user switches theme without reloading.
+ */
+internal const val PAGE_COLOR_SCRIPT = """
+(function () {
+  if (window.__ilPageColor) {
+    if (window.__ilSendPageColor) window.__ilSendPageColor(true);
+    return;
+  }
+  window.__ilPageColor = true;
+  var last = "";
+  function send(force) {
+    try {
+      var v = (getComputedStyle(document.documentElement).getPropertyValue("--bg") || "").trim();
+      var rgb = null;
+      if (v) {
+        var e = document.createElement("i");
+        e.style.display = "none";
+        e.style.color = v;
+        document.documentElement.appendChild(e);
+        var m = (getComputedStyle(e).color || "").match(/[0-9.]+/g);
+        e.remove();
+        if (m && m.length >= 3) rgb = [+m[0], +m[1], +m[2]];
+      }
+      var key = rgb ? rgb.join(",") : "none";
+      if (!force && key === last) return;
+      last = key;
+      var bridge = window.ilPageColorBridge;
+      if (!bridge) return;
+      if (rgb) {
+        bridge.postColor(Math.round(rgb[0]), Math.round(rgb[1]), Math.round(rgb[2]));
+      } else {
+        bridge.clearColor();
+      }
+    } catch (err) {}
+  }
+  window.__ilSendPageColor = send;
+  send(true);
+  new MutationObserver(function () { setTimeout(function () { send(false); }, 50); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+  window.addEventListener("pageshow", function () { send(true); });
+})();
+"""
+
+private class PageColorJsBridge(private val mainHandler: Handler, var onColor: (ComposeColor?) -> Unit) {
+    fun attachTo(webView: WebView) {
+        webView.addJavascriptInterface(this, PAGE_COLOR_BRIDGE_NAME)
+        webView.evaluateJavascript("if (window.__ilSendPageColor) window.__ilSendPageColor(true);", null)
+    }
+
+    fun detachFrom(webView: WebView) {
+        onColor = {}
+        webView.removeJavascriptInterface(PAGE_COLOR_BRIDGE_NAME)
+    }
+
+    @JavascriptInterface
+    fun postColor(r: Int, g: Int, b: Int) {
+        val color = ComposeColor(
+            red = r.coerceIn(0, MAX_RGB_CHANNEL),
+            green = g.coerceIn(0, MAX_RGB_CHANNEL),
+            blue = b.coerceIn(0, MAX_RGB_CHANNEL),
+        )
+        mainHandler.post { onColor(color) }
+    }
+
+    @JavascriptInterface
+    fun clearColor() {
+        mainHandler.post { onColor(null) }
+    }
+}
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -124,10 +338,25 @@ fun DeviceWebView(
     val webView = webViewViewModel.webView().collectAsState().value
     navigator.backQueue = webViewViewModel.backQueue
     var showDownloadCompleteToast by remember { mutableStateOf(false) }
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val pageColorBridge = remember(mainHandler) { PageColorJsBridge(mainHandler) {} }
+    pageColorBridge.onColor = { state.onPageColorChanged(it) }
+    val density = LocalDensity.current
+    val bottomInsetCssPx = with(density) {
+        WindowInsets.navigationBars.getBottom(this).toDp().value.roundToInt()
+    }
+    state.bottomInsetCssPx = bottomInsetCssPx
+
+    LaunchedEffect(webView, bottomInsetCssPx) {
+        webView.evaluateJavascript(buildSafeAreaScript(bottomInsetCssPx), null)
+    }
 
     // Add this DisposableEffect to prevent memory leaks and crashes on configuration changes.
+    // Registered before navigation effects so the JS bridge exists before the page loads.
     DisposableEffect(webView) {
+        pageColorBridge.attachTo(webView)
         onDispose {
+            pageColorBridge.detachFrom(webView)
             // The WebView is reused, so we must remove it from its old parent
             // before it can be attached to a new one.
             Log.d(TAG, "Removing webview onDispose")
@@ -153,36 +382,7 @@ fun DeviceWebView(
             }
         }
     }
-    LaunchedEffect(webView, state) {
-        snapshotFlow { state.content }.collect { content ->
-            when (content) {
-                is WebContent.Url -> {
-                    webView.loadUrl(content.url, content.additionalHttpHeaders)
-                }
-
-                is WebContent.Data -> {
-                    webView.loadDataWithBaseURL(
-                        content.baseUrl,
-                        content.data,
-                        content.mimeType,
-                        content.encoding,
-                        content.historyUrl,
-                    )
-                }
-
-                is WebContent.Post -> {
-                    webView.postUrl(
-                        content.url,
-                        content.postData,
-                    )
-                }
-
-                is WebContent.NavigatorOnly -> {
-                    // NO-OP
-                }
-            }
-        }
-    }
+    BindWebContent(webView = webView, state = state)
 
     client.state = state
     client.navigator = navigator
@@ -196,6 +396,7 @@ fun DeviceWebView(
         state.loadingState = Loading(0.0f)
         state.isError = false
         state.lastLoadedUrl = null
+        state.onPageColorChanged(null)
         navigator.loadUrl(device.getDeviceUrl())
     }
 
@@ -254,27 +455,70 @@ fun DeviceWebView(
             )
         }
         if (showDownloadCompleteToast) {
-            Snackbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp),
-                action = {
-                    TextButton(onClick = {
-                        openDownloadedFile(context)
-                        showDownloadCompleteToast = false
-                    }) {
-                        Text(stringResource(R.string.open))
-                    }
-                },
-                dismissAction = {
-                    TextButton(onClick = { showDownloadCompleteToast = false }) {
-                        Text(stringResource(R.string.dismiss))
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.download_completed))
+            DownloadCompleteSnackbar(
+                context = context,
+                onDismiss = { showDownloadCompleteToast = false },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BindWebContent(webView: WebView, state: WebViewState) {
+    LaunchedEffect(webView, state) {
+        snapshotFlow { state.content }.collect { content ->
+            when (content) {
+                is WebContent.Url -> {
+                    webView.loadUrl(content.url, content.additionalHttpHeaders)
+                }
+
+                is WebContent.Data -> {
+                    webView.loadDataWithBaseURL(
+                        content.baseUrl,
+                        content.data,
+                        content.mimeType,
+                        content.encoding,
+                        content.historyUrl,
+                    )
+                }
+
+                is WebContent.Post -> {
+                    webView.postUrl(
+                        content.url,
+                        content.postData,
+                    )
+                }
+
+                is WebContent.NavigatorOnly -> {
+                    // NO-OP
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadCompleteSnackbar(context: Context, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Snackbar(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(16.dp),
+        action = {
+            TextButton(onClick = {
+                openDownloadedFile(context)
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.open))
+            }
+        },
+        dismissAction = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dismiss))
+            }
+        },
+    ) {
+        Text(stringResource(R.string.download_completed))
     }
 }
 
@@ -329,8 +573,10 @@ class CustomWebViewClient : WebViewClient() {
     override fun onPageFinished(view: WebView, url: String?) {
         super.onPageFinished(view, url)
         Log.d(TAG, "onPageFinished $url")
-        if (url != "about:blank") {
+        if (url != null && url != "about:blank") {
             state.loadingState = Finished
+            view.evaluateJavascript(PAGE_COLOR_SCRIPT, null)
+            view.evaluateJavascript(buildSafeAreaScript(state.bottomInsetCssPx), null)
         }
     }
 
@@ -360,6 +606,7 @@ class CustomWebViewClient : WebViewClient() {
             Log.i(TAG, "Error received ${request.url} - ${error?.description}")
             state.isError = true
             state.loadingState = Finished
+            state.onPageColorChanged(null)
         }
         if (error != null) {
             state.errorsForCurrentRequest.add(WebViewError(request, error))
@@ -554,6 +801,10 @@ class WebViewState(webContent: WebContent) {
     // We need access to this in the state saver. An internal DisposableEffect or AndroidView
     // onDestroy is called after the state saver and so can't be used.
     internal var webView by mutableStateOf<WebView?>(null)
+
+    internal var onPageColorChanged: (ComposeColor?) -> Unit = {}
+
+    internal var bottomInsetCssPx: Int = 0
 }
 
 /**

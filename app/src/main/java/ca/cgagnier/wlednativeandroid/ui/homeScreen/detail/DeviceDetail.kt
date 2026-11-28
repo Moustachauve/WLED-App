@@ -3,6 +3,7 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.detail
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,10 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
@@ -43,6 +42,7 @@ fun DeviceDetail(
 ) {
     val webViewState = rememberSaveableWebViewState()
     val navigator = rememberWebViewNavigator()
+    webViewState.onPageColorChanged = actions.onPageColorChanged
 
     LaunchedEffect(shouldReloadWebView, device.device.macAddress) {
         if (shouldReloadWebView) {
@@ -67,13 +67,12 @@ fun DeviceDetail(
         },
         containerColor = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onBackground,
+        contentWindowInsets = WindowInsets(0),
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(horizontal = 3.dp)
-                .fillMaxSize()
-                .clip(shape = MaterialTheme.shapes.large),
+                .fillMaxSize(),
         ) {
             DeviceWebView(
                 device.device,

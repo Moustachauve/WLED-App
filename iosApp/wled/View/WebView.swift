@@ -22,11 +22,12 @@ struct WebView: UIViewRepresentable {
             WeakScriptMessageHandler(context.coordinator),
             name: Self.pageColorHandler
         )
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = SafeAreaWebView(frame: .zero, configuration: configuration)
 
         webView.customUserAgent = "wled-native/1"
         webView.isOpaque = false
         webView.backgroundColor = UIColor.clear
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.uiDelegate = context.coordinator
         webView.navigationDelegate = context.coordinator
         return webView
@@ -35,13 +36,14 @@ struct WebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         print("WebView updateUIView, current url: \(url, default: "[unknown]")")
         context.coordinator.parent = self
-        webView.underPageBackgroundColor = .systemBackground
 
         if let url = self.url, url != context.coordinator.lastLoadedUrl {
             context.coordinator.lastLoadedUrl = url
+            context.coordinator.lastPageColor = nil
             let request = URLRequest(url: url)
             webView.load(request)
         }
+        webView.underPageBackgroundColor = context.coordinator.lastPageColor ?? .systemBackground
 
         if reload {
             if isError || webView.backForwardList.currentItem == nil || webView.url != self.url {
@@ -101,6 +103,38 @@ struct WebView: UIViewRepresentable {
     })();
     """
 
+    /// Ensures `viewport-fit=cover` is active and sets `--app-safe-bottom` in CSS pixels so
+    /// fixed footers/overlays can clear the home indicator without adding a bottom colour seam.
+    static func safeAreaScript(bottomInset: Int) -> String {
+        """
+        (function () {
+          try {
+            var m = document.querySelector('meta[name="viewport"]');
+            if (!m) {
+              m = document.createElement('meta');
+              m.name = 'viewport';
+              m.content = 'width=device-width,initial-scale=1,viewport-fit=cover';
+              (document.head || document.documentElement).appendChild(m);
+            } else {
+              var c = m.getAttribute('content') || '';
+              if (!/viewport-fit\\s*=/.test(c)) {
+                m.setAttribute('content', (c ? c + ',' : '') + 'viewport-fit=cover');
+              } else if (!/viewport-fit\\s*=\\s*cover/i.test(c)) {
+                m.setAttribute('content', c.replace(/viewport-fit\\s*=\\s*[^,\\s]+/i, 'viewport-fit=cover'));
+              }
+            }
+            document.documentElement.style.setProperty('--app-safe-bottom', '\(bottomInset)px');
+          } catch (err) {}
+        })();
+        """
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+}
+
+extension WebView {
     @MainActor
     class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         /// WebKit error code (`WebKitErrorFrameLoadInterruptedByPolicyChange`) emitted when a navigation
@@ -109,6 +143,7 @@ struct WebView: UIViewRepresentable {
 
         var parent: WebView
         var lastLoadedUrl: URL?
+        var lastPageColor: UIColor?
         private var filePathDestination: URL?
 
         init(_ parent: WebView) {
@@ -118,17 +153,20 @@ struct WebView: UIViewRepresentable {
         // IllumiDEL: page colour sent by `pageColorScript`
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == WebView.pageColorHandler else { return }
+            let color: UIColor?
             if let rgb = message.body as? [NSNumber], rgb.count >= 3 {
-                let color = UIColor(
+                color = UIColor(
                     red: CGFloat(rgb[0].doubleValue) / 255,
                     green: CGFloat(rgb[1].doubleValue) / 255,
                     blue: CGFloat(rgb[2].doubleValue) / 255,
                     alpha: 1
                 )
-                parent.onPageColor?(color)
             } else {
-                parent.onPageColor?(nil)
+                color = nil
             }
+            lastPageColor = color
+            message.webView?.underPageBackgroundColor = color ?? .systemBackground
+            parent.onPageColor?(color)
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -138,6 +176,7 @@ struct WebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
+            (webView as? SafeAreaWebView)?.applyBottomSafeAreaInset()
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -356,10 +395,6 @@ struct WebView: UIViewRepresentable {
         }
 
     }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
 }
 
 /// Keeps the coordinator out of a retain cycle: `WKUserContentController` holds its script handlers strongly.
@@ -373,5 +408,19 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+/// `WKWebView` subclass that forwards bottom safe-area inset changes to CSS `--app-safe-bottom`.
+@MainActor
+private final class SafeAreaWebView: WKWebView {
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        applyBottomSafeAreaInset()
+    }
+
+    func applyBottomSafeAreaInset() {
+        let inset = Int(safeAreaInsets.bottom.rounded())
+        evaluateJavaScript(WebView.safeAreaScript(bottomInset: inset), completionHandler: nil)
     }
 }

@@ -49,6 +49,7 @@ struct DeviceView: View {
                     }
                 }
             )
+            .ignoresSafeArea(edges: .bottom)
             .opacity(isWebViewError ? 0 : 1)
             .accessibilityHidden(isWebViewError)
             .overlay(alignment: .top) {
@@ -121,7 +122,8 @@ struct DeviceView: View {
             }
         }
         .toolbar { toolbar }
-        // IllumiDEL: the bar at the top takes the page's theme colour, so bar and page look like one piece
+        // IllumiDEL: the bars at the top and bottom take the page's theme colour, so app chrome and page look like one piece
+        .background((pageColor ?? .clear).ignoresSafeArea())
         .toolbarBackground(pageColor ?? .clear, for: .navigationBar)
         .toolbarBackground(pageColor == nil ? .automatic : .visible, for: .navigationBar)
     }

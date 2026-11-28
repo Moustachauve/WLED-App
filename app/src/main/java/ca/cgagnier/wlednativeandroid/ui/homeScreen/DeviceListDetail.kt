@@ -1,9 +1,16 @@
 package ca.cgagnier.wlednativeandroid.ui.homeScreen
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +21,7 @@ import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
 import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.material3.adaptive.navigation.BackNavigationBehavior
 import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
@@ -48,6 +56,7 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 private const val POST_OTA_WEBVIEW_RELOAD_DELAY_MS = 1500L
+private const val PAGE_COLOR_ANIM_MS = 250
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Suppress("LongMethod") // Navigator requires type inference, limiting extraction options
@@ -92,6 +101,18 @@ fun DeviceListDetail(
     val isWLEDCaptivePortal by viewModel.isWLEDCaptivePortal.collectAsStateWithLifecycle()
     val isAddDeviceDialogVisible by viewModel.isAddDeviceDialogVisible.collectAsStateWithLifecycle()
     var pendingWebViewReloadMac by rememberSaveable { mutableStateOf<String?>(null) }
+    var pageColor by remember(selectedDeviceMacAddress) { mutableStateOf<Color?>(null) }
+
+    val isListHidden = navigator.scaffoldValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Hidden
+    val activePane = navigator.currentDestination?.pane
+    val isDetailFullScreen = isListHidden &&
+        activePane == ListDetailPaneScaffoldRole.Detail &&
+        selectedDevice != null
+    val animatedDeviceBg by animateColorAsState(
+        targetValue = pageColor ?: Color.Black,
+        animationSpec = tween(durationMillis = PAGE_COLOR_ANIM_MS),
+        label = "device_detail_bg",
+    )
 
     val navigateToDetail: (DeviceWithState) -> Unit = { device ->
         coroutineScope.launch {
@@ -120,8 +141,11 @@ fun DeviceListDetail(
         },
     ) {
         Scaffold(
-            containerColor = Color.Transparent,
+            containerColor = if (isDetailFullScreen) animatedDeviceBg else Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onBackground,
+            contentWindowInsets = WindowInsets.systemBars.only(
+                WindowInsetsSides.Horizontal + WindowInsetsSides.Top,
+            ),
         ) { innerPadding ->
             NavigableListDetailPaneScaffold(
                 modifier = modifier
@@ -152,29 +176,22 @@ fun DeviceListDetail(
                     }
                 },
                 detailPane = {
-                    AnimatedPane {
-                        selectedDevice?.let { device ->
-                            val deviceMac = device.device.macAddress
-                            LaunchedEffect(deviceMac) {
-                                if (pendingWebViewReloadMac != null && pendingWebViewReloadMac != deviceMac) {
-                                    pendingWebViewReloadMac = null
-                                }
-                            }
-                            DeviceDetail(
-                                device = device,
-                                canNavigateBack = navigator.canNavigateBack(),
-                                shouldReloadWebView = pendingWebViewReloadMac == deviceMac,
-                                actions = DeviceDetailActions(
-                                    onItemEdit = { navigateToEdit(device) },
-                                    navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
-                                    onWebViewReloadConsumed = {
-                                        if (pendingWebViewReloadMac == deviceMac) {
-                                            pendingWebViewReloadMac = null
-                                        }
-                                    },
-                                ),
-                            )
-                        } ?: SelectDeviceView()
+                    AnimatedPane(
+                        modifier = Modifier.background(
+                            if (!isListHidden && selectedDevice != null) animatedDeviceBg else Color.Transparent,
+                        ),
+                    ) {
+                        DeviceDetailPane(
+                            selectedDevice = selectedDevice,
+                            canNavigateBack = navigator.canNavigateBack(),
+                            pendingWebViewReloadMac = pendingWebViewReloadMac,
+                            onClearPendingReload = { pendingWebViewReloadMac = null },
+                            actions = DeviceDetailActions(
+                                onItemEdit = navigateToEdit,
+                                navigateUp = { coroutineScope.launch { navigator.navigateBack() } },
+                                onPageColorChanged = { pageColor = it },
+                            ),
+                        )
                     }
                 },
                 extraPane = {
@@ -249,6 +266,39 @@ private fun DrawerSheetContent(
                 drawerState.close()
             }
         },
+    )
+}
+
+@Composable
+private fun DeviceDetailPane(
+    selectedDevice: DeviceWithState?,
+    canNavigateBack: Boolean,
+    pendingWebViewReloadMac: String?,
+    onClearPendingReload: () -> Unit,
+    actions: DeviceDetailActions,
+) {
+    val device = selectedDevice
+    if (device == null) {
+        SelectDeviceView()
+        return
+    }
+    val deviceMac = device.device.macAddress
+    LaunchedEffect(deviceMac) {
+        if (pendingWebViewReloadMac != null && pendingWebViewReloadMac != deviceMac) {
+            onClearPendingReload()
+        }
+    }
+    DeviceDetail(
+        device = device,
+        canNavigateBack = canNavigateBack,
+        shouldReloadWebView = pendingWebViewReloadMac == deviceMac,
+        actions = actions.copy(
+            onWebViewReloadConsumed = {
+                if (pendingWebViewReloadMac == deviceMac) {
+                    onClearPendingReload()
+                }
+            },
+        ),
     )
 }
 
