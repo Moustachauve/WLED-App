@@ -1,7 +1,6 @@
 package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import co.touchlab.kermit.Logger
-import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -100,9 +99,7 @@ class UdpSoundSyncSender(
     }
 
     override fun setSendMode(mode: SoundSyncSendMode) {
-        if (!closed.get()) {
-            currentSendMode = mode
-        }
+        currentSendMode = mode
     }
 
     @Synchronized
@@ -118,14 +115,7 @@ class UdpSoundSyncSender(
     private fun getOrCreateChannel(): DatagramChannel? {
         channel?.let { return it }
         return runCatching {
-            DatagramChannel.open().also { created ->
-                try {
-                    created.configureBlocking(false)
-                } catch (e: IOException) {
-                    runCatching { created.close() }
-                    throw e
-                }
-            }
+            DatagramChannel.open().apply { configureBlocking(false) }
         }.onFailure { logger.w(it) { "Failed to create UDP channel" } }
             .getOrNull()
             ?.also { channel = it }
