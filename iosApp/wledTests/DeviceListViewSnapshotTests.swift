@@ -61,7 +61,7 @@ struct DeviceListViewSnapshotTests {
         column: UInt = #column
     ) async throws {
         let viewModel = try await makePopulatedViewModel(date: date)
-        let view = DeviceListView(viewModel: viewModel)
+        let view = DeviceListView(viewModel: viewModel, isBetaBuild: false)
             .environment(\.holidayAnimationStaticTime, 2.4)
 
         assertSnapshot(

@@ -27,6 +27,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ca.cgagnier.wlednativeandroid.BuildConfig
 import ca.cgagnier.wlednativeandroid.R
+import ca.cgagnier.wlednativeandroid.ui.components.BetaBadge
+import ca.cgagnier.wlednativeandroid.ui.components.isBetaVersion
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayStringLightsBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
 import ca.cgagnier.wlednativeandroid.util.openUriSafely
@@ -160,10 +162,18 @@ private fun DrawerVersionInfo() {
     ) {
         val debugString =
             if (BuildConfig.BUILD_TYPE != "release") " - ${BuildConfig.BUILD_TYPE}" else ""
-        Text(
-            "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})$debugString",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})$debugString",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (isBetaVersion(BuildConfig.VERSION_NAME)) {
+                BetaBadge()
+            }
+        }
         Text(
             BuildConfig.APPLICATION_ID,
             style = MaterialTheme.typography.bodySmall,

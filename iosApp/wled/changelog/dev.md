@@ -10,3 +10,4 @@ Take full control over what runs on your strips. Open Edit Device and tap Other 
 ### Other Improvements
 - Added an Install Anyway option when WLED 0.15+ rejects custom or fork firmware validation during OTA updates.
 - Polished the UI with iOS 26 Liquid Glass styling, native forms when adding and editing devices, and a cleaner split-view empty state.
+- Displayed the full beta version name in Settings along with clearer beta indicators on the home screen logo and Settings footer for beta builds.

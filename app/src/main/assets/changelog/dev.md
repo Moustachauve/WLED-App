@@ -15,3 +15,4 @@ Shrink home screen widgets down to a compact 1x1 power tile right alongside your
 - Refreshed the UI with Material 3 Expressive styling, wavy progress indicators, and blurred dialog backdrops on Android 12 and newer.
 - Fixed home screen widget power and refresh buttons not working while Battery Saver is on.
 - Improved device list scrolling smoothness and reduced idle CPU usage, especially with many offline devices.
+- Added clearer beta indicators on the home screen logo and in the navigation drawer footer for beta builds.

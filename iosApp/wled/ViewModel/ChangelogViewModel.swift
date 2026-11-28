@@ -20,7 +20,7 @@ final class ChangelogViewModel {
     init(
         database: AppDatabase = .shared,
         changelogProvider: any ChangelogProviding = BundleChangelogProvider(),
-        currentVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        currentVersion: String = Bundle.main.appVersionName
     ) {
         self.database = database
         self.changelogProvider = changelogProvider

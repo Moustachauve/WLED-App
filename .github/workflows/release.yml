@@ -332,23 +332,6 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
 
-      - name: Copy dev.md changelog in build workspace for TestFlight beta if needed
-        if: needs.prepare.outputs.is_beta == 'true'
-        env:
-          MARKETING_VERSION: ${{ needs.prepare.outputs.ios_marketing_version }}
-        run: |
-          # iOS CFBundleShortVersionString is strictly numeric (e.g. 8.1.0 without -beta.1),
-          # so copy dev.md -> <MARKETING_VERSION>.md when missing so in-app "What's New" works on TestFlight too.
-          CHANGELOG_DIR="iosApp/wled/changelog"
-          if [ -f "$CHANGELOG_DIR/dev.md" ] && [ ! -f "$CHANGELOG_DIR/${MARKETING_VERSION}.md" ]; then
-            cp "$CHANGELOG_DIR/dev.md" "$CHANGELOG_DIR/${MARKETING_VERSION}.md"
-            for DEV_LOCALE_FILE in "$CHANGELOG_DIR"/dev.*.md; do
-              [ -e "$DEV_LOCALE_FILE" ] || continue
-              SUFFIX="${DEV_LOCALE_FILE#"$CHANGELOG_DIR/dev"}"
-              cp "$DEV_LOCALE_FILE" "$CHANGELOG_DIR/${MARKETING_VERSION}${SUFFIX}"
-            done
-          fi
-
       - name: Assemble Shared Release XCFramework
         run: |
           ./gradlew :shared:assembleSharedReleaseXCFramework

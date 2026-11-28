@@ -2,6 +2,7 @@ package ca.cgagnier.wlednativeandroid.ui.homeScreen.list
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,20 +37,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.cgagnier.wlednativeandroid.BuildConfig
 import ca.cgagnier.wlednativeandroid.R
 import ca.cgagnier.wlednativeandroid.model.Device
 import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.PartitionedDevices
 import ca.cgagnier.wlednativeandroid.service.websocket.getApModeDeviceWithState
 import ca.cgagnier.wlednativeandroid.service.websocket.partitionDevices
+import ca.cgagnier.wlednativeandroid.ui.components.BetaBadge
 import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
 import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
+import ca.cgagnier.wlednativeandroid.ui.components.isBetaVersion
 import ca.cgagnier.wlednativeandroid.ui.soundsync.SoundSyncToolbarIcon
 import ca.cgagnier.wlednativeandroid.ui.theme.DeviceTheme
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
@@ -77,6 +82,7 @@ data class DeviceListState(
     val soundSyncFftChannelsProvider: () -> ByteArray = { EmptyFftChannels },
     val isInitialLoading: Boolean = false,
     val currentTime: Long = 0L,
+    val isBetaBuild: Boolean = false,
 )
 
 data class DeviceListActions(
@@ -146,6 +152,7 @@ fun DeviceList(
             soundSyncFftChannelsProvider = soundSyncFftChannelsProvider,
             isInitialLoading = isInitialLoading,
             currentTime = currentTime,
+            isBetaBuild = isBetaVersion(BuildConfig.VERSION_NAME),
         ),
         actions = boundActions,
     )
@@ -459,10 +466,21 @@ fun LazyItemScope.DeviceRow(
 @Composable
 fun DeviceListAppBar(state: DeviceListState, actions: DeviceListActions, modifier: Modifier = Modifier) {
     CenterAlignedTopAppBar(modifier = modifier, title = {
-        Image(
-            painter = painterResource(id = R.drawable.wled_logo_akemi),
-            contentDescription = stringResource(R.string.app_logo),
-        )
+        Box {
+            Image(
+                painter = painterResource(id = R.drawable.wled_logo_akemi),
+                contentDescription = stringResource(R.string.app_logo),
+                modifier = Modifier.padding(end = if (state.isBetaBuild) 6.dp else 0.dp),
+            )
+            if (state.isBetaBuild) {
+                BetaBadge(
+                    compact = true,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 2.dp),
+                )
+            }
+        }
     }, navigationIcon = {
         IconButton(onClick = actions.onOpenDrawer) {
             Icon(
