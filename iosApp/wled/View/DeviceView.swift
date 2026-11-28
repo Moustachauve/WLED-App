@@ -35,19 +35,20 @@ struct DeviceView: View {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         pageColor = color.map { Color(uiColor: $0) }
                     }
-                }
-            ) { _ in
-                withAnimation {
-                    showDownloadFinished = true
-                }
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
-                    guard !Task.isCancelled else { return }
+                },
+                downloadCompleted: { _ in
                     withAnimation {
-                        showDownloadFinished = false
+                        showDownloadFinished = true
+                    }
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        guard !Task.isCancelled else { return }
+                        withAnimation {
+                            showDownloadFinished = false
+                        }
                     }
                 }
-            }
+            )
             .opacity(isWebViewError ? 0 : 1)
             .accessibilityHidden(isWebViewError)
             .overlay(alignment: .top) {
