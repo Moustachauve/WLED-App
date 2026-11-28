@@ -27,6 +27,7 @@ data class UserPreferences(
     val soundSyncSquelch: Int = SoundSyncProcessor.DEFAULT_SQUELCH,
     val soundSyncPort: Int = UdpSoundSyncPacket.DEFAULT_PORT,
     val soundSyncSendMode: SoundSyncSendMode = SoundSyncSendMode.UNICAST,
+    val soundSyncTargetMacs: Set<String> = emptySet(),
     val soundSyncBetaEnabled: Boolean = false,
     val holidayThemesEnabled: Boolean = true,
     val holidayThemeOverride: HolidayTheme? = null,

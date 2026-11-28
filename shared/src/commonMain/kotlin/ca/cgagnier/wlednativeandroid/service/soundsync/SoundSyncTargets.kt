@@ -10,36 +10,61 @@ import kotlinx.coroutines.flow.filterNotNull
 /**
  * Resolves the list of distinct IP/hostname targets for unicast Sound Sync from [devices].
  *
- * Returns `null` when [isPaused] is `true` or when no visible device is online (including
- * while connections are resuming after returning to the foreground), so callers keep their
- * last active target list instead of clearing it during reconnects.
+ * Returns an empty list when [selectedDeviceMacs] is empty, and `null` when [isPaused] is `true`
+ * or when no visible device is online (including while connections are resuming after returning
+ * to the foreground), so callers keep their last active target list instead of clearing it during
+ * reconnects.
  */
-fun resolveSoundSyncUnicastAddresses(devices: List<DeviceWithState>, isPaused: Boolean): List<String>? {
+fun resolveSoundSyncUnicastAddresses(
+    devices: List<DeviceWithState>,
+    isPaused: Boolean,
+    selectedDeviceMacs: Set<String>,
+    showHiddenDevices: Boolean = false,
+): List<String>? {
+    if (selectedDeviceMacs.isEmpty()) return emptyList()
     if (isPaused) return null
-    val onlineAddresses = devices
+    val visibleDevices = devices.filter { showHiddenDevices || !it.device.isHidden }
+    if (visibleDevices.none { it.isOnline }) return null
+    return visibleDevices
         .asSequence()
-        .filter { !it.device.isHidden && it.isOnline }
+        .filter { it.isOnline && it.device.macAddress in selectedDeviceMacs }
         .map { it.device.address }
         .distinct()
         .toList()
-    return onlineAddresses.ifEmpty { null }
 }
 
 /**
- * Emits distinct lists of online, non-hidden device addresses for unicast Sound Sync.
+ * Emits distinct lists of online device addresses matching [selectedDeviceMacs] for unicast Sound Sync.
  * Previous targets are preserved while [DeviceConnectionManager.isPaused] is true or
- * while no visible device is online.
+ * while no visible device is online, unless [selectedDeviceMacs] is empty.
  */
-fun DeviceConnectionManager.soundSyncUnicastAddresses(): Flow<List<String>> = combine(
+fun DeviceConnectionManager.soundSyncUnicastAddresses(
+    selectedDeviceMacs: Flow<Set<String>>,
+    showHiddenDevices: Flow<Boolean>,
+): Flow<List<String>> = combine(
     allDevicesWithState,
     isPaused,
-) { devices, paused ->
-    resolveSoundSyncUnicastAddresses(devices, paused)
+    selectedDeviceMacs,
+    showHiddenDevices,
+) { devices, paused, selectedMacs, showHidden ->
+    resolveSoundSyncUnicastAddresses(
+        devices = devices,
+        isPaused = paused,
+        selectedDeviceMacs = selectedMacs,
+        showHiddenDevices = showHidden,
+    )
 }.filterNotNull().distinctUntilChanged()
 
 /**
- * Returns the current list of online, non-hidden device addresses for unicast Sound Sync,
- * or an empty list if targets are currently paused or offline.
+ * Returns the current list of online device addresses matching [selectedDeviceMacs] for unicast
+ * Sound Sync, or an empty list if none qualify or targets are currently paused or offline.
  */
-fun DeviceConnectionManager.currentSoundSyncUnicastAddresses(): List<String> =
-    resolveSoundSyncUnicastAddresses(allDevicesWithState.value, isPaused.value) ?: emptyList()
+fun DeviceConnectionManager.currentSoundSyncUnicastAddresses(
+    selectedDeviceMacs: Set<String>,
+    showHiddenDevices: Boolean = false,
+): List<String> = resolveSoundSyncUnicastAddresses(
+    devices = allDevicesWithState.value,
+    isPaused = isPaused.value,
+    selectedDeviceMacs = selectedDeviceMacs,
+    showHiddenDevices = showHiddenDevices,
+) ?: emptyList()

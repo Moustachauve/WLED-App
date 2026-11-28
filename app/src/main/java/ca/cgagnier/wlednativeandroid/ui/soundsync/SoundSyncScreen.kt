@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -43,6 +45,7 @@ import androidx.compose.foundation.text.input.byValue
 import androidx.compose.foundation.text.input.maxLengthTrim
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
@@ -59,6 +62,7 @@ import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -67,15 +71,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -98,6 +105,12 @@ import ca.cgagnier.wlednativeandroid.service.soundsync.UdpSoundSyncPacket
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.AgcMode
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.GainControl
 import ca.cgagnier.wlednativeandroid.service.soundsync.dsp.SoundSyncProcessor
+import ca.cgagnier.wlednativeandroid.service.websocket.DeviceWithState
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceInfoTwoRows
+import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerConfig
+import ca.cgagnier.wlednativeandroid.ui.components.DevicePickerList
+import ca.cgagnier.wlednativeandroid.ui.components.DeviceSelectionMode
+import ca.cgagnier.wlednativeandroid.ui.components.blurredDialogProperties
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.HolidayTopBar
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayCardColors
 import ca.cgagnier.wlednativeandroid.ui.theme.holiday.holidayParticles
@@ -110,6 +123,9 @@ private const val CHART_HEIGHT_DP = 120
 private const val CHANNEL_MAX_VALUE = 255f
 private const val BAR_GAP_RATIO = 0.15f
 private const val MAX_PORT_DIGITS = 5
+private const val MAX_DISPLAYED_TARGET_DEVICES = 2
+private const val PICKER_LIST_MAX_HEIGHT_DP = 360
+private const val DISABLED_ALPHA = 0.38f
 
 /**
  * Callbacks invoked from [SoundSyncContent]. Grouped so [SoundSyncContent] stays stateless and
@@ -128,6 +144,7 @@ data class SoundSyncActions(
     val onSquelchChangeFinished: () -> Unit = {},
     val onSquelchStepped: (Int) -> Unit = {},
     val onSendModeChanged: (SoundSyncSendMode) -> Unit = {},
+    val onSelectedDevicesChanged: (Set<String>) -> Unit = {},
     val onPortFocusLost: () -> Unit = {},
 )
 
@@ -160,17 +177,38 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
         permanentlyDenied = false
     }
 
-    val hasRecordAudioPermission = uiState.hasRecordAudioPermission
-    val actions = remember(navigateUp, viewModel, hasRecordAudioPermission, permanentlyDenied, context) {
+    val actions = rememberSoundSyncActions(
+        navigateUp = navigateUp,
+        viewModel = viewModel,
+        hasRecordAudioPermission = uiState.hasRecordAudioPermission,
+        permanentlyDenied = permanentlyDenied,
+        requestPermissions = { permissionLauncher.launch(requiredPermissions()) },
+    )
+
+    SoundSyncContent(
+        uiState = uiState,
+        portState = viewModel.portState,
+        permanentlyDenied = permanentlyDenied,
+        latestPacketFlow = viewModel.latestPacket,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun rememberSoundSyncActions(
+    navigateUp: () -> Unit,
+    viewModel: SoundSyncViewModel,
+    hasRecordAudioPermission: Boolean,
+    permanentlyDenied: Boolean,
+    requestPermissions: () -> Unit,
+): SoundSyncActions {
+    val context = LocalContext.current
+    return remember(navigateUp, viewModel, hasRecordAudioPermission, permanentlyDenied, context, requestPermissions) {
         SoundSyncActions(
             navigateUp = navigateUp,
             onStart = {
                 if (!hasRecordAudioPermission) {
-                    if (permanentlyDenied) {
-                        openAppSettings(context)
-                    } else {
-                        permissionLauncher.launch(requiredPermissions())
-                    }
+                    if (permanentlyDenied) openAppSettings(context) else requestPermissions()
                 } else {
                     viewModel.start()
                 }
@@ -184,17 +222,10 @@ fun SoundSyncScreen(navigateUp: () -> Unit, viewModel: SoundSyncViewModel = koin
             onSquelchChangeFinished = { viewModel.saveSquelch() },
             onSquelchStepped = { viewModel.stepSquelch(it) },
             onSendModeChanged = { viewModel.setSendMode(it) },
+            onSelectedDevicesChanged = { viewModel.setSelectedDeviceMacs(it) },
             onPortFocusLost = { viewModel.resetInvalidPort() },
         )
     }
-
-    SoundSyncContent(
-        uiState = uiState,
-        portState = viewModel.portState,
-        permanentlyDenied = permanentlyDenied,
-        latestPacketFlow = viewModel.latestPacket,
-        actions = actions,
-    )
 }
 
 @Composable
@@ -253,37 +284,71 @@ fun SoundSyncContent(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                modifier = Modifier
-                    .padding(vertical = 6.dp)
-                    .widthIn(0.dp, 1100.dp),
-            ) {
-                DescriptionCard {
-                    StartStopControls(
-                        isRunning = uiState.isRunning,
-                        hasRecordAudioPermission = uiState.hasRecordAudioPermission,
-                        permanentlyDenied = permanentlyDenied,
-                        onStart = actions.onStart,
-                        onStop = actions.onStop,
-                    )
-                }
-                uiState.error?.let { ErrorCard(it) }
-                if (uiState.isRunning) {
-                    VisualizationCard(latestPacketFlow = latestPacketFlow)
-                }
-                GainCard(
-                    uiState = uiState,
-                    actions = actions,
-                )
-                NetworkCard(
-                    sendMode = uiState.sendMode,
-                    portState = portState,
-                    isRunning = uiState.isRunning,
-                    onSendModeChanged = actions.onSendModeChanged,
-                    onPortFocusLost = actions.onPortFocusLost,
-                )
-            }
+            SoundSyncScrollBody(
+                uiState = uiState,
+                portState = portState,
+                permanentlyDenied = permanentlyDenied,
+                latestPacketFlow = latestPacketFlow,
+                actions = actions,
+            )
         }
+    }
+}
+
+@Composable
+private fun SoundSyncScrollBody(
+    uiState: SoundSyncUiState,
+    portState: TextFieldState,
+    permanentlyDenied: Boolean,
+    latestPacketFlow: StateFlow<UdpSoundSyncPacket>,
+    actions: SoundSyncActions,
+) {
+    var showDevicePicker by rememberSaveable { mutableStateOf(false) }
+
+    if (showDevicePicker) {
+        SoundSyncDevicePickerDialog(
+            uiState = uiState,
+            onDismiss = { showDevicePicker = false },
+            onConfirm = { selected ->
+                actions.onSelectedDevicesChanged(selected)
+                showDevicePicker = false
+            },
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(vertical = 6.dp)
+            .widthIn(0.dp, 1100.dp),
+    ) {
+        DescriptionCard {
+            SectionDivider()
+            TargetDevicesSection(
+                sendMode = uiState.sendMode,
+                selectedDevices = uiState.selectedDevices,
+                hasVisibleDevices = uiState.visibleDevices.isNotEmpty(),
+                onOpenPicker = { showDevicePicker = true },
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            StartStopControls(
+                uiState = uiState,
+                permanentlyDenied = permanentlyDenied,
+                onStart = actions.onStart,
+                onStop = actions.onStop,
+            )
+        }
+        uiState.error?.let { ErrorCard(it) }
+        if (uiState.isRunning) {
+            VisualizationCard(latestPacketFlow = latestPacketFlow)
+        }
+        GainCard(uiState = uiState, actions = actions)
+        NetworkCard(
+            sendMode = uiState.sendMode,
+            portState = portState,
+            isRunning = uiState.isRunning,
+            onSendModeChanged = actions.onSendModeChanged,
+            onPortFocusLost = actions.onPortFocusLost,
+        )
     }
 }
 
@@ -312,7 +377,7 @@ private fun DescriptionCard(content: @Composable ColumnScope.() -> Unit) {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         content()
     }
 }
@@ -811,14 +876,227 @@ private fun SampleLevelIndicator(
 }
 
 @Composable
+private fun TargetDevicesSection(
+    sendMode: SoundSyncSendMode,
+    selectedDevices: List<DeviceWithState>,
+    hasVisibleDevices: Boolean,
+    onOpenPicker: () -> Unit,
+) {
+    val isMulticast = sendMode == SoundSyncSendMode.MULTICAST
+    val containerModifier = if (isMulticast) {
+        Modifier.fillMaxWidth()
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onOpenPicker)
+    }
+
+    Column(
+        modifier = containerModifier.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = stringResource(R.string.sound_sync_target_devices),
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isMulticast) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+            )
+            if (!isMulticast) {
+                OutlinedButton(onClick = onOpenPicker) {
+                    Text(
+                        text = stringResource(
+                            if (selectedDevices.isEmpty()) {
+                                R.string.sound_sync_select_devices
+                            } else {
+                                R.string.sound_sync_change_devices
+                            },
+                        ),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        TargetDevicesSummary(
+            isMulticast = isMulticast,
+            selectedDevices = selectedDevices,
+            hasVisibleDevices = hasVisibleDevices,
+        )
+    }
+}
+
+@Composable
+private fun TargetDevicesSummary(
+    isMulticast: Boolean,
+    selectedDevices: List<DeviceWithState>,
+    hasVisibleDevices: Boolean,
+) {
+    if (isMulticast) {
+        Text(
+            text = stringResource(R.string.sound_sync_multicast_all_devices),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA),
+        )
+        return
+    }
+
+    if (selectedDevices.isEmpty()) {
+        val emptyResId = if (hasVisibleDevices) {
+            R.string.sound_sync_no_devices_selected
+        } else {
+            R.string.sound_sync_no_devices_available
+        }
+        Text(
+            text = stringResource(emptyResId),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    val displayedDevices = selectedDevices.take(MAX_DISPLAYED_TARGET_DEVICES)
+    val remainingCount = selectedDevices.size - displayedDevices.size
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        displayedDevices.forEach { device ->
+            DeviceInfoTwoRows(
+                device = device,
+                nameMaxLines = 1,
+                titleStyle = MaterialTheme.typography.titleMedium,
+            )
+        }
+        if (remainingCount > 0) {
+            Text(
+                text = pluralStringResource(
+                    R.plurals.sound_sync_and_more_devices,
+                    remainingCount,
+                    remainingCount,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SoundSyncDevicePickerDialog(
+    uiState: SoundSyncUiState,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<String>) -> Unit,
+) {
+    var draftSelection by rememberSaveable(
+        stateSaver = listSaver(save = { it.toList() }, restore = { it.toSet() }),
+    ) {
+        mutableStateOf(uiState.selectedDeviceMacs)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = blurredDialogProperties(),
+        title = { Text(stringResource(R.string.sound_sync_select_target_devices)) },
+        text = {
+            SoundSyncDevicePickerBody(
+                uiState = uiState,
+                draftSelection = draftSelection,
+                onSelectionChanged = { draftSelection = it },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(draftSelection) }) {
+                Text(stringResource(R.string.done))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun SoundSyncDevicePickerBody(
+    uiState: SoundSyncUiState,
+    draftSelection: Set<String>,
+    onSelectionChanged: (Set<String>) -> Unit,
+) {
+    val visibleMacs = remember(uiState.visibleDevices) {
+        uiState.visibleDevices.map { it.device.macAddress }.toSet()
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (visibleMacs.isNotEmpty()) {
+            PickerBulkSelectionRow(
+                allSelected = visibleMacs.all { it in draftSelection },
+                anySelected = visibleMacs.any { it in draftSelection },
+                onSelectAll = { onSelectionChanged(draftSelection + visibleMacs) },
+                onDeselectAll = { onSelectionChanged(draftSelection - visibleMacs) },
+            )
+        }
+        DevicePickerList(
+            devices = uiState.allDevices,
+            selectionMode = DeviceSelectionMode.Multi(
+                selectedMacAddresses = draftSelection,
+                onDeviceToggled = { device ->
+                    val mac = device.device.macAddress
+                    onSelectionChanged(
+                        if (mac in draftSelection) draftSelection - mac else draftSelection + mac,
+                    )
+                },
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = PICKER_LIST_MAX_HEIGHT_DP.dp),
+            config = DevicePickerConfig(
+                showOfflineDevicesLast = uiState.showOfflineDevicesLast,
+                showHiddenDevices = uiState.showHiddenDevices,
+                showDeviceStatus = true,
+                titleStyle = MaterialTheme.typography.titleMedium,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun PickerBulkSelectionRow(
+    allSelected: Boolean,
+    anySelected: Boolean,
+    onSelectAll: () -> Unit,
+    onDeselectAll: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+    ) {
+        TextButton(onClick = onSelectAll, enabled = !allSelected) {
+            Text(stringResource(R.string.sound_sync_select_all))
+        }
+        TextButton(onClick = onDeselectAll, enabled = anySelected) {
+            Text(stringResource(R.string.sound_sync_deselect_all))
+        }
+    }
+}
+
+@Composable
 private fun StartStopControls(
-    isRunning: Boolean,
-    hasRecordAudioPermission: Boolean,
+    uiState: SoundSyncUiState,
     permanentlyDenied: Boolean,
     onStart: () -> Unit,
     onStop: () -> Unit,
 ) {
-    if (isRunning) {
+    if (uiState.isRunning) {
         Text(
             text = stringResource(R.string.sound_sync_running),
             style = MaterialTheme.typography.bodyMedium,
@@ -828,7 +1106,7 @@ private fun StartStopControls(
         Button(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.sound_sync_stop))
         }
-    } else if (!hasRecordAudioPermission) {
+    } else if (!uiState.hasRecordAudioPermission) {
         Text(
             text = stringResource(R.string.sound_sync_permission_required),
             style = MaterialTheme.typography.bodyMedium,
@@ -844,7 +1122,11 @@ private fun StartStopControls(
             Text(stringResource(buttonTextRes))
         }
     } else {
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = onStart,
+            enabled = uiState.canStart,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Text(stringResource(R.string.sound_sync_start))
         }
     }

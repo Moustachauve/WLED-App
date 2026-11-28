@@ -1,6 +1,7 @@
 package ca.cgagnier.wlednativeandroid.service.soundsync
 
 import android.content.Context
+import ca.cgagnier.wlednativeandroid.repository.UserPreferencesRepository
 import ca.cgagnier.wlednativeandroid.service.DeviceConnectionManager
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.AudioSource
 import ca.cgagnier.wlednativeandroid.service.soundsync.audio.MicrophoneAudioSource
@@ -59,6 +60,7 @@ data class SoundSyncState(
 class SoundSyncManager(
     context: Context,
     private val deviceConnectionManager: DeviceConnectionManager,
+    private val preferencesRepository: UserPreferencesRepository,
     coroutineScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     audioSource: AudioSource? = null,
@@ -291,7 +293,10 @@ class SoundSyncManager(
     private fun startObservingDevices() {
         deviceListJob?.cancel()
         deviceListJob = managerScope.launch {
-            deviceConnectionManager.soundSyncUnicastAddresses().collect { addresses ->
+            deviceConnectionManager.soundSyncUnicastAddresses(
+                selectedDeviceMacs = preferencesRepository.soundSyncTargetMacs,
+                showHiddenDevices = preferencesRepository.showHiddenDevices,
+            ).collect { addresses ->
                 udpSender?.updateUnicastAddresses(addresses)
             }
         }

@@ -16,6 +16,7 @@ final class SoundSyncViewModel {
     // MARK: - Observable Properties
 
     private static let maxPortDigits = 5
+    private static let offlineGracePeriodMs: Int64 = 60_000
 
     var isRunning: Bool = false
     var gain: Float = 1.0
@@ -50,6 +51,13 @@ final class SoundSyncViewModel {
     var errorMessage: String?
     var recordPermission: AVAudioApplication.recordPermission = .undetermined
 
+    var visibleDevices: [DeviceWithState] = []
+    var onlineDevices: [DeviceWithState] = []
+    var offlineDevices: [DeviceWithState] = []
+    var selectedDeviceMacs: Set<String> = []
+    var showOfflineDevicesLast: Bool = true
+    var showHiddenDevices: Bool = false
+
     var displayedGain: Float {
         (isRunning && agcEnabled) ? effectiveGain : gain
     }
@@ -60,6 +68,16 @@ final class SoundSyncViewModel {
 
     var isPermissionDenied: Bool {
         recordPermission == .denied
+    }
+
+    var selectedDevices: [DeviceWithState] {
+        let selected = visibleDevices.filter { selectedDeviceMacs.contains($0.device.macAddress) }
+        guard showOfflineDevicesLast else { return selected }
+        return selected.filter(\.isOnline) + selected.filter { !$0.isOnline }
+    }
+
+    var canStart: Bool {
+        !selectedDevices.isEmpty
     }
 
     private var parsedValidPort: Int32? {
@@ -76,10 +94,13 @@ final class SoundSyncViewModel {
     private let userPreferencesRepository: UserPreferencesRepository
     private let deviceConnectionManager: DeviceConnectionManager
     private let openSettings: @MainActor () -> Void
+    @ObservationIgnored private var latestSharedDevices: [Shared.DeviceWithState] = []
+    @ObservationIgnored private var deviceMap: [String: DeviceWithState] = [:]
     @ObservationIgnored private(set) var deviceObservationTask: Task<Void, Never>?
     @ObservationIgnored private var gainUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var squelchUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var portUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private var targetMacsUpdateTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -94,6 +115,7 @@ final class SoundSyncViewModel {
         self.deviceConnectionManager = deviceConnectionManager
         self.openSettings = openSettings
         self.recordPermission = soundSyncManager.recordPermissionStatus()
+        syncDevicesWithState(deviceConnectionManager.allDevicesWithState.value)
     }
 
     // MARK: - Lifecycle
@@ -104,8 +126,19 @@ final class SoundSyncViewModel {
         guard !Task.isCancelled else { return }
         applyState(initialState)
         await syncInitialPreferences(from: initialState)
+        await loadInitialDeviceSelectionPreferences()
 
         guard !Task.isCancelled else { return }
+        let helperTasks = [
+            Task { [weak self] in await self?.observeDevices() },
+            Task { [weak self] in await self?.observeTargetMacs() },
+            Task { [weak self] in await self?.observeShowOfflineDevicesLast() },
+            Task { [weak self] in await self?.observeShowHiddenDevices() }
+        ]
+        defer {
+            helperTasks.forEach { $0.cancel() }
+        }
+
         let stream = await soundSyncManager.stateStream()
         for await state in stream {
             guard !Task.isCancelled else { break }
@@ -133,7 +166,13 @@ final class SoundSyncViewModel {
             guard granted else { return }
         }
 
-        let addresses = deviceConnectionManager.currentSoundSyncUnicastAddresses()
+        syncDevicesWithState(deviceConnectionManager.allDevicesWithState.value)
+        guard canStart else { return }
+
+        let addresses = deviceConnectionManager.currentSoundSyncUnicastAddresses(
+            selectedDeviceMacs: selectedDeviceMacs,
+            showHiddenDevices: showHiddenDevices
+        )
         // Reset any invalid or incomplete text entry back to the last valid port before starting.
         if portText != String(port) {
             portText = String(port)
@@ -234,9 +273,20 @@ final class SoundSyncViewModel {
         }
     }
 
-    // MARK: - Private
+    /// Updates the selected Sound Sync target MAC addresses and persists the preference.
+    func setSelectedDeviceMacs(_ macAddresses: Set<String>) {
+        selectedDeviceMacs = macAddresses
+        targetMacsUpdateTask?.cancel()
+        targetMacsUpdateTask = Task { [userPreferencesRepository] in
+            try? await userPreferencesRepository.updateSoundSyncTargetMacs(macAddresses: macAddresses)
+        }
+    }
+}
 
-    private func syncInitialPreferences(from initialState: SoundSyncState) async {
+// MARK: - Private Helpers
+
+private extension SoundSyncViewModel {
+    func syncInitialPreferences(from initialState: SoundSyncState) async {
         if initialState.isRunning {
             applyRunningPreferences(from: initialState)
             return
@@ -244,7 +294,7 @@ final class SoundSyncViewModel {
         await loadSavedPreferences(fallback: initialState)
     }
 
-    private func applyRunningPreferences(from state: SoundSyncState) {
+    func applyRunningPreferences(from state: SoundSyncState) {
         if gain != state.gain {
             gain = state.gain
         }
@@ -262,7 +312,7 @@ final class SoundSyncViewModel {
         }
     }
 
-    private func loadSavedPreferences(fallback initialState: SoundSyncState) async {
+    func loadSavedPreferences(fallback initialState: SoundSyncState) async {
         let resolvedGain = await userPreferencesRepository.soundSyncGain.firstValue()?.floatValue
             ?? initialState.gain
         guard !Task.isCancelled else { return }
@@ -303,7 +353,114 @@ final class SoundSyncViewModel {
         }
     }
 
-    private func applyState(_ state: SoundSyncState) {
+    func loadInitialDeviceSelectionPreferences() async {
+        if let savedTargetMacs = await userPreferencesRepository.soundSyncTargetMacs.firstValue() {
+            guard !Task.isCancelled else { return }
+            selectedDeviceMacs = savedTargetMacs
+        }
+        if let savedShowOfflineLast = await userPreferencesRepository.showOfflineDevicesLast.firstValue()?.boolValue {
+            guard !Task.isCancelled else { return }
+            showOfflineDevicesLast = savedShowOfflineLast
+        }
+        if let savedShowHidden = await userPreferencesRepository.showHiddenDevices.firstValue()?.boolValue {
+            guard !Task.isCancelled else { return }
+            showHiddenDevices = savedShowHidden
+        }
+        syncDevicesWithState(deviceConnectionManager.allDevicesWithState.value)
+    }
+
+    func observeDevices() async {
+        for await devices in deviceConnectionManager.allDevicesWithState {
+            guard !Task.isCancelled else { break }
+            syncDevicesWithState(devices)
+        }
+    }
+
+    func observeTargetMacs() async {
+        for await targetMacs in userPreferencesRepository.soundSyncTargetMacs {
+            guard !Task.isCancelled else { break }
+            if selectedDeviceMacs != targetMacs {
+                selectedDeviceMacs = targetMacs
+            }
+        }
+    }
+
+    func observeShowOfflineDevicesLast() async {
+        for await value in userPreferencesRepository.showOfflineDevicesLast {
+            guard !Task.isCancelled else { break }
+            let boolVal = value.boolValue
+            if showOfflineDevicesLast != boolVal {
+                showOfflineDevicesLast = boolVal
+            }
+        }
+    }
+
+    func observeShowHiddenDevices() async {
+        for await value in userPreferencesRepository.showHiddenDevices {
+            guard !Task.isCancelled else { break }
+            let boolVal = value.boolValue
+            if showHiddenDevices != boolVal {
+                showHiddenDevices = boolVal
+                updateFilteredDevices()
+            }
+        }
+    }
+
+    func syncDevicesWithState(_ sharedDevices: [Shared.DeviceWithState]) {
+        latestSharedDevices = sharedDevices
+        let newMacs = Set(sharedDevices.map { $0.device.macAddress })
+        deviceMap = deviceMap.filter { newMacs.contains($0.key) }
+
+        for shared in sharedDevices {
+            let mac = shared.device.macAddress
+            if let existing = deviceMap[mac] {
+                if existing.device != shared.device {
+                    existing.device = shared.device
+                }
+                if existing.stateInfo != shared.stateInfo {
+                    existing.stateInfo = shared.stateInfo
+                }
+                if existing.websocketStatus != shared.websocketStatus {
+                    existing.websocketStatus = shared.websocketStatus
+                }
+                if existing.availableUpdateVersion != shared.updateVersionTag {
+                    existing.availableUpdateVersion = shared.updateVersionTag
+                }
+            } else {
+                let newDevice = DeviceWithState(initialDevice: shared.device)
+                newDevice.stateInfo = shared.stateInfo
+                newDevice.websocketStatus = shared.websocketStatus
+                newDevice.availableUpdateVersion = shared.updateVersionTag
+                deviceMap[mac] = newDevice
+            }
+        }
+        updateFilteredDevices()
+    }
+
+    func updateFilteredDevices(currentTime: Date = Date()) {
+        let currentTimeMillis = Int64(currentTime.timeIntervalSince1970 * 1000.0)
+        let partitioned = PartitionedDevicesKt.partitionDevices(
+            devices: latestSharedDevices,
+            showHiddenDevices: showHiddenDevices,
+            currentTimeMillis: currentTimeMillis,
+            offlineGracePeriodMs: Self.offlineGracePeriodMs
+        )
+        let visible = partitioned.visible.compactMap { deviceMap[$0.device.macAddress] }
+        let online = partitioned.online.compactMap { deviceMap[$0.device.macAddress] }
+        let offline = partitioned.offline.compactMap { deviceMap[$0.device.macAddress] }
+
+        if visibleDevices != visible {
+            visibleDevices = visible
+        }
+        if onlineDevices != online {
+            onlineDevices = online
+        }
+        if offlineDevices != offline {
+            offlineDevices = offline
+        }
+    }
+
+    func applyState(_ state: SoundSyncState) {
         if isRunning != state.isRunning {
             isRunning = state.isRunning
             if !state.isRunning {
@@ -327,23 +484,28 @@ final class SoundSyncViewModel {
         }
     }
 
-    private func startObservingDevices() {
+    func startObservingDevices() {
         deviceObservationTask?.cancel()
         deviceObservationTask = Task { [weak self] in
             guard let self else { return }
-            for await addresses in self.deviceConnectionManager.soundSyncUnicastAddresses() {
+            await self.targetMacsUpdateTask?.value
+            guard !Task.isCancelled else { return }
+            for await addresses in self.deviceConnectionManager.soundSyncUnicastAddresses(
+                selectedDeviceMacs: self.userPreferencesRepository.soundSyncTargetMacs,
+                showHiddenDevices: self.userPreferencesRepository.showHiddenDevices
+            ) {
                 guard !Task.isCancelled else { break }
                 await self.soundSyncManager.updateDeviceAddresses(addresses)
             }
         }
     }
 
-    private func stopObservingDevices() {
+    func stopObservingDevices() {
         deviceObservationTask?.cancel()
         deviceObservationTask = nil
     }
 
-    private static func defaultOpenAppSettings() {
+    static func defaultOpenAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }

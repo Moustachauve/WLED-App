@@ -137,6 +137,7 @@ val appModule: Module = module {
         SoundSyncManager(
             context = androidContext(),
             deviceConnectionManager = get(),
+            preferencesRepository = get(),
             coroutineScope = get(),
             ioDispatcher = get(IO_DISPATCHER),
         )
@@ -191,6 +192,7 @@ val appModule: Module = module {
             context = androidContext(),
             soundSyncManager = get(),
             preferencesRepository = get(),
+            deviceConnectionManager = get(),
         )
     }
     viewModel {

@@ -200,10 +200,10 @@ struct SoundSyncViewModelTests {
         #expect(viewModel.port == expectedPort)
     }
 
-    @Test func startWhenPermissionDeniedOpensSettingsAndDoesNotStart() async {
+    @Test func startWhenPermissionDeniedOpensSettingsAndDoesNotStart() async throws {
         var didOpenSettings = false
         let manager = FakeSoundSyncManager(permission: .denied)
-        let viewModel = makeViewModel(manager: manager) {
+        let viewModel = try await makeReadyToStartViewModel(manager: manager) {
             didOpenSettings = true
         }
 
@@ -214,12 +214,12 @@ struct SoundSyncViewModelTests {
         #expect(await manager.startCallCount == 0)
     }
 
-    @Test func startWhenPermissionRequestRefusedDoesNotStart() async {
+    @Test func startWhenPermissionRequestRefusedDoesNotStart() async throws {
         let manager = FakeSoundSyncManager(
             permission: .undetermined,
             requestPermissionResult: false
         )
-        let viewModel = makeViewModel(manager: manager)
+        let viewModel = try await makeReadyToStartViewModel(manager: manager)
 
         await viewModel.start()
 
@@ -227,9 +227,22 @@ struct SoundSyncViewModelTests {
         #expect(await manager.startCallCount == 0)
     }
 
-    @Test func startWhenManagerFailsToStartSetsErrorMessageAndKeepsRunningFalse() async {
-        let manager = FakeSoundSyncManager(startResult: false)
+    @Test func startWhenNoDevicesSelectedDoesNotStart() async throws {
+        let device = Shared.Device(macAddress: "aabbccddeeff", address: "192.168.1.50", isHidden: false)
+        try await insertDevicesAndSetStatuses([(device, .connected)])
+        let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
+
+        await viewModel.start()
+
+        #expect(!viewModel.canStart)
+        #expect(!viewModel.isRunning)
+        #expect(await manager.startCallCount == 0)
+    }
+
+    @Test func startWhenManagerFailsToStartSetsErrorMessageAndKeepsRunningFalse() async throws {
+        let manager = FakeSoundSyncManager(startResult: false)
+        let viewModel = try await makeReadyToStartViewModel(manager: manager)
 
         await viewModel.start()
 
@@ -237,24 +250,37 @@ struct SoundSyncViewModelTests {
         #expect(viewModel.errorMessage == "Capture failed")
     }
 
-    @Test func startFiltersOutHiddenDevicesAndUpdatesRunningState() async throws {
-        let visibleOnline = Shared.Device(
+    @Test func startFiltersOutUnselectedHiddenAndOfflineDevicesAndUpdatesRunningState() async throws {
+        let selectedOnline = Shared.Device(
             macAddress: "aabbccddeeff",
             address: "192.168.1.50",
             isHidden: false
         )
+        let unselectedOnline = Shared.Device(
+            macAddress: "001122334455",
+            address: "192.168.1.51",
+            isHidden: false
+        )
         let hiddenOnline = Shared.Device(
             macAddress: "112233445566",
-            address: "192.168.1.51",
+            address: "192.168.1.52",
             isHidden: true
         )
+        let offlineSelected = Shared.Device(
+            macAddress: "665544332211",
+            address: "192.168.1.53",
+            isHidden: false
+        )
         try await insertDevicesAndSetStatuses([
-            (visibleOnline, .connected),
-            (hiddenOnline, .connected)
+            (selectedOnline, .connected),
+            (unselectedOnline, .connected),
+            (hiddenOnline, .connected),
+            (offlineSelected, .disconnected)
         ])
 
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
+        viewModel.setSelectedDeviceMacs(["aabbccddeeff", "112233445566", "665544332211"])
 
         await viewModel.start()
 
@@ -263,30 +289,33 @@ struct SoundSyncViewModelTests {
         await viewModel.stop()
     }
 
-    @Test func startFiltersOutOfflineDevices() async throws {
-        let onlineDevice = Shared.Device(
-            macAddress: "aabbccddeeff",
-            address: "192.168.1.50",
-            isHidden: false
-        )
-        let offlineDevice = Shared.Device(
-            macAddress: "112233445566",
-            address: "192.168.1.52",
-            isHidden: false
-        )
-        try await insertDevicesAndSetStatuses([
-            (onlineDevice, .connected),
-            (offlineDevice, .disconnected)
-        ])
-
+    @Test func setSelectedDeviceMacsPersistsPreferenceAndUpdatesSelectedDevices() async throws {
+        let device1 = Shared.Device(macAddress: "01", address: "192.168.1.10", isHidden: false, originalName: "Beta")
+        let device2 = Shared.Device(macAddress: "02", address: "192.168.1.11", isHidden: false, originalName: "Alpha")
+        try await insertDevicesAndSetStatuses([(device1, .connected), (device2, .disconnected)])
         let manager = FakeSoundSyncManager()
         let viewModel = makeViewModel(manager: manager)
 
-        await viewModel.start()
+        viewModel.setSelectedDeviceMacs(["01", "02"])
 
-        #expect(viewModel.isRunning)
-        #expect(await manager.lastStartedAddresses == ["192.168.1.50"])
-        await viewModel.stop()
+        try await waitUntil {
+            let persisted = await database.userPreferencesRepository.soundSyncTargetMacs.firstValue()
+            return persisted == Set(["01", "02"])
+        }
+        #expect(viewModel.selectedDevices.map { $0.device.macAddress } == ["01", "02"])
+        #expect(viewModel.canStart)
+    }
+
+    @Test func selectedDevicesPreservesAlphabeticalOrderWhenShowOfflineDevicesLastIsFalse() async throws {
+        let online = Shared.Device(macAddress: "01", address: "192.168.1.10", isHidden: false, originalName: "Beta")
+        let offline = Shared.Device(macAddress: "02", address: "192.168.1.11", isHidden: false, originalName: "Alpha")
+        try await insertDevicesAndSetStatuses([(online, .connected), (offline, .disconnected)])
+        let manager = FakeSoundSyncManager()
+        let viewModel = makeViewModel(manager: manager)
+        viewModel.showOfflineDevicesLast = false
+        viewModel.setSelectedDeviceMacs(["01", "02"])
+
+        #expect(viewModel.selectedDevices.map { $0.device.macAddress } == ["02", "01"])
     }
 
     @Test(
@@ -321,9 +350,9 @@ struct SoundSyncViewModelTests {
         #expect(viewModel.gain == 2.0)
     }
 
-    @Test func stopResetsRunningState() async {
+    @Test func stopResetsRunningState() async throws {
         let manager = FakeSoundSyncManager()
-        let viewModel = makeViewModel(manager: manager)
+        let viewModel = try await makeReadyToStartViewModel(manager: manager)
         await viewModel.start()
 
         await viewModel.stop()
@@ -333,7 +362,7 @@ struct SoundSyncViewModelTests {
 
     @Test func externalStopCancelsDeviceObservation() async throws {
         let manager = FakeSoundSyncManager()
-        let viewModel = makeViewModel(manager: manager)
+        let viewModel = try await makeReadyToStartViewModel(manager: manager)
         let observeTask = Task { await viewModel.observe() }
         defer { observeTask.cancel() }
 
@@ -367,6 +396,18 @@ private extension SoundSyncViewModelTests {
                 )
             )
         }
+    }
+
+    func makeReadyToStartViewModel(
+        manager: FakeSoundSyncManager,
+        openSettings: @escaping @MainActor () -> Void = {}
+    ) async throws -> SoundSyncViewModel {
+        let device = Shared.Device(macAddress: "aabbccddeeff", address: "192.168.1.50", isHidden: false)
+        try await insertDevicesAndSetStatuses([(device, .connected)])
+        try await database.userPreferencesRepository.updateSoundSyncTargetMacs(macAddresses: ["aabbccddeeff"])
+        let viewModel = makeViewModel(manager: manager, openSettings: openSettings)
+        viewModel.setSelectedDeviceMacs(["aabbccddeeff"])
+        return viewModel
     }
 
     func makeViewModel(

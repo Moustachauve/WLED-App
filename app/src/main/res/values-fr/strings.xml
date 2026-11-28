@@ -167,8 +167,21 @@
     <string name="sound_sync_send_mode">Mode de transmission</string>
     <string name="sound_sync_send_mode_unicast">Unicast</string>
     <string name="sound_sync_send_mode_multicast">Multicast</string>
-    <string name="sound_sync_send_mode_unicast_description">Envoie les données audio directement à chaque appareil WLED en ligne. Fonctionne de manière fiable sur la plupart des réseaux Wi-Fi et VLAN.</string>
+    <string name="sound_sync_send_mode_unicast_description">Envoie les données audio directement à chaque appareil WLED en ligne sélectionné. Fonctionne de manière fiable sur la plupart des réseaux Wi-Fi et VLAN.</string>
     <string name="sound_sync_send_mode_multicast_description">Envoie un seul flux multicast (239.0.0.1) à tous les appareils WLED sur le même réseau. Idéal pour les grandes installations si votre routeur prend en charge le multicast.</string>
+    <string name="sound_sync_target_devices">Appareils cibles</string>
+    <string name="sound_sync_select_devices">Sélectionner</string>
+    <string name="sound_sync_change_devices">Modifier</string>
+    <string name="sound_sync_select_target_devices">Sélectionner les appareils cibles</string>
+    <string name="sound_sync_select_all">Tout sélectionner</string>
+    <string name="sound_sync_deselect_all">Tout désélectionner</string>
+    <string name="sound_sync_no_devices_selected">Choisissez les appareils qui reçoivent l\'audio de la synchronisation sonore.</string>
+    <string name="sound_sync_no_devices_available">Aucun appareil WLED disponible pour le moment.</string>
+    <string name="sound_sync_multicast_all_devices">Le multicast envoie automatiquement l\'audio à tous les appareils WLED sur votre réseau.</string>
+    <plurals name="sound_sync_and_more_devices">
+        <item quantity="one">et %d autre</item>
+        <item quantity="other">et %d autres</item>
+    </plurals>
     <string name="sound_sync_start">Démarrer la Synchro Sonore</string>
     <string name="sound_sync_stop">Arrêter la Synchro Sonore</string>
     <string name="sound_sync_running">La synchronisation sonore est active</string>
