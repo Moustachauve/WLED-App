@@ -197,23 +197,27 @@ private fun getWebsocketShape(status: WebsocketStatus): RoundedPolygon = when (s
 
 @Composable
 private fun rememberWebsocketShapeMorph(websocketState: WebsocketStatus): Pair<Morph, State<Float>> {
-    var startShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
-    var endShape by remember { mutableStateOf(getWebsocketShape(websocketState)) }
+    val targetShape = getWebsocketShape(websocketState)
+    var startShape by remember { mutableStateOf(targetShape) }
+    var endShape by remember { mutableStateOf(targetShape) }
+    var hasTransitioned by remember { mutableStateOf(false) }
     val progress = remember { Animatable(1f) }
 
-    LaunchedEffect(websocketState) {
-        val targetShape = getWebsocketShape(websocketState)
-        if (targetShape != endShape) {
-            startShape = endShape
-            endShape = targetShape
-            progress.snapTo(0f)
-            progress.animateTo(
-                targetValue = 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMedium,
-                ),
-            )
+    if (hasTransitioned || targetShape != endShape) {
+        LaunchedEffect(targetShape) {
+            if (targetShape != endShape) {
+                hasTransitioned = true
+                startShape = endShape
+                endShape = targetShape
+                progress.snapTo(0f)
+                progress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                )
+            }
         }
     }
     val morph = remember(startShape, endShape) { Morph(startShape, endShape) }
@@ -235,16 +239,20 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
         label = "ColorAnimation",
     )
 
-    val infiniteTransition = rememberInfiniteTransition(label = "Spin")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "Rotation",
-    )
+    val rotationState: State<Float>? = if (websocketState == WebsocketStatus.CONNECTING) {
+        val infiniteTransition = rememberInfiniteTransition(label = "Spin")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "Rotation",
+        )
+    } else {
+        null
+    }
 
     val (morph, progressState) = rememberWebsocketShapeMorph(websocketState)
     val path = remember { Path() }
@@ -255,9 +263,7 @@ fun WebsocketStatusShape(websocketState: WebsocketStatus) {
             .padding(end = 4.dp)
             .size(12.dp)
             .graphicsLayer {
-                if (websocketState == WebsocketStatus.CONNECTING) {
-                    rotationZ = rotation
-                }
+                rotationZ = rotationState?.value ?: 0f
             }
             .drawBehind {
                 path.rewind()
