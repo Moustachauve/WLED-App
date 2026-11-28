@@ -1,0 +1,4 @@
+- Nouvelle liste de contrôleurs avec cartes lumineuses, curseurs de luminosité et bouton Tout allumer / Tout éteindre.
+- L'écran du contrôleur adopte maintenant la couleur du thème de votre page 1.6.4 et s'étend jusqu'au bas de l'écran.
+- Notification intégrée lorsqu'une mise à jour du micrologiciel est disponible.
+- Découverte plus rapide et meilleure stabilité des connexions sur Android et iOS.
